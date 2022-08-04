@@ -10,7 +10,7 @@ uses
   KeyDrv,
   WideStr,
   Utils,
-  TextDrv,
+  GraphDrv,
   MouseDrv;
 
 type
@@ -104,6 +104,7 @@ type
     AcceptTab: boolean;
     DrawEnabled: boolean;
     Manipulating: boolean;
+    Font: PFont;
     constructor Create(newId: string);
     constructor CreateParent(newId: string; newParent: PControl);
     procedure Init; virtual;
@@ -253,6 +254,7 @@ type
     procedure Init; virtual;
     procedure Paint; virtual;
     procedure SetupControls; virtual;
+    procedure ClearText; virtual;
   end;
   TDesktop = object(TPanel)
   private
@@ -401,6 +403,7 @@ begin
   DrawEnabled := true;
   Manipulating := false;
   ToolTip := '';
+  Font := Graphics^.SystemFont;
 end;
 
 procedure TControl.MouseMove(var state: TMouseState);
@@ -436,11 +439,11 @@ begin
     exit;
   Focused := true;
   desktop^.ActiveControl := @self;
-  TextDriver^.CursorOff;
+{  Graphics^.CursorOff;
   Draw;
-  TextDriver^.SetXY(TextX, TextY);
+  Graphcis^.SetXY(TextX, TextY);
   if (UsesCursor) then
-    TextDriver^.CursorOn;
+    GraphicsDriver^.CursorOn;}
 end;
 
 procedure TControl.Unfocus;
@@ -473,8 +476,8 @@ begin
   begin
     Focus;
     Handled := true;
-    if (UsesCursor) then
-      TextDriver^.CursorOn;
+{    if (UsesCursor) then
+      TextDriver^.CursorOn;}
   end;
 end;
 
@@ -588,6 +591,8 @@ begin
      Dispose(item, Done);
     end;
   end;
+  if (Font <> nil) then
+    Dispose(Font, Done);
   TObject.Done;
 end;
 
@@ -709,25 +714,28 @@ end;
 procedure TControl.StartDrawing;
 begin
   MouseDriver^.PushState;
-  TextDriver^.PushState;
+  Graphics^.PushState;
   if (MouseDriver^.State^.Visible) then
-    TextDriver^.EraseMouseCursor(MouseDriver^.State^);
-  TextDriver^.CursorOff;
+    Graphics^.EraseMouseCursor(MouseDriver^.State^);
+{  Graphics^.CursorOff;}
   MouseDriver^.HideMouse;
+  Graphics^.SetForeColor(ForeColor);
+  Graphics^.SetBackColor(BackColor);
+  SetupControls;
 end;
 
 procedure TControl.EndDrawing;
 var
   mouseState: TMouseState;
 begin
-  TextDriver^.PopState;
+  Graphics^.PopState;
   MouseDriver^.PopState;
   if (MouseDriver^.State^.Visible) then begin
-    TextDriver^.DrawMouseCursor(mouseState);
+    Graphics^.DrawMouseCursor(mouseState);
   end;
-  if (TextDriver^.State^.IsCursorOn) then begin
-    TextDriver^.CursorOn;
-  end;
+{  if (Graphics^.State^.IsCursorOn) then begin
+    Graphics^.CursorOn;
+  end;}
 end;
 
 procedure TControl.KeyPress(var key: word; var handled: boolean);
@@ -936,11 +944,10 @@ end;
 
 procedure TPanel.Paint;
 var
-  textXPos, textYPos: byte;
-  lineStyle: TLineStyle;
+  textXPos, textYPos: integer;
   desktop: PDesktop;
   clipRect: TRect;
-  index: integer;
+  index, currentX: integer;
   isHotKey: boolean;
   textIndex: integer;
   ch: char;
@@ -948,37 +955,33 @@ var
   mouseState: TMouseState;
 begin
   TControl.Paint;
+  if (not GetVisible) then exit;
   desktop := GetDesktop;
   GetClipRect(clipRect);
-  if (Focused and GetEnabled) then begin
-    TextDriver^.SetForeColor(BorderColor);
-    TextDriver^.SetBackColor(FocusedBackColor);
-  end;
+  Graphics^.SetForeColor(BackColor);
   if (DrawBackground) then
-    TextDriver^.FillRect(clipRect);
-  TextDriver^.PushState;
-  TextDriver^.SetForeColor(BorderColor);
-  TextDriver^.SetBackColor(BackColor);
+    Graphics^.FillRect(clipRect);
+  Graphics^.PushState;
+  Graphics^.SetForeColor(BorderColor);
+  Graphics^.SetBackColor(BackColor);
   if (BorderStyle <> bsNone) then begin
-    lineStyle := lsSingle;
-    if (BorderStyle = bsDouble) then lineStyle := lsDouble;
-    TextDriver^.Box(clipRect, lineStyle);
+    Graphics^.Rectangle(clipRect.X, clipRect.Y, ClipRect.Right, ClipRect.Bottom);
   end;
   txt := TrueText(text);
   case TextAlign of
     taLeft: textXPos := clipRect.X;
-    taRight: textXPos := clipRect.X + clipRect.Width - Length(txt);
-    taCenter: textXPos := clipRect.X + (clipRect.Width - Length(txt)) div 2;
+    taRight: textXPos := clipRect.X + clipRect.Width - Font^.TextWidth(txt);
+    taCenter: textXPos := ClipRect.X + (ClipRect.Width - Font^.TextWidth(txt)) div 2;
   end;
   case VertAlign of
     vaTop: textYPos := clipRect.Y;
-    vaBottom: textYPos := clipRect.Y + clipRect.Height - 1;
-    vaCenter: textYPos := clipRect.Y + (clipRect.Height) div 2;
+    vaBottom: textYPos := clipRect.Y + clipRect.Height - Font^.Height - 1;
+    vaCenter: textYPos := clipRect.Y + (clipRect.Height - Font^.Height) div 2;
   end;
   index := 0;
   textIndex := 1;
   isHotKey := false;
-  TextDriver^.PopState;
+  currentX := Margin;
   while textIndex <= Length(Text) do
   begin
     if (Text[textIndex] = '&') then begin
@@ -987,13 +990,13 @@ begin
     end;
     if (isHotKey) then begin
       isHotKey := false;
-      TextDriver^.SetForeColor(HotKeyColor);
+      Graphics^.SetForeColor(HotKeyColor);
     end
     else
-      TextDriver^.SetForeColor(ForeColor);
+      Graphics^.SetForeColor(ForeColor);
     ch := Text[textIndex];
-    TextDriver^.SetXY(index + textXPos + Margin, textYPos);
-    TextDriver^.Write(ch);
+    Graphics^.DrawText(textXPos + currentX, TextYPos, ch);
+    Inc(textXPos, Font^.TextWidth(ch));
     Inc(index);
     Inc(textIndex);
   end;
@@ -1062,11 +1065,8 @@ end;
 procedure TButton.Paint;
 begin
   if (Pressed or Active) then begin
-    TextDriver^.SetForeColor(PressedForeColor);
-    TextDriver^.SetBackColor(PressedBackColor);
-  end else begin
-    TextDriver^.SetForeColor(ForeColor);
-    TextDriver^.SetBackColor(BackColor);
+    Graphics^.SetForeColor(PressedForeColor);
+    Graphics^.SetBackColor(PressedBackColor);
   end;
   TPanel.Paint;
 end;
@@ -1096,18 +1096,18 @@ var
   control: PMenuItem;
 begin
   currentX := 0;
-  SetBounds(0, 0, GetDesktop^.Width, 1);
+  SetBounds(0, 0, GetDesktop^.Width, Font^.Height + 4);
   if Controls^.Count = 0 then exit;
-  for index := 0 to Controls^.Count - 1 do begin
+  for index := 0 to Controls^.Count - 1 do
+  begin
     control := PMenuItem(Controls^.GetItem(index));
     with control^ do
     begin
-      TextAlign := taCenter;
       X := currentX;
       Y := 0;
-      Height := self.Height;
-      Width := Length(TrueText(Text) + '  ');
-      Margin := 0;
+      Height := Font^.Height + 3;
+      Width := Font^.TextWidth(TrueText(Text + '  '));
+      Margin := 1;
       Inc(currentX, Width);
     end;
   end;
@@ -1117,9 +1117,10 @@ procedure TMenuBar.Paint;
 var
   rect: TRect;
 begin
-  TextDriver^.SetForeColor(ForeColor);
-  TextDriver^.SetBackColor(BackColor);
   TPanel.Paint;
+  GetScreenBounds(rect);
+  Graphics^.SetForeColor(BorderColor);
+  Graphics^.HLine(rect.X, rect.Bottom, rect.Width);
 end;
 
 procedure TMenuBar.Init;
@@ -1145,8 +1146,6 @@ end;
 
 procedure TMenu.Paint;
 begin
-  TextDriver^.SetForeColor(ForeColor);
-  TextDriver^.SetBackColor(BackColor);
   TPanel.Paint;
 end;
 
@@ -1166,42 +1165,40 @@ var
   index: word;
   item: PMenuItem;
   borderWidth: byte;
-  hotKeyWidth: byte;
+  itemWidth: integer;
 begin
   X := 0;
   Y := 0;
-  maxWidth := 4;
+  maxWidth := Font^.TextWidth('w') * 4;
   borderWidth := 1;
   if (BorderStyle = bsNone) then
     borderWidth := 0;
   if (Parent <> nil) and (TypeOf(Parent^) = TypeOf(TMenuItem)) then begin
     X := Parent^.X;
-    Y := Parent^.Y + 1;
+    Y := Parent^.Height + 1;
   end;
   if (Controls^.Count > 0) then begin;
     for index := 0 to Controls^.Count - 1 do begin
       item := PMenuItem(Controls^.GetItem(index));
-      hotKeyWidth := 1;
-      if (item^.HotKey = 0) or (not item^.ShowHotKey) then
-        hotKeyWidth := 0;
-      if (Length(item^.Text) + hotKeyWidth + 2 > maxWidth) then
-        maxWidth := Length(item^.Text) + hotKeyWidth + 2;
+      itemWidth := Font^.TextWidth(TrueText(item^.Text + '  '));
+      if (itemWidth > maxWidth) then
+        maxWidth := itemWidth;
     end;
     for index := 0 to Controls^.Count - 1 do begin
       item := PMenuItem(Controls^.GetItem(index));
       with item^ do
       begin
         TextAlign := taLeft;
-        Margin := 0;
-        X := 1;
-        Y := index + 1;
-        Width := MaxWidth + 1;
-        Height := 1;
+        Margin := Font^.TextWidth('W');
+        X := 0;
+        Y := index * (Font^.Height) + 4;
+        Width := MaxWidth;
+        Height := Font^.Height + 1;
       end;
     end;
   end;
-  Width := maxWidth + 1 + 2 * borderWidth;
-  Height := Controls^.Count + 2 * borderWidth;
+  Width := maxWidth * borderWidth;
+  Height := Controls^.Count * (Font^.Height + 1) + 2 * borderWidth;
 end;
 
 procedure TMenu.Init;
@@ -1348,6 +1345,8 @@ begin
   BorderStyle := bsNone;
   Grouped := true;
   Toggle := true;
+  VertAlign := vaCenter;
+  TextAlign := taCenter;
 end;
 
 procedure TMenuItem.KeyPress(var key: word; var handled: boolean);
@@ -1464,31 +1463,27 @@ var
   rect: TRect;
   desc: string;
 begin
-  TextDriver^.SetForeColor(ForeColor);
-  TextDriver^.SetBackColor(BackColor);
-  if Separator then begin
+  if (not GetVisible) then exit;
+  if Separator then
+  begin
     GetScreenBounds(rect);
-    TextDriver^.SetForeColor(BorderColor);
-    TextDriver^.HLine(rect.X, Rect.Y + (rect.Height div 2), rect.Width, lsSingle);
-    TextDriver^.SetXY(rect.X - 1, rect.Y + (rect.Height div 2));
-    TextDriver^.Write(#195);
-    TextDriver^.SetXY(rect.X + rect.Width, Rect.Y + (rect.Height div 2));
-    TextDriver^.Write(#180);
+    Graphics^.SetForeColor(BorderColor);
+    Graphics^.HLine(rect.X, Rect.Y + (rect.Height div 2), rect.Width);
   end
   else
     TButton.Paint;
-  if (ShowHotKey and (HotKey <> 0)) then begin
-    if (Pressed or Active) then begin
-      TextDriver^.SetForeColor(PressedForeColor);
-      TextDriver^.SetBackColor(PressedBackColor);
+  if (ShowHotKey and (HotKey <> 0)) then
+  begin
+    if (Pressed or Active) then
+    begin
+      Graphics^.SetForeColor(PressedForeColor);
+      Graphics^.SetBackColor(PressedBackColor);
     end;
     GetClipRect(rect);
     desc := '';{GetKeyDesc(HotKey);}
-    TextDriver^.SetXY(rect.X + rect.Width - Length(desc), rect.Y);
-    TextDriver^.Write(desc);
+    Graphics^.DrawText(rect.X + rect.Width - Font^.TextWidth(desc), rect.Y, desc);
   end;
 end;
-
 
 procedure TButton.MouseDown(var state: TMouseState);
 var
@@ -1540,28 +1535,37 @@ var
   rect: TRect;
 begin
   GetDesktop^.GetBounds(rect);
-  SetBounds(0, rect.Height - 1, rect.Width, 1);
+  SetBounds(0, rect.Height - Font^.Height - 3, rect.Width, Font^.Height + 3);
   with TextPanel^ do
   begin
     BorderStyle := bsNone;
     ForeColor := icMenu;
     BackColor := icMenuBack;
-    SetBounds(0, 0, self.Width, self.Height);
+    SetBounds(0, rect.Y + 1, rect.Width, rect.Height);
   end;
+end;
+
+procedure TStatusBar.ClearText;
+var
+  rect: TRect;
+begin
 end;
 
 procedure TStatusBar.Paint;
 var
   rect: TRect;
 begin
-  TextDriver^.SetForeColor(ForeColor);
-  TextDriver^.SetBackColor(BackColor);
   TPanel.Paint;
+  GetClipRect(rect);
+  Graphics^.SetForeColor(BorderColor);
+  Graphics^.HLine(rect.X, rect.Y, rect.Width);
+  ClearText;
+  Graphics^.DrawText(rect.X, rect.Y, Text);
 end;
 
 procedure TDesktop.SetupControls;
 begin
-  SetBounds(0, 0, TextDriver^.Mode^.Width, TextDriver^.Mode^.Height);
+  SetBounds(0, 0, Graphics^.Mode^.Width, Graphics^.Mode^.Height);
 end;
 
 procedure TDesktop.Init;
@@ -1587,14 +1591,12 @@ end;
 
 procedure TDesktop.Paint;
 begin
-  TextDriver^.SetForeColor(ForeColor);
-  TextDriver^.SetBackColor(BackColor);
   TPanel.Paint;
 end;
 
 procedure TDesktop.GetClientRect(var rect: TRect);
 begin
-  rect.Create(0, 0, TextDriver^.Mode^.Width, TextDriver^.Mode^.Height);
+  rect.Create(0, 0, Graphics^.Mode^.Width, Graphics^.Mode^.Height);
 end;
 
 function TDesktop.FindNextControl(control: PControl): PControl;
