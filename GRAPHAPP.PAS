@@ -11,6 +11,7 @@ uses
   Apps,
   Utils,
   Controls,
+  StrUtils,
   GraphIni;
 
 type
@@ -18,9 +19,9 @@ type
   TGraphicApplication = object(TApplication)
   private
     _keyHandled: boolean;
-    _mouseVisible: boolean;  
+    _mouseVisible: boolean;
     _driverId: TGraphDrivers;
-    _modeId: string;
+    _modeId: PChar;
   public
     Desktop: PDesktop;
     MenuBar: PMenuBar;
@@ -29,28 +30,26 @@ type
     procedure Init; virtual;
     procedure Run; virtual;
     procedure ProcessEvents; virtual;
-    procedure InitGraphicsDriver(driver: TGraphDrivers; modeId: string); virtual;
+    procedure InitGraphicsDriver(driver: TGraphDrivers; modeId: PChar); virtual;
     procedure InitDefaultColors; virtual;
     procedure InitControls; virtual;
     procedure MainLoop; virtual;
-    constructor Create(const newId: string; interfaceMem: longint; driver: TGraphDrivers; modeId: string);
+    constructor Create(const newId: string; interfaceMem: longint; driver: TGraphDrivers; modeId: PChar);
     destructor Done; virtual;
   end;
 
 implementation
 
-constructor TGraphicApplication.Create(const newId: string; interfaceMem: longint; driver: TGraphDrivers; modeId: string); 
+constructor TGraphicApplication.Create(const newId: string; interfaceMem: longint; driver: TGraphDrivers; modeId: PChar);
 begin
   _driverId := driver;
   _modeId := modeId;
   TApplication.Create(newId, interfaceMem);
-  Init;
 end;
 
 procedure TGraphicApplication.Init;
 begin
   TApplication.Init;
-  TypeName := 'TGraphicApplication';
   InitGraphicsDriver(_driverId, _modeId);
   MouseHandled := false;
   _keyHandled := false;
@@ -59,6 +58,7 @@ begin
   Desktop^.MouseState.Visible := true;
   Desktop^.MouseStack.Create;
   OldMouseState := New(PMouseState, Create);
+  _modeId := nil;
   InitControls;
 end;
 
@@ -100,7 +100,7 @@ begin
   icFocused := Graphics^.GetColor(scGreen, MaxIntensity);
 end;
 
-procedure TGraphicApplication.InitGraphicsDriver(driver: TGraphDrivers; modeId: string);
+procedure TGraphicApplication.InitGraphicsDriver(driver: TGraphDrivers; modeId: PChar);
 var
   factory: TGraphicsFactory;
   modeIndex: integer;
@@ -130,6 +130,7 @@ begin
     Desktop^.ProcessMouse(mouseState, OldMouseState^, MouseHandled);
     OldMouseState^ := mouseState;
   end;
+  mouseState.Done;
   MouseHandled := false;
   _keyHandled := false;
   if (KeyPressed) then
@@ -142,6 +143,7 @@ end;
 destructor TGraphicApplication.Done;
 begin
   Dispose(OldMouseState, Done);
+  DisposeLargeString(_modeId);
   TGraphicApplication.Done;
 end;
 
