@@ -125,7 +125,7 @@ var
 begin
   MouseDriver^.GetMouseState(mouseState);
   if not mouseState.Equals(OldMouseState^) then begin
-    Graphics^.EraseMouseCursor(OldMouseState^);
+    Graphics^.EraseMouseCursor(mouseState, OldMouseState^);
     Graphics^.DrawMouseCursor(mouseState);
     Desktop^.ProcessMouse(mouseState, OldMouseState^, MouseHandled);
     OldMouseState^ := mouseState;
@@ -144,7 +144,8 @@ destructor TGraphicApplication.Done;
 begin
   Dispose(OldMouseState, Done);
   DisposeLargeString(_modeId);
-  TGraphicApplication.Done;
+  Dispose(Graphics, Done);
+  TApplication.Done;
 end;
 
 procedure TGraphicApplication.Run;

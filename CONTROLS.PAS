@@ -140,6 +140,7 @@ type
     procedure FocusFirst(var handled: boolean); virtual;
     procedure StartDrawing; virtual;
     procedure EndDrawing; virtual;
+    function  CheckError(var Error: TError): boolean; virtual;
     function  TrueTextWidth(txt: PChar): integer;
     function GetStatusBar: PStatusBar; virtual;
     function GetVisible: boolean; virtual;
@@ -398,6 +399,16 @@ begin
   Font := Graphics^.SystemFont;
   Parent := nil;
   ShowHotKey := false;
+end;
+
+function TControl.CheckError(var error: TError): boolean;
+begin
+  CheckError := true;
+  if (error.ErrorCode <> ecNone) then begin
+    CheckError := false;
+    GetDesktop^.HandleError(error);
+  end;
+  ClearError(error);
 end;
 
 procedure TControl.MouseMove(var state: TMouseState);
@@ -711,7 +722,7 @@ begin
   MouseDriver^.PushState;
   Graphics^.PushState;
   if (MouseDriver^.State^.Visible) then
-    Graphics^.EraseMouseCursor(MouseDriver^.State^);
+    Graphics^.EraseMouseCursor(MouseDriver^.State^, MouseDriver^.State^);
 {  Graphics^.CursorOff;}
   MouseDriver^.HideMouse;
   Graphics^.SetForeColor(ForeColor);
@@ -746,6 +757,7 @@ var
   newState: TMouseState;
   desktop: PDesktop;
   control: PControl;
+  currentId: string;
 begin
   if not (GetVisible and GetEnabled) then Exit;
 
@@ -774,6 +786,7 @@ begin
     end;
     if (intersects and (not handled)) or Moving or Manipulating then
     begin
+      currentId := StrPas(id);
       newState.Create;
       newState := state;
       Dec(newState.X, rect.X);
@@ -1163,34 +1176,33 @@ var
   rect: TRect;
   error: TError;
 begin
+  Visible := true;
+  SetupControls;
   GetScreenBounds(rect);
   StartDrawing;
   MouseDriver^.HideMouse;
   if (BackData <> nil) then
     Dispose(BackData, Done);
-  BackData := New(PMemoryStream, Create(rect.Width * rect.Height, error));
-  if (error.ErrorCode <> ecNone) then begin
-    GetDesktop^.HandleError(error);
-  end;
-  Graphics^.GetImageStream(backData, rect);
+  BackData := New(PMemoryStream, Create(rect.Width * rect.Height));
+  CheckError(BackData^.Error);
+  Graphics^.GetImageStreamRect(rect, BackData);
   TPanel.Show;
   EndDrawing;
 end;
 
 procedure TPopUp.Hide;
 var
-  sourceRect, destRect: TRect;
+  destRect: TRect;
 begin
   GetScreenBounds(destRect);
   StartDrawing;
-  sourceRect.Create;
-  sourceRect := destRect;
-  sourceRect.Translate(-destRect.X, -destRect.Y);
   if (BackData <> nil) then
   begin
-    Graphics^.DrawImageStream(sourceRect.X, sourceRect.Y, sourceRect.Width, sourceRect.Height, BackData);
+    BackData^.Seek(0, soFromBeginning);
+    Graphics^.DrawImageStream(destRect.X, destRect.Y, destRect.Width, destRect.Height, BackData);
     Dispose(BackData, Done);
   end;
+  CheckError(BackData^.Error);
   BackData := nil;
   TPanel.Hide;
   EndDrawing;
@@ -1458,7 +1470,7 @@ begin
   Pressed := false;
   GetStatusBar^.Text := '';
   GetStatusBar^.Draw;
-  Draw;
+  Paint;
 end;
 
 procedure TMenuItem.MouseDown(var state: TMouseState);
@@ -1488,7 +1500,6 @@ begin
       Menu^.ActiveItem^.Pressed := true;
       Menu^.ActiveItem^.Active := true;
       Menu^.Show;
-      Draw;
     end;
   end;
 end;
