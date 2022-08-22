@@ -233,7 +233,6 @@ type
     ParentItem: PMenuItem;
     procedure KeyPress(var key: word; var handled: boolean); virtual;
     procedure Init; virtual;
-    procedure Paint; virtual;
     procedure Show; virtual;
     procedure Hide; virtual;
     procedure SetupControls; virtual;
@@ -963,7 +962,7 @@ procedure TPanel.Paint;
 var
   textXPos, textYPos: integer;
   desktop: PDesktop;
-  clipRect: TRect;
+  rect: TRect;
   index, currentX: integer;
   isHotKey: boolean;
   textIndex: integer;
@@ -974,25 +973,25 @@ begin
   inherited Paint;
   if (not GetVisible) then exit;
   desktop := GetDesktop;
-  GetClipRect(clipRect);
+  GetScreenBounds(rect);
   Graphics^.SetForeColor(BackColor);
   if (DrawBackground) then
-    Graphics^.FillRect(clipRect);
+    Graphics^.FillRect(rect);
   Graphics^.SetForeColor(BorderColor);
   Graphics^.SetBackColor(BackColor);
   if (BorderStyle <> bsNone) then begin
-    Graphics^.Rectangle(clipRect.X, clipRect.Y, ClipRect.Width, ClipRect.Height);
+    Graphics^.Rectangle(rect);
   end;
   textWidth := TrueTextWidth(Text);
   case TextAlign of
-    taLeft: textXPos := clipRect.X;
-    taRight: textXPos := clipRect.X + clipRect.Width - textWidth;
-    taCenter: textXPos := ClipRect.X + (ClipRect.Width - textWidth) div 2;
+    taLeft: textXPos := rect.X;
+    taRight: textXPos := rect.X + rect.Width - textWidth;
+    taCenter: textXPos := rect.X + (rect.Width - textWidth) div 2;
   end;
   case VertAlign of
-    vaTop: textYPos := clipRect.Y;
-    vaBottom: textYPos := clipRect.Y + clipRect.Height - Font^.Height - 1;
-    vaCenter: textYPos := clipRect.Y + (clipRect.Height - Font^.Height) div 2;
+    vaTop: textYPos := rect.Y;
+    vaBottom: textYPos := rect.Y + rect.Height - Font^.Height - 1;
+    vaCenter: textYPos := rect.Y + (rect.Height - Font^.Height) div 2;
   end;
   index := 0;
   textIndex := 0;
@@ -1160,46 +1159,35 @@ var
   error: TError;
 begin
   Visible := true;
-  SetupControls;
-  GetScreenBounds(rect);
   StartDrawing;
-  if (BackData <> nil) then
+  GetScreenBounds(rect);
+  if (BackData <> nil) then begin
     Dispose(BackData, Done);
+    BackData := nil;
+  end;
   BackData := New(PMemoryStream, Create(rect.Width * rect.Height));
-  CheckError(BackData^.Error);
   Graphics^.GetImageStreamRect(rect, BackData);
+  CheckError(BackData^.Error);
   TPanel.Show;
   EndDrawing;
 end;
 
 procedure TPopUp.Hide;
 var
-  destRect: TRect;
+  rect: TRect;
 begin
-  GetScreenBounds(destRect);
   StartDrawing;
+  GetScreenBounds(rect);
   if (BackData <> nil) then
   begin
     BackData^.Seek(0, soFromBeginning);
-    Graphics^.DrawImageStream(destRect.X, destRect.Y, destRect.Width, destRect.Height, BackData);
+    Graphics^.DrawImageStream(rect.X, rect.Y, rect.Width, rect.Height, BackData);
     Dispose(BackData, Done);
   end;
-   CheckError(BackData^.Error);
+  CheckError(BackData^.Error);
   BackData := nil;
   TPanel.Hide;
   EndDrawing;
-end;
-
-procedure TMenu.Paint;
-var
-  rect: TRect;
-begin
-  TPanel.Paint;
-  GetScreenBounds(rect);
-  Graphics^.SetForeColor(icBorder);
-  Graphics^.HLine(rect.X, rect.Y + rect.Height - 1, rect.Width);
-  Graphics^.VLine(rect.X, rect.Y, rect.Height);
-  Graphics^.VLine(rect.X + rect.Width - 1, rect.Y, rect.Height);
 end;
 
 procedure TMenu.Show;
@@ -1225,7 +1213,7 @@ var
 begin
   if (Parent <> nil) and (TypeOf(Parent^) = TypeOf(TMenuItem)) then begin
     X := Parent^.X - 1;
-    Y := Parent^.Height + 2;
+    Y := Parent^.Height + 1;
   end;
   maxWidth := 0;
   currentY := Font^.Height div 2;
@@ -1266,7 +1254,7 @@ begin
   Visible := false;
   ForeColor := icMenu;
   BackColor := icMenuBack;
-  BorderStyle := bsNone;
+  BorderStyle := bsSingle;
   ActiveItem := nil;
 end;
 
