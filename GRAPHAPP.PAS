@@ -19,14 +19,12 @@ type
   PGraphicApplication = ^TGraphicApplication;
   TGraphicApplication = object(TApplication)
   private
-    _keyHandled: boolean;
     _mouseVisible: boolean;
     _driverId: TGraphDrivers;
     _modeId: string;
   public
     Desktop: PDesktop;
     OldMouseState: PMouseState;
-    MouseHandled: boolean;
     procedure Init; virtual;
     procedure Run; virtual;
     procedure ProcessEvents; virtual;
@@ -56,8 +54,6 @@ begin
   Memory := new(PMemDrv, CreateReserved(InterfaceMemory));
   FontList := New(PFontList, Create);
   FontList^.Add(New(PSystemFont, CreateId('SystemFont')));
-  MouseHandled := false;
-  _keyHandled := false;
   InitDefaultColors;
   Desktop := New(PDesktop, CreateParent('Desktop', nil));
   Desktop^.MouseState.Visible := true;
@@ -97,6 +93,8 @@ begin
   icButtonDown := Graphics^.GetColor(scWhite, MaxIntensity);
   icButtonDownBack := Graphics^.GetColor(scGreen, Intensity75);
   icButtonHotKey := Graphics^.GetColor(scRed, MaxIntensity);
+  icButtonHover := Graphics^.GetColor(scBlack, MaxIntensity);
+  icButtonHoverBack := Graphics^.GetColor(scGreen, MaxIntensity);
   icWindowTitle := Graphics^.GetColor(scBlack, MinIntensity);
   icWindowTitleBack := Graphics^.GetColor(scCyan, MaxIntensity);
   icMenu := Graphics^.GetColor(scBlack, MinIntensity);
@@ -135,17 +133,22 @@ end;
 procedure TGraphicApplication.ProcessEvents;
 var
   mouseState: TMouseState;
+  enterHandled, leaveHandled, clickHandled, moveHandled, keyHandled: boolean;
   ch: char;
 begin
   MouseDriver^.GetMouseState(mouseState);
+  enterHandled := false;
+  leaveHandled := false;
+  clickHandled := false;
+  moveHandled := false;
+  keyHandled := false;
+
   if not mouseState.Equals(OldMouseState^) then begin
     Graphics^.MoveMouseCursor(mouseState, oldMouseState^);
-    Desktop^.ProcessMouse(mouseState, OldMouseState^, MouseHandled);
+    Desktop^.ProcessMouse(mouseState, OldMouseState^, moveHandled, enterHandled, leaveHandled, clickHandled);
     OldMouseState^ := mouseState;
   end;
-  mouseState.Done;
-  MouseHandled := false;
-  _keyHandled := false;
+
   if (KeyPressed) then
   begin
     ch := ReadKey;

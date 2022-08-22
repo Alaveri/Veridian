@@ -64,11 +64,22 @@ type
   TKeyboardEvent = procedure(sender: PControl; var key: word; var handled: boolean);
   TControl = Object(TObject)
   private
+    _manipulating: boolean;
+    _moving: boolean;
+    procedure HandleMouseMove(intersects: boolean; state, oldState, controlMouseState: TMouseState;
+      var moveHandled, enterHandled, leaveHandled: boolean); virtual;
   public
     DrawBackground: boolean;
     X, Y: integer;
     Width, Height: word;
     Visible: boolean;
+    BorderColor: byte;
+    ForeColor: byte;
+    BackColor: byte;
+    FocusedForeColor: byte;
+    FocusedBackColor: byte;
+    HoverForeColor: byte;
+    HoverBackColor: byte;
     OnMouseMove: PMouseEvent;
     OnMouseUp: PMouseEvent;
     OnMouseDown: PMouseEvent;
@@ -79,11 +90,6 @@ type
     Controls: PControlList;
     Parent: PControl;
     BorderStyle: TBorderStyle;
-    BorderColor: byte;
-    ForeColor: byte;
-    BackColor: byte;
-    FocusedForeColor: byte;
-    FocusedBackColor: byte;
     Modal: boolean;
     IsLeftMouseDown: boolean;
     IsRightMouseDown: boolean;
@@ -94,7 +100,6 @@ type
     ShowToolTip: boolean;
     Position: TScreenPosition;
     MoveStartX, MoveStartY: longint;
-    Moving: boolean;
     Grouped: boolean;
     TakesControl: boolean;
     TextX, TextY: integer;
@@ -106,7 +111,6 @@ type
     AcceptEnter: boolean;
     AcceptTab: boolean;
     DrawEnabled: boolean;
-    Manipulating: boolean;
     ShowHotKey: boolean;
     Font: PFont;
     constructor CreateParent(newId: string; newParent: PControl);
@@ -115,6 +119,7 @@ type
     procedure Hide; virtual;
     procedure Show; virtual;
     procedure Draw; virtual;
+    procedure DrawSelf; virtual;
     procedure Paint; virtual;
     procedure SetParent(newParent: PControl); virtual;
     procedure GetBounds(var rect: TRect); virtual;
@@ -125,7 +130,8 @@ type
     procedure GetClipRect(var rect: TRect); virtual;
     procedure GetClientRect(var rect: TRect); virtual;
     procedure DrawControls; virtual;
-    procedure ProcessMouse(var state, oldState: TMouseState; var handled: boolean); virtual;
+    procedure ProcessMouse(state, oldState: TMouseState;
+      var moveHandled, enterHandled, leaveHandled, clickHandled: boolean); virtual;
     procedure ProcessKeyPress(var key: word; var handled: boolean); virtual;
     procedure SetupControls; virtual;
     procedure MouseMove(var state: TMouseState); virtual;
@@ -171,7 +177,6 @@ type
     Text: PChar;
     TextAlign: TTextAlign;
     VertAlign: TVertAlign;
-    HighlightColor: byte;
     ShadowColor: byte;
     HotKeyColor: byte;
     HotKey: word;
@@ -288,9 +293,9 @@ var
   icButtonBack: byte;
   icButtonDown: byte;
   icButtonDownBack: byte;
+  icButtonHover: byte;
+  icButtonHoverBack: byte;
   icButtonHotKey: byte;
-  icButtonShadow: byte;
-  icButtonHighLight: byte;
   icWindowTitle: byte;
   icWindowTitleBack: byte;
   icMenu: byte;
@@ -359,12 +364,16 @@ begin
   inherited Init;
   Controls := New(PControlList, Create);
   SetBounds(0, 0, 0, 0);
+  _moving := false;
+  _manipulating := false;
   Visible := true;
-  Moving := false;
   Position := spRelative;
   BorderStyle := bsNone;
-  BorderColor := 0;
   ForeColor := 0;
+  BackColor := 0;
+  HoverForeColor := 0;
+  HoverBackColor := 0;
+  BorderColor := 0;
   FocusedForeColor := 0;
   FocusedBackColor := 0;
   OnMouseMove := nil;
@@ -394,7 +403,6 @@ begin
   AcceptEnter := false;
   AcceptTab := false;
   DrawEnabled := true;
-  Manipulating := false;
   ToolTip := nil;
   Parent := nil;
   ShowHotKey := false;
@@ -665,7 +673,7 @@ begin
     control^.IsMouseOver := false;
     control^.IsLeftMouseDown := false;
     control^.IsRightMouseDown := false;
-    control^.Moving := false;
+    control^._moving := false;
     if (desktop^.ActiveControl = control) then
       desktop^.ActiveControl := nil;
   end;
@@ -682,6 +690,14 @@ end;
 procedure TControl.Paint;
 begin
   Graphics^.State^.Font := Font;
+end;
+
+procedure TControl.DrawSelf;
+begin
+  if not GetVisible then exit;
+  StartDrawing;
+  Paint;
+  EndDrawing;
 end;
 
 procedure TControl.Draw;
@@ -735,17 +751,67 @@ procedure TControl.KeyPress(var key: word; var handled: boolean);
 begin
 end;
 
-procedure TControl.ProcessMouse(var state, oldState: TMouseState; var handled: boolean);
+procedure TControl.HandleMouseMove(intersects: boolean; state, oldState, controlMouseState: TMouseState;
+  var moveHandled, enterHandled, leaveHandled: boolean);
+begin
+  if (oldState.X <> state.X) or (oldState.Y <> state.Y) then begin
+    if intersects or _moving or _manipulating then begin
+      if not moveHandled then begin
+        MouseMove(controlMouseState);
+        moveHandled := true;
+      end;
+      if (not IsMouseOver) and (not enterHandled)  then begin
+        IsMouseOver := true;
+        enterHandled := true;
+        MouseEnter(controlMouseState);
+        if (OnMouseEnter <> nil) then
+          TMouseEvent(OnMouseEnter)(@self, controlMouseState);
+      end;
+    end else begin
+      if IsMouseOver and (not LeaveHandled) then begin
+        IsMouseOver := false;
+        leaveHandled := true;
+        MouseLeave(controlMouseState);
+        if (OnMouseLeave <> nil) then
+          TMouseEvent(OnMouseLeave)(@self, controlMouseState);
+      end;
+    end;
+  end;
+end;
+
+procedure TControl.ProcessMouse(state, oldState: TMouseState;
+  var moveHandled, enterHandled, leaveHandled, clickHandled: boolean);
 var
   Index: word;
   rect: TRect;
   clientRect: TRect;
   intersects: boolean;
-  newState: TMouseState;
+  controlMouseState: TMouseState;
   desktop: PDesktop;
   control: PControl;
 begin
-  if not (GetVisible and GetEnabled) then Exit;
+  if not (GetVisible and GetEnabled) then exit;
+
+  GetScreenBounds(rect);
+  intersects := rect.IntersectPoint(state.X, state.Y);
+  desktop := GetDesktop;
+  controlMouseState.CreateAssign(state);
+  Dec(controlMouseState.X, rect.X);
+  Dec(controlMouseState.Y, rect.Y);
+
+  if Controls^.Count > 0 then begin
+    for index := 0 to Controls^.Count - 1 do
+    begin
+      control := Controls^.GetItem(index);
+      control^.ProcessMouse(state, oldState, moveHandled, enterHandled, leaveHandled, clickHandled);
+    end;
+  end;
+
+  HandleMouseMove(intersects, state, oldState, controlMouseState, moveHandled, enterHandled, leaveHandled);
+
+
+
+{  if not (GetVisible and GetEnabled) then Exit;
 
   GetClipRect(rect);
   intersects := rect.IntersectPoint(state.X, state.Y);
@@ -770,7 +836,7 @@ begin
       IsMouseOver := false;
       desktop^.MouseOverControl := nil;
     end;
-    if (intersects and (not handled)) or Moving or Manipulating then
+    if (intersects and (not handled)) or _moving or __manipulating then
     begin
       newState.Create;
       newState := state;
@@ -851,7 +917,7 @@ begin
 
   if (not (bsLeft in state.ButtonState)) and (bsLeft in oldState.ButtonState) then
   begin
-    if Intersects or Modal or Moving or Manipulating then
+    if Intersects or Modal or _moving or __manipulating then
     begin
       Handled := true;
       newState.Create;
@@ -875,7 +941,7 @@ begin
 
   if (not (bsRight in state.ButtonState)) and (bsRight in oldState.ButtonState) then
   begin
-    if Intersects or Modal or Moving or Manipulating then
+    if Intersects or Modal or _moving or __manipulating then
     begin
       Handled := true;
       newState.Create;
@@ -895,7 +961,7 @@ begin
       end;
       IsRightMouseDown := false;
     end;
-  end;
+  end;}
 end;
 
 procedure TControl.ProcessKeyPress(var key: word; var handled: boolean);
@@ -940,7 +1006,6 @@ begin
   BackColor := icWindowBack;
   BorderColor := icBorder;
   BorderStyle := bsSingle;
-  HighlightColor := icButtonHighlight;
   FocusedForeColor := icFocusedBack;
   FocusedBackColor := icFocused;
   DrawBackground := true;
@@ -1034,6 +1099,8 @@ begin
   Grouped := false;
   PressedBackColor := icButtonDownBack;
   PressedForeColor := icButtonDown;
+  HoverForeColor := icButtonHover;
+  HoverBackColor := icButtonHoverBack;
 end;
 
 function TButtonList.ToString: string;
@@ -1067,27 +1134,34 @@ begin
 end;
 
 procedure TButton.Paint;
+var
+  fore, back: byte;
 begin
+  fore := ForeColor;
+  back := backColor;
   if (Pressed or Active) then begin
-    Graphics^.SetForeColor(PressedForeColor);
-    Graphics^.SetBackColor(PressedBackColor);
+    ForeColor := PressedForeColor;
+    BackColor := PressedBackColor;
+  end else if (IsMouseOver) then begin
+    ForeColor := HoverForeColor;
+    BackColor := HoverBackColor;
   end;
   TPanel.Paint;
+  ForeColor := fore;
+  backColor := back;
 end;
 
 procedure TButton.MouseEnter(var state: TMouseState);
 begin
   if not (Enabled and Visible) then exit;
-  if (state.ButtonState = [bsLeft]) then Pressed := true;
-  Draw;
+  DrawSelf;
   GetStatusBar^.Draw;
 end;
 
 procedure TButton.MouseLeave(var state: TMouseState);
 begin
   if not (Enabled and Visible) then exit;
-  if (state.ButtonState = [bsLeft]) then Pressed := false;
-  Draw;
+  DrawSelf;
   GetStatusBar^.Draw;
 end;
 
@@ -1099,7 +1173,7 @@ var
   spaceWidth: integer;
 begin
   currentX := 0;
-  SetBounds(0, 0, GetDesktop^.Width, Font^.Height + 4);
+  SetBounds(0, 0, GetDesktop^.Width, Font^.Height + 3);
   if Controls^.Count = 0 then exit;
   spaceWidth := Font^.TextWidth(' ');
   for index := 0 to Controls^.Count - 1 do
@@ -1415,9 +1489,10 @@ procedure TMenuItem.MouseEnter(var state: TMouseState);
 var
   desktop: PDesktop;
 begin
-  if not (GetVisible and GetEnabled and not IsMouseOver) then exit;
+  if not (GetVisible and GetEnabled) then exit;
   if (Separator) then exit;
-  GetStatusBar^.Draw;
+  inherited MouseEnter(state);
+{  GetStatusBar^.Draw;
   if (Parent <> nil) then begin
     if (ParentMenu <> nil) then begin
       if (ParentMenu^.ActiveItem <> nil) and (ParentMenu^.ActiveItem^.Active) then begin
@@ -1428,17 +1503,18 @@ begin
     end;
   end;
   Pressed := true;
-  Draw;
+  Draw;}
 end;
 
 procedure TMenuItem.MouseLeave(var state: TMouseState);
 begin
   if not (GetVisible and GetEnabled) then exit;
   if (Separator) then exit;
-  Pressed := false;
+{  Pressed := false;
   GetStatusBar^.Text := nil;
   GetStatusBar^.Draw;
-  Paint;
+  Paint;}
+  inherited MouseLeave(state);
 end;
 
 procedure TMenuItem.MouseDown(var state: TMouseState);
@@ -1504,7 +1580,7 @@ var
   rect: TRect;
   desc: string;
 begin
-  if (not GetVisible) then exit;
+  if not (GetVisible)then exit;
   if Separator then
   begin
     GetScreenBounds(rect);
@@ -1624,7 +1700,7 @@ begin
   OldMouseState.Create;
 end;
 
-procedure TDesktop.HandleError(error: TError); 
+procedure TDesktop.HandleError(error: TError);
 begin
 end;
 
