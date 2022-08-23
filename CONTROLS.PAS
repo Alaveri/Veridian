@@ -6,15 +6,15 @@ interface
 uses
   Objects,
   Collects,
-  Drawing,
-  KeyDrv,
-  Utils,
-  Streams,
   Consts,
+  Drawing,
+  GraphDrv,
+  KeyDrv,
+  MouseDrv,
+  Streams,
   Strings,
   StrUtils,
-  GraphDrv,
-  MouseDrv;
+  Utils;
 
 type
   TBorderStyle =
@@ -23,51 +23,89 @@ type
     bsSingle,
     bsDouble
   );
+
   TScrollStyle =
   (
     ssVert,
     ssHorz
   );
+
   TScrollButtonStyle =
   (
     sbInc,
     sbDec,
     sbSlider
   );
+
   TTextAlign =
   (
     taLeft,
     taRight,
     taCenter
   );
+
   TVertAlign =
   (
     vaTop,
     vaBottom,
     vaCenter
   );
+
   TScreenPosition =
   (
     spAbsolute,
     spRelative
   );
+
   TBorderStyles = set of TBorderStyle;
+
+  PButton = ^TButton;
+  PButtonList = ^TButtonList;
   PControl = ^TControl;
   PControlList = ^TControlList;
-  PStatusBar = ^TStatusBar;
-  PMenuBar = ^TMenuBar;
   PDesktop = ^TDesktop;
-  PButton = ^TButton;
-  PMouseEvent = ^TMouseEvent;
-  TMouseEvent = procedure(sender: PControl; var state: TMouseState);
   PKeyboardEvent = ^TKeyboardEvent;
+  PStatusBar = ^TStatusBar;
+  PMenu = ^TMenu;
+  PMenuBar = ^TMenuBar;
+  PMouseEvent = ^TMouseEvent;
+  PMenuItem = ^TMenuItem;
+  PPanel = ^TPanel;
+  PPopUp = ^TPopUp;
+
+  TMouseEvent = procedure(sender: PControl; var state: TMouseState);
   TKeyboardEvent = procedure(sender: PControl; var key: word; var handled: boolean);
+
+  TEventInfo = object(TBaseObject)
+  public
+    MouseEnterHandled: boolean;
+    MouseLeaveHandled: boolean;
+    MouseMoveHandled: boolean;
+    LeftUpHandled: boolean;
+    LeftDownHandled: boolean;
+    RightUpHandled: boolean;
+    RightDownHandled: boolean;
+    KeyPressHandled: boolean;
+    KeyUpHandled: boolean;
+    KeyDownHandled: boolean;
+    Intersects: boolean;
+    NewMouseState: TMouseState;
+    OldMouseState: TMouseState;
+    ControlMouseState: TMouseState;
+    Key: word;
+    Desktop: PDesktop;
+    procedure Init; virtual;
+    procedure Clear; virtual;
+  end;
+
   TControl = Object(TObject)
   private
-    _manipulating: boolean;
     _moving: boolean;
-    procedure HandleMouseMove(intersects: boolean; state, oldState, controlMouseState: TMouseState;
-      var moveHandled, enterHandled, leaveHandled: boolean); virtual;
+    procedure HandleLeftUp(var info: TEventInfo); virtual;
+    procedure HandleLeftDown(var info: TEventInfo); virtual;
+    procedure HandleRightUp(var info: TEventInfo); virtual;
+    procedure HandleRightDown(var info: TEventInfo); virtual;
+    procedure HandleMouseMove(var info: TEventInfo); virtual;
   public
     DrawBackground: boolean;
     X, Y: integer;
@@ -130,9 +168,8 @@ type
     procedure GetClipRect(var rect: TRect); virtual;
     procedure GetClientRect(var rect: TRect); virtual;
     procedure DrawControls; virtual;
-    procedure ProcessMouse(state, oldState: TMouseState;
-      var moveHandled, enterHandled, leaveHandled, clickHandled: boolean); virtual;
-    procedure ProcessKeyPress(var key: word; var handled: boolean); virtual;
+    procedure ProcessMouse(var info: TEventInfo); virtual;
+    procedure ProcessKeyboard(var info: TEventInfo); virtual;
     procedure SetupControls; virtual;
     procedure MouseMove(var state: TMouseState); virtual;
     procedure MouseUp(var state: TMouseState); virtual;
@@ -154,6 +191,7 @@ type
     function GetModal: boolean; virtual;
     function GetDesktop: PDesktop; virtual;
   end;
+
   TControlList = Object(TObjectList)
     function ToString: string; virtual;
     function GetItem(index: integer): PControl;
@@ -162,7 +200,7 @@ type
     procedure Init; virtual;
     procedure Insert(index: integer; item: PControl);
   end;
-  PButtonList = ^TButtonList;
+
   TButtonList = Object(TObjectList)
     function ToString: string; virtual;
     function GetItem(index: integer): PButton;
@@ -171,7 +209,7 @@ type
     procedure Init; virtual;
     procedure Insert(index: integer; item: PButton);
   end;
-  PPanel = ^TPanel;
+
   TPanel = Object(TControl)
   public
     Text: PChar;
@@ -186,6 +224,7 @@ type
     constructor CreateText(newId, newText: string; newParent: PControl);
     destructor Done; virtual;
   end;
+
   TButton = Object(TPanel)
     Pressed: boolean;
     Toggle: boolean;
@@ -199,7 +238,7 @@ type
     procedure Init; virtual;
     procedure Paint; virtual;
   end;
-  PPopUp = ^TPopUp;
+
   TPopUp = object(TPanel)
   private
   public
@@ -210,8 +249,7 @@ type
     procedure Show; virtual;
     procedure Hide; virtual;
   end;
-  PMenu = ^TMenu;
-  PMenuItem = ^TMenuItem;
+
   TMenuItem = object(TButton)
   private
   public
@@ -231,6 +269,7 @@ type
     procedure Paint; virtual;
     procedure Init; virtual;
   end;
+
   TMenu = object(TPopUp)
   private
   public
@@ -242,6 +281,7 @@ type
     procedure Hide; virtual;
     procedure SetupControls; virtual;
   end;
+
   TMenuBar = object(TPanel)
   private
   public
@@ -252,6 +292,7 @@ type
     function ProcessHotKeys(control: PControl; key: word): boolean; virtual;
     function ProcessArrowKeys(key: word): boolean; virtual;}
   end;
+
   TStatusBar = object(TPanel)
   private
   public
@@ -261,6 +302,7 @@ type
     procedure SetupControls; virtual;
     procedure ClearText; virtual;
   end;
+
   TDesktop = object(TPanel)
   private
   public
@@ -315,6 +357,30 @@ var
 
 implementation
 
+procedure TEventInfo.Clear;
+begin
+  MouseEnterHandled := false;
+  MouseLeaveHandled := false;
+  MouseMoveHandled := false;
+  LeftUpHandled := false;
+  LeftDownHandled := false;
+  RightUpHandled:= false;
+  RightDownHandled := false;
+  KeyPressHandled := false;
+  KeyUpHandled := false;
+  KeyDownHandled := false;
+  Intersects := false;
+end;
+
+procedure TEventInfo.Init;
+begin
+  inherited Init;
+  NewMouseState.Create;
+  OldMouseState.Create;
+  ControlMouseState.Create;
+  Clear;
+end;
+
 procedure TControlList.Init;
 begin
   inherited Init;
@@ -365,7 +431,6 @@ begin
   Controls := New(PControlList, Create);
   SetBounds(0, 0, 0, 0);
   _moving := false;
-  _manipulating := false;
   Visible := true;
   Position := spRelative;
   BorderStyle := bsNone;
@@ -751,36 +816,151 @@ procedure TControl.KeyPress(var key: word; var handled: boolean);
 begin
 end;
 
-procedure TControl.HandleMouseMove(intersects: boolean; state, oldState, controlMouseState: TMouseState;
-  var moveHandled, enterHandled, leaveHandled: boolean);
+procedure TControl.HandleLeftUp(var info: TEventInfo);
 begin
-  if (oldState.X <> state.X) or (oldState.Y <> state.Y) then begin
-    if intersects or _moving or _manipulating then begin
-      if not moveHandled then begin
-        MouseMove(controlMouseState);
-        moveHandled := true;
+  if (not (bsLeft in info.NewMouseState.ButtonState)) and
+     (bsLeft in info.OldMouseState.ButtonState) then
+  begin
+    if info.Intersects or Modal or _moving then
+    begin
+      info.LeftUpHandled := true;
+      if (IsLeftMouseDown) then
+      begin
+        MouseUp(info.NewMouseState);
+        MouseClick(info.NewMouseState);
+        if (OnMouseUp <> nil) then
+          TMouseEvent(OnMouseUp)(@Self, info.NewMouseState);
+        if (OnMouseClick <> nil) then
+          TMouseEvent(OnMouseClick)(@self, info.NewMouseState);
       end;
-      if (not IsMouseOver) and (not enterHandled)  then begin
+      IsLeftMouseDown := false;
+    end;
+  end;
+end;
+
+procedure TControl.HandleLeftDown(var info: TEventInfo);
+var
+  rect: TRect;
+begin
+  if info.LeftDownHandled then exit;
+  if (bsLeft in info.NewMouseState.ButtonState) and
+     (not (bsLeft in info.OldMouseState.ButtonState)) then
+  begin
+    if info.Desktop^.ActiveMenu <> nil then
+    begin
+      info.Desktop^.ActiveMenu^.GetScreenBounds(rect);
+      if not info.Intersects then
+      begin
+        info.Desktop^.ActiveMenu^.Hide;
+        if (info.Desktop^.ActiveMenu^.Parent <> nil) and
+           (TypeOf(info.Desktop^.ActiveMenu^.Parent^) = TypeOf(TMenuItem)) then
+        begin
+          PMenuItem(info.Desktop^.ActiveMenu^.Parent)^.Pressed := false;
+          PMenuItem(info.Desktop^.ActiveMenu^.Parent)^.Active := false;
+          PMenuItem(info.Desktop^.ActiveMenu^.Parent)^.Draw;
+        end;
+        info.Desktop^.ActiveMenu := nil;
+      end;
+    end;
+    if info.Intersects or Modal then
+    begin
+      info.LeftDownHandled := true;
+      info.NewMouseState.Create;
+      IsLeftMouseDown := true;
+      MouseDown(info.ControlMouseState);
+      if (OnMouseDown <> nil) then
+        TMouseEvent(OnMouseDown)(@self, info.ControlMouseState);
+    end;
+  end;
+end;
+
+procedure TControl.HandleRightUp(var info: TEventInfo);
+begin
+  if (not (bsRight in info.NewMouseState.ButtonState)) and
+     (bsRight in info.OldMouseState.ButtonState) then
+  begin
+    if info.Intersects or Modal or _moving then
+    begin
+      info.RightUpHandled := true;
+      if (IsLeftMouseDown) then
+      begin
+        MouseUp(info.NewMouseState);
+        MouseClick(info.NewMouseState);
+        if (OnMouseUp <> nil) then
+          TMouseEvent(OnMouseUp)(@Self, info.NewMouseState);
+        if (OnMouseClick <> nil) then
+          TMouseEvent(OnMouseClick)(@self, info.NewMouseState);
+      end;
+      IsRightMouseDown := false;
+    end;
+  end;
+end;
+
+procedure TControl.HandleRightDown(var info: TEventInfo);
+var
+  rect: TRect;
+begin
+  if info.RightDownHandled then exit;
+  if (bsRight in info.NewMouseState.ButtonState) and
+     (not (bsRight in info.OldMouseState.ButtonState)) then
+  begin
+    if info.Desktop^.ActiveMenu <> nil then
+    begin
+      info.Desktop^.ActiveMenu^.GetScreenBounds(rect);
+      if not info.Intersects then
+      begin
+        info.Desktop^.ActiveMenu^.Hide;
+        if (info.Desktop^.ActiveMenu^.Parent <> nil) and
+           (TypeOf(info.Desktop^.ActiveMenu^.Parent^) = TypeOf(TMenuItem)) then
+        begin
+          PMenuItem(info.Desktop^.ActiveMenu^.Parent)^.Pressed := false;
+          PMenuItem(info.Desktop^.ActiveMenu^.Parent)^.Active := false;
+          PMenuItem(info.Desktop^.ActiveMenu^.Parent)^.Draw;
+        end;
+        info.Desktop^.ActiveMenu := nil;
+      end;
+    end;
+    if info.Intersects or Modal then
+    begin
+      info.RightDownHandled := true;
+      info.NewMouseState.Create;
+      IsRightMouseDown := true;
+      MouseDown(info.ControlMouseState);
+      if (OnMouseDown <> nil) then
+        TMouseEvent(OnMouseDown)(@self, info.ControlMouseState);
+    end;
+  end;
+end;
+
+procedure TControl.HandleMouseMove(var info: TEventInfo);
+begin
+  if (info.OldMouseState.X <> info.NewMouseState.X) or
+     (info.OldMouseState.Y <> info.NewMouseState.Y) then begin
+    if info.Intersects or _moving then begin
+      if not info.MouseMoveHandled then begin
+        MouseMove(info.ControlMouseState);
+        info.MouseMoveHandled := true;
+      end;
+      if (not IsMouseOver) and (not info.MouseEnterHandled)  then begin
         IsMouseOver := true;
-        enterHandled := true;
-        MouseEnter(controlMouseState);
+        info.MouseEnterHandled := true;
+        MouseEnter(info.ControlMouseState);
         if (OnMouseEnter <> nil) then
-          TMouseEvent(OnMouseEnter)(@self, controlMouseState);
+          TMouseEvent(OnMouseEnter)(@self, info.ControlMouseState);
       end;
     end else begin
-      if IsMouseOver and (not LeaveHandled) then begin
+      if IsMouseOver and (not info.MouseLeaveHandled) then begin
         IsMouseOver := false;
-        leaveHandled := true;
-        MouseLeave(controlMouseState);
+        info.MouseLeaveHandled := true;
+        MouseLeave(info.ControlMouseState);
         if (OnMouseLeave <> nil) then
-          TMouseEvent(OnMouseLeave)(@self, controlMouseState);
+          TMouseEvent(OnMouseLeave)(@self, info.ControlMouseState);
       end;
     end;
   end;
 end;
 
-procedure TControl.ProcessMouse(state, oldState: TMouseState;
-  var moveHandled, enterHandled, leaveHandled, clickHandled: boolean);
+procedure TControl.ProcessMouse(var info: TEventInfo);
 var
   Index: word;
   rect: TRect;
@@ -793,178 +973,32 @@ begin
   if not (GetVisible and GetEnabled) then exit;
 
   GetScreenBounds(rect);
-  intersects := rect.IntersectPoint(state.X, state.Y);
+  info.Intersects := rect.IntersectPoint(info.NewMouseState.X, info.NewMouseState.Y);
   desktop := GetDesktop;
-  controlMouseState.CreateAssign(state);
+
+  { Get the state in relation to the control's coordinates }
+  info.ControlMouseState.Assign(info.NewMouseState);
   Dec(controlMouseState.X, rect.X);
   Dec(controlMouseState.Y, rect.Y);
 
+  { Process child controls }
   if Controls^.Count > 0 then begin
     for index := 0 to Controls^.Count - 1 do
     begin
       control := Controls^.GetItem(index);
-      control^.ProcessMouse(state, oldState, moveHandled, enterHandled, leaveHandled, clickHandled);
+      control^.ProcessMouse(info);
     end;
   end;
 
-  HandleMouseMove(intersects, state, oldState, controlMouseState, moveHandled, enterHandled, leaveHandled);
-
-
-
-{  if not (GetVisible and GetEnabled) then Exit;
-
-  GetClipRect(rect);
-  intersects := rect.IntersectPoint(state.X, state.Y);
-  desktop := GetDesktop;
-
-  if Controls^.Count > 0 then
-  begin
-    for index := 0 to Controls^.Count - 1 do
-    begin
-      control := Controls^.GetItem(index);
-      control^.ProcessMouse(state, oldState, handled);
-    end;
-  end;
-
-  if (oldState.X <> state.X) or (oldState.Y <> state.Y) then
-  begin
-    if IsMouseOver and (not intersects) then
-    begin
-      MouseLeave(state);
-      if (OnMouseLeave <> nil) then
-        TMouseEvent(OnMouseLeave)(@self, state);
-      IsMouseOver := false;
-      desktop^.MouseOverControl := nil;
-    end;
-    if (intersects and (not handled)) or _moving or __manipulating then
-    begin
-      newState.Create;
-      newState := state;
-      Dec(newState.X, rect.X);
-      Dec(newState.Y, rect.Y);
-      if (not IsMouseOver) then
-      begin
-        if (desktop^.MouseOverControl <> nil)
-          and (desktop^.MouseOverControl <> @Self)
-          then
-          desktop^.MouseOverControl^.MouseLeave(state);
-        desktop^.MouseOverControl := @self;
-        MouseEnter(state);
-        if (OnMouseEnter <> nil) then
-          TMouseEvent(OnMouseEnter)(@self, state);
-        IsMouseOver := true;
-      end;
-      OldState := state;
-      IsLeftMouseDown := (bsLeft in state.ButtonState);
-      IsRightMouseDown := (bsRight in state.ButtonState);
-      MouseMove(newState);
-      if (OnMouseMove <> nil) then
-        TMouseEvent(OnMouseMove)(@self, newState);
-      handled := true;
-    end;
-  end;
-
-  if handled then exit;
-
-  if (bsLeft in state.ButtonState) and (not (bsLeft in oldState.ButtonState)) then
-  begin
-    if (Desktop^.ActiveMenu <> nil) then
-    begin
-      Desktop^.ActiveMenu^.GetScreenBounds(rect);
-      if (not rect.IntersectPoint(state.X, state.Y)) then
-      begin
-        Desktop^.ActiveMenu^.Hide;
-        if (Desktop^.ActiveMenu^.Parent <> nil) and
-           (TypeOf(Desktop^.ActiveMenu^.Parent^) = TypeOf(TMenuItem)) then
-        begin
-          PMenuItem(Desktop^.ActiveMenu^.Parent)^.Pressed := false;
-          PMenuItem(Desktop^.ActiveMenu^.Parent)^.Active := false;
-          PMenuItem(Desktop^.ActiveMenu^.Parent)^.Draw;
-        end;
-        Desktop^.ActiveMenu := nil;
-      end;
-    end;
-    if intersects or Modal then
-    begin
-      Handled := true;
-      newState.Create;
-      newState := state;
-      Dec(newState.X, rect.X);
-      Dec(newState.Y, rect.Y);
-      IsLeftMouseDown := true;
-      OldState := state;
-      MouseDown(newState);
-      if (OnMouseDown <> nil) then
-        TMouseEvent(OnMouseDown)(@self, newState);
-    end;
-  end;
-
-  if (bsRight in state.ButtonState) and (not (bsRight in oldState.ButtonState)) then
-  begin
-    if Intersects or Modal then
-    begin
-      Handled := true;
-      newState := state;
-      Dec(newState.X, rect.X);
-      Dec(newState.Y, rect.Y);
-      IsRightMouseDown := true;
-      OldState := state;
-      MouseDown(newState);
-      if (OnMouseDown <> nil) then
-        TMouseEvent(OnMouseDown)(@self, newState);
-    end;
-  end;
-
-  if (not (bsLeft in state.ButtonState)) and (bsLeft in oldState.ButtonState) then
-  begin
-    if Intersects or Modal or _moving or __manipulating then
-    begin
-      Handled := true;
-      newState.Create;
-      newState := state;
-      Dec(newState.X, rect.X);
-      Dec(newState.Y, rect.Y);
-      OldState := state;
-      Include(newState.ButtonState, bsLeft);
-      if (IsLeftMouseDown) then
-      begin
-        MouseUp(newState);
-        MouseClick(newState);
-        if (OnMouseUp <> nil) then
-          TMouseEvent(OnMouseUp)(@Self, newState);
-        if (OnMouseClick <> nil) then
-          TMouseEvent(OnMouseClick)(@self, newState);
-      end;
-      IsLeftMouseDown := false;
-    end;
-  end;
-
-  if (not (bsRight in state.ButtonState)) and (bsRight in oldState.ButtonState) then
-  begin
-    if Intersects or Modal or _moving or __manipulating then
-    begin
-      Handled := true;
-      newState.Create;
-      newState := state;
-      Dec(newState.X, rect.X);
-      Dec(newState.Y, rect.Y);
-      OldState := state;
-      Include(newState.ButtonState, bsRight);
-      if (IsRightMouseDown) then
-      begin
-        MouseUp(newState);
-        MouseClick(newState);
-        if (OnMouseUp <> nil) then
-          TMouseEvent(OnMouseUp)(@self, newState);
-        if (OnMouseClick <> nil) then
-          TMouseEvent(OnMouseClick)(@self, newState);
-      end;
-      IsRightMouseDown := false;
-    end;
-  end;}
+  HandleMouseMove(info);
+  HandleLeftUp(info);
+  HandleLeftUp(info);
+  HandleLeftDown(info);
+  HandleRightUp(info);
+  HandleRightDown(info);
 end;
 
-procedure TControl.ProcessKeyPress(var key: word; var handled: boolean);
+procedure TControl.ProcessKeyboard(var info: TEventInfo);
 begin
 end;
 
@@ -1287,7 +1321,7 @@ var
 begin
   if (Parent <> nil) and (TypeOf(Parent^) = TypeOf(TMenuItem)) then begin
     X := Parent^.X - 1;
-    Y := Parent^.Height + 1;
+    Y := Parent^.Height;
   end;
   maxWidth := 0;
   currentY := Font^.Height div 2;
@@ -1302,7 +1336,7 @@ begin
         X := 1;
         Y := currentY;
         Margin := Font^.TextWidth('w') + 1;
-        Width := Margin + TrueTextWidth(Text) {+ GetKeyDesc(HotKey)} + 2;
+        Width := Margin + TrueTextWidth(Text) + Font^.TextWidth(' ') * 2 {+ GetKeyDesc(HotKey)} + 2;
         Height := Font^.Height + 3;
         if (Width > maxWidth) then begin
           maxWidth := Width;
@@ -1316,7 +1350,7 @@ begin
       control^.Width := maxWidth;
     end;
   end;
-  Width := maxWidth + Font^.TextWidth('w');
+  Width := maxWidth + 2;
   Height := totalHeight + Font^.Height;
 end;
 

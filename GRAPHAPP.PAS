@@ -22,6 +22,7 @@ type
     _mouseVisible: boolean;
     _driverId: TGraphDrivers;
     _modeId: string;
+    _eventInfo: TEventInfo;
   public
     Desktop: PDesktop;
     OldMouseState: PMouseState;
@@ -69,6 +70,8 @@ begin
   MouseDriver^.ShowMouse;
   MouseDriver^.GetMouseState(mouseState);
   OldMouseState^.Assign(mouseState);
+  _eventInfo.Create;
+  _eventInfo.Desktop := Desktop;
 end;
 
 procedure TGraphicApplication.InitControls;
@@ -90,8 +93,8 @@ begin
   icBorder := Graphics^.GetColor(scBlack, MinIntensity);
   icButton := Graphics^.GetColor(scBlack, MinIntensity);
   icButtonBack := Graphics^.GetColor(scCyan, MaxIntensity);
-  icButtonDown := Graphics^.GetColor(scWhite, MaxIntensity);
-  icButtonDownBack := Graphics^.GetColor(scGreen, Intensity75);
+  icButtonDown := Graphics^.GetColor(scBlack, MaxIntensity);
+  icButtonDownBack := Graphics^.GetColor(scGreen, MaxIntensity);
   icButtonHotKey := Graphics^.GetColor(scRed, MaxIntensity);
   icButtonHover := Graphics^.GetColor(scBlack, MaxIntensity);
   icButtonHoverBack := Graphics^.GetColor(scGreen, MaxIntensity);
@@ -133,19 +136,16 @@ end;
 procedure TGraphicApplication.ProcessEvents;
 var
   mouseState: TMouseState;
-  enterHandled, leaveHandled, clickHandled, moveHandled, keyHandled: boolean;
   ch: char;
 begin
-  MouseDriver^.GetMouseState(mouseState);
-  enterHandled := false;
-  leaveHandled := false;
-  clickHandled := false;
-  moveHandled := false;
-  keyHandled := false;
+  _eventInfo.Clear;
 
+  MouseDriver^.GetMouseState(mouseState);
   if not mouseState.Equals(OldMouseState^) then begin
     Graphics^.MoveMouseCursor(mouseState, oldMouseState^);
-    Desktop^.ProcessMouse(mouseState, OldMouseState^, moveHandled, enterHandled, leaveHandled, clickHandled);
+    _eventInfo.OldMouseState.Assign(OldMouseState^);
+    _eventInfo.NewMouseState.Assign(mouseState);
+    Desktop^.ProcessMouse(_eventInfo);
     OldMouseState^ := mouseState;
   end;
 
