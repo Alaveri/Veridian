@@ -821,8 +821,7 @@ begin
   if (not (bsLeft in info.NewMouseState.ButtonState)) and
      (bsLeft in info.OldMouseState.ButtonState) then
   begin
-    if info.Intersects or Modal or _moving then
-    begin
+    if info.Intersects or Modal or _moving then begin
       info.LeftUpHandled := true;
       if (IsLeftMouseDown) then
       begin
@@ -846,11 +845,9 @@ begin
   if (bsLeft in info.NewMouseState.ButtonState) and
      (not (bsLeft in info.OldMouseState.ButtonState)) then
   begin
-    if info.Desktop^.ActiveMenu <> nil then
-    begin
+    if (info.Desktop^.ActiveMenu <> nil) then begin
       info.Desktop^.ActiveMenu^.GetScreenBounds(rect);
-      if not info.Intersects then
-      begin
+      if (not info.Intersects) and (not rect.IntersectPoint(info.NewMouseState.X, info.NewMouseState.Y)) then begin
         info.Desktop^.ActiveMenu^.Hide;
         if (info.Desktop^.ActiveMenu^.Parent <> nil) and
            (TypeOf(info.Desktop^.ActiveMenu^.Parent^) = TypeOf(TMenuItem)) then
@@ -882,7 +879,7 @@ begin
     if info.Intersects or Modal or _moving then
     begin
       info.RightUpHandled := true;
-      if (IsLeftMouseDown) then
+      if (IsRightMouseDown) then
       begin
         MouseUp(info.NewMouseState);
         MouseClick(info.NewMouseState);
@@ -907,7 +904,7 @@ begin
     if info.Desktop^.ActiveMenu <> nil then
     begin
       info.Desktop^.ActiveMenu^.GetScreenBounds(rect);
-      if not info.Intersects then
+      if (not info.Intersects) and (not rect.IntersectPoint(info.NewMouseState.X, info.NewMouseState.Y)) then
       begin
         info.Desktop^.ActiveMenu^.Hide;
         if (info.Desktop^.ActiveMenu^.Parent <> nil) and
@@ -944,6 +941,8 @@ begin
       if (not IsMouseOver) and (not info.MouseEnterHandled)  then begin
         IsMouseOver := true;
         info.MouseEnterHandled := true;
+        if (bsLeft in info.NewMouseState.ButtonState) then IsLeftMouseDown := true;
+        if (bsRight in info.NewMouseState.ButtonState) then IsRightMouseDown := true;
         MouseEnter(info.ControlMouseState);
         if (OnMouseEnter <> nil) then
           TMouseEvent(OnMouseEnter)(@self, info.ControlMouseState);
@@ -952,6 +951,8 @@ begin
       if IsMouseOver and (not info.MouseLeaveHandled) then begin
         IsMouseOver := false;
         info.MouseLeaveHandled := true;
+        IsLeftMouseDown := false;
+        IsRightMouseDown := false;
         MouseLeave(info.ControlMouseState);
         if (OnMouseLeave <> nil) then
           TMouseEvent(OnMouseLeave)(@self, info.ControlMouseState);
@@ -1522,22 +1523,34 @@ end;
 procedure TMenuItem.MouseEnter(var state: TMouseState);
 var
   desktop: PDesktop;
+  item: PMenuItem;
 begin
   if not (GetVisible and GetEnabled) then exit;
   if (Separator) then exit;
+  desktop := GetDesktop;
   inherited MouseEnter(state);
-{  GetStatusBar^.Draw;
-  if (Parent <> nil) then begin
-    if (ParentMenu <> nil) then begin
-      if (ParentMenu^.ActiveItem <> nil) and (ParentMenu^.ActiveItem^.Active) then begin
-        ParentMenu^.ActiveItem^.Active := false;
-        ParentMenu^.ActiveItem^.Pressed := false;
-        ParentMenu^.ActiveItem^.Draw;
+
+  if (desktop^.ActiveMenu <> nil) then begin
+    item := PMenuItem(desktop^.ActiveMenu^.ActiveItem);
+    if (item^.IsLeftMouseDown) then begin
+      item^.IsLeftMouseDown := false;
+    end;
+    IsLeftMouseDown := true;
+    if (Menu <> nil) and (desktop^.ActiveMenu <> Menu) then begin
+      item := PMenuItem(desktop^.ActiveMenu^.Parent);
+      if (item <> nil) then begin
+        item^.Pressed := false;
+        item^.Active := false;
+        item^.DrawSelf;
       end;
+      desktop^.ActiveMenu^.Hide;
+      desktop^.ActiveMenu := Menu;
+      Menu^.ActiveItem := @self;
+      Pressed := true;
+      Active := true;
+      Menu^.Show;
     end;
   end;
-  Pressed := true;
-  Draw;}
 end;
 
 procedure TMenuItem.MouseLeave(var state: TMouseState);
@@ -1567,6 +1580,7 @@ begin
       parentItem^.Active := false;
       parentItem^.Draw;
     end;
+    desktop^.ActiveMenu := nil;
   end;
   if (Menu <> nil) then begin
     desktop^.ActiveMenu := Menu;
@@ -1574,9 +1588,10 @@ begin
     if (not Active) then
     begin
       Active := true;
-      Menu^.ActiveItem := PMenuItem(Menu^.Controls^.GetItem(0));
+
+{      Menu^.ActiveItem := nil;{PMenuItem(Menu^.Controls^.GetItem(0));
       Menu^.ActiveItem^.Pressed := true;
-      Menu^.ActiveItem^.Active := true;
+      Menu^.ActiveItem^.Active := true;}
       Menu^.Show;
     end;
   end;
@@ -1598,7 +1613,7 @@ begin
       menuItem := PMenuItem(ParentMenu^.ParentItem);
       menuItem^.Pressed := false;
       menuItem^.Active := false;
-      menuItem^.Draw;
+      menuItem^.DrawSelf;
       ParentMenu^.Hide;
     end;
     desktop := GetDesktop;
