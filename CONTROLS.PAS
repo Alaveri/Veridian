@@ -248,7 +248,7 @@ type
     destructor Done; virtual;
   end;
 
-  TButton = Object(TActionControl)
+  TButton = Object(TPanel)
     Pressed: boolean;
     Toggle: boolean;
     Active: boolean;
@@ -935,7 +935,7 @@ begin
     if info.Desktop^.ActiveMenu <> nil then
     begin
       info.Desktop^.ActiveMenu^.GetScreenBounds(rect);
-      if (not info.Intersects) and (not rect.IntersectPoint(info.NewMouseState.X, info.NewMouseState.Y)) then
+      if (not info.Intersects) and (not rect.IntersectPoint(info.NewMouseState.X, info.NewMouseState.Y))then
       begin
         info.Desktop^.ActiveMenu^.Hide;
         if (info.Desktop^.ActiveMenu^.Parent <> nil) and
@@ -971,6 +971,8 @@ begin
       end;
       if (not IsMouseOver) and (not info.MouseEnterHandled)  then begin
         IsMouseOver := true;
+        IsLeftMouseDown := bsLeft in info.NewMouseState.ButtonState;
+        IsRightMouseDown := bsRight in info.NewMouseState.ButtonState;
         info.MouseEnterHandled := true;
         if (bsLeft in info.NewMouseState.ButtonState) then IsLeftMouseDown := true;
         if (bsRight in info.NewMouseState.ButtonState) then IsRightMouseDown := true;
@@ -980,8 +982,8 @@ begin
       end;
     end else begin
       if IsMouseOver and (not info.MouseLeaveHandled) then begin
-        IsMouseOver := false;
         info.MouseLeaveHandled := true;
+        isMouseover := false;
         IsLeftMouseDown := false;
         IsRightMouseDown := false;
         MouseLeave(info.ControlMouseState);
@@ -1068,9 +1070,9 @@ end;
 
 destructor TActionControl.Done;
 begin
-  inherited Done;
   DisposeLargeString(Text);
   DisposeLargeString(ShortcutDisplayName);
+  inherited Done;
 end;
 
 function TActionControl.Action: PAction;
@@ -1096,10 +1098,10 @@ end;
 function TActionControl.GetText: string;
 begin
   if (Text = nil) then begin
-    if (Action <> nil) then
+    if (ActionId >= 0) then
       GetText := StrPas(Action^.Text)
     else
-      Text := '';
+      GetText := '';
   end else
     GetText := StrPas(Text);
 end;
@@ -1107,7 +1109,7 @@ end;
 function TActionControl.GetShortcut: word;
 begin
   if (Shortcut = 0) then begin
-    if (Action <> nil) then
+    if (ActionId >= 0) then
       GetShortcut := Action^.Shortcut
     else
       GetShortcut := 0;
@@ -1118,7 +1120,7 @@ end;
 function TActionControl.GetShortcutDisplayName: string;
 begin
   if (ShortcutDisplayName = nil) then begin
-    if (Action <> nil) then
+    if (ActionId >= 0) then
       GetShortcutDisplayName := StrPas(Action^.ShortcutDisplayName)
     else
       GetShortcutDisplayName := '';
@@ -1136,7 +1138,6 @@ begin
   FocusedForeColor := InterfaceColors.FocusedBack;
   FocusedBackColor := InterfaceColors.Focused;
   DrawBackground := true;
-  Text := nil;
   Margin := 0;
   ShortcutColor := InterfaceColors.ButtonShortcut;
 end;
@@ -1183,11 +1184,11 @@ begin
     vaCenter: textYPos := rect.Y + (rect.Height - Font^.Height) div 2;
   end;
   index := 0;
-  textIndex := 0;
+  textIndex := 1;
   isShortcut := false;
   currentX := Margin;
   txt := GetText;
-  while textIndex < Length(txt) do
+  while textIndex <= Length(txt) do
   begin
     if (txt[textIndex] = '&') then begin
       isShortcut := true;
@@ -1301,7 +1302,7 @@ var
   control: PMenuItem;
   spaceWidth: integer;
 begin
-  currentX := 0;
+  currentX := Font^.TextWidth('w');
   SetBounds(0, 0, GetDesktop^.Width, Font^.Height + 3);
   if Controls^.Count = 0 then exit;
   spaceWidth := Font^.TextWidth(' ');
@@ -1341,9 +1342,8 @@ var
   item: PMenuItem;
   menu: PMenu;
 begin
-  item := New(PMenuItem, CreateParent(newId, @self));
+  item := New(PMenuItem, CreateParent(newId + 'Item', @self));
   item^.Text := NewLargeString(newText);
-  AddMenuItem(item);
   menu := New(PMenu, CreateParent(newId, item));
   item^.Menu := menu;
   menu^.ParentItem := item;
@@ -1502,7 +1502,9 @@ function TMenu.NewMenuItem(newId: string; newActionId: integer): PMenuItem;
 var
   item: PMenuItem;
 begin
-  item := New(PMenuItem, Create(newId, actionId));
+  item := New(PMenuItem, CreateParent(newId, @self));
+  item^.ActionId:= newActionId;
+  item^.ParentMenu := @self;
   NewMenuItem := item;
 end;
 
@@ -1587,7 +1589,6 @@ procedure TMenuItem.Init;
 begin
   inherited Init;
   Parent := nil;
-  Text := nil;
   Separator := false;
   MenuBar := nil;
   Enabled := true;
@@ -1705,6 +1706,8 @@ procedure TMenuItem.MouseClick(var state: TMouseState);
 var
   menuItem: PMenuItem;
   desktop: PDesktop;
+  act: PAction;
+  key: word;
 begin
   if not (GetEnabled) then exit;
   if (ParentMenu <> nil) then
@@ -1717,6 +1720,7 @@ begin
       menuItem := PMenuItem(ParentMenu^.ParentItem);
       menuItem^.Pressed := false;
       menuItem^.Active := false;
+      menuItem^.IsMouseOver := false;
       menuItem^.DrawSelf;
       ParentMenu^.Hide;
     end;
@@ -1724,6 +1728,13 @@ begin
     desktop^.ActiveMenu := nil;
   end;
 
+  if (ActionId >= 0) then begin
+    act := GetDesktop^.ActionList^.GetActionById(ActionId);
+    if (act^.OnExecute <> nil) then begin
+      key := 0;
+      TActionEvent(act^.OnExecute)(@self, key, state);
+    end;
+  end;
   if (OnMouseClick <> nil) then
     TMouseEvent(OnMouseClick)(@self, state);
 end;
@@ -1741,7 +1752,7 @@ begin
     Graphics^.HLine(rect.X, Rect.Y + (rect.Height div 2), Parent^.Width - 1);
   end
   else
-    TButton.Paint;
+    inherited Paint;
   if (ShowShortcut and (Shortcut <> 0)) then
   begin
     if (Pressed or Active) then

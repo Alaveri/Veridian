@@ -3,12 +3,12 @@ unit GraphApp;
 interface
 
 uses
-  Crt,
   Objects,
   MouseDrv,
   MemDrv,
   GraphDrv,
   Drawing,
+  Crt,
   Apps,
   Utils,
   Controls,

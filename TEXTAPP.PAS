@@ -6,7 +6,6 @@ interface
 uses
   Objects,
   Controls,
-  Crt,
   Collects,
   Apps,
   TextDrv,
