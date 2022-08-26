@@ -14,6 +14,7 @@ uses
   Streams,
   Strings,
   StrUtils,
+  Actions,
   Utils;
 
 type
@@ -59,6 +60,7 @@ type
 
   TBorderStyles = set of TBorderStyle;
 
+  PActionControl = ^TActionControl;
   PButton = ^TButton;
   PButtonList = ^TButtonList;
   PControl = ^TControl;
@@ -149,8 +151,8 @@ type
     AcceptEnter: boolean;
     AcceptTab: boolean;
     DrawEnabled: boolean;
-    ShowHotKey: boolean;
     Font: PFont;
+    constructor Create(newId: string);
     constructor CreateParent(newId: string; newParent: PControl);
     procedure Init; virtual;
     destructor Done; virtual;
@@ -159,7 +161,6 @@ type
     procedure Draw; virtual;
     procedure DrawSelf; virtual;
     procedure Paint; virtual;
-    procedure SetParent(newParent: PControl); virtual;
     procedure GetBounds(var rect: TRect); virtual;
     procedure SetBounds(newX, newY, newWidth, newHeight: integer); virtual;
     procedure SetBounds2(rect: TRect); virtual;
@@ -183,18 +184,46 @@ type
     procedure FocusFirst(var handled: boolean); virtual;
     procedure StartDrawing; virtual;
     procedure EndDrawing; virtual;
-    function  CheckError(var Error: TError): boolean; virtual;
-    function  TrueTextWidth(txt: PChar): integer;
+    function CheckError(var Error: TError): boolean; virtual;
+    function TrueTextWidth(txt: string): integer;
     function GetStatusBar: PStatusBar; virtual;
     function GetVisible: boolean; virtual;
     function GetEnabled: boolean; virtual;
     function GetModal: boolean; virtual;
     function GetDesktop: PDesktop; virtual;
+    function AddControl(control: PControl): PControl; virtual;
+  end;
+
+  TActionControl = Object(TControl)
+  private
+    function GetText: string;
+    function GetShortcut: word;
+    function GetShortcutDisplayName: string;
+  public
+    ActionId: integer;
+    Text: PChar;
+    TextAlign: TTextAlign;
+    VertAlign: TVertAlign;
+    ShowShortcut: boolean;
+    ShortcutDisplayName: PChar;
+    Shortcut: word;
+    ShortcutColor: byte;
+    Margin: integer;
+    constructor CreateEmpty;
+    constructor Create(newId: string; newActionId: integer);
+    function Action: PAction;
+    procedure Init; virtual;
+    destructor Done; virtual;
   end;
 
   TControlList = Object(TObjectList)
+  private
+    Parent: PControl;
+  public
+    constructor CreateParent(newParent: PControl);
     function ToString: string; virtual;
     function GetItem(index: integer): PControl;
+    function GetItemById(idToFind: string): PControl;
     function IndexOf(item: PControl): integer;
     function Add(item: PControl): integer;
     procedure Init; virtual;
@@ -202,30 +231,24 @@ type
   end;
 
   TButtonList = Object(TObjectList)
+  public
     function ToString: string; virtual;
     function GetItem(index: integer): PButton;
+    function GetItemById(idToFind: string): PButton;
     function IndexOf(item: PButton): integer;
     function Add(item: PButton): integer;
     procedure Init; virtual;
     procedure Insert(index: integer; item: PButton);
   end;
 
-  TPanel = Object(TControl)
+  TPanel = Object(TActionControl)
   public
-    Text: PChar;
-    TextAlign: TTextAlign;
-    VertAlign: TVertAlign;
-    ShadowColor: byte;
-    HotKeyColor: byte;
-    HotKey: word;
-    Margin: integer;
     procedure Init; virtual;
     procedure Paint; virtual;
-    constructor CreateText(newId, newText: string; newParent: PControl);
     destructor Done; virtual;
   end;
 
-  TButton = Object(TPanel)
+  TButton = Object(TActionControl)
     Pressed: boolean;
     Toggle: boolean;
     Active: boolean;
@@ -257,10 +280,7 @@ type
     ParentMenu: PMenu;
     Menu: PMenu;
     MenuBar: PMenuBar;
-    constructor CreateMenuBar(newId, newText: string; newMenubar: PMenuBar;
-      newMenu: PMenu; newHotKey: word; click: PMouseEvent);
-    constructor CreateText(newId, newText: string; newParent: PControl; newHotKey: word; click: PMouseEvent);
-    constructor CreateSeparator(newId: string; newParent: PControl);
+    constructor CreateSeparator;
     procedure KeyPress(var key: word; var handled: boolean); virtual;
     procedure MouseEnter(var state: TMouseState); virtual;
     procedure MouseLeave(var state: TMouseState); virtual;
@@ -268,6 +288,7 @@ type
     procedure MouseClick(var state: TMouseState); virtual;
     procedure Paint; virtual;
     procedure Init; virtual;
+    function AddMenu(newMenu: PMenu): PMenu; virtual;
   end;
 
   TMenu = object(TPopUp)
@@ -275,6 +296,9 @@ type
   public
     ActiveItem: PMenuItem;
     ParentItem: PMenuItem;
+    function NewMenuItem(newId: string; newActionId: integer): PMenuItem;
+    function AddMenuItem(item: PMenuItem): PMenuItem; virtual;
+    function NewSeparator: PMenuItem; virtual;
     procedure KeyPress(var key: word; var handled: boolean); virtual;
     procedure Init; virtual;
     procedure Show; virtual;
@@ -288,8 +312,10 @@ type
     procedure Init; virtual;
     procedure Paint; virtual;
     procedure SetupControls; virtual;
+    function AddMenuItem(newMenuItem: PMenuItem): PMenuItem; virtual;
+    function NewMenu(newId, newText: string): PMenu; virtual;
     {procedure KeyPress(var key: word; var handled: boolean); virtual;
-    function ProcessHotKeys(control: PControl; key: word): boolean; virtual;
+    function ProcessShortcutKeys(control: PControl; key: word): boolean; virtual;
     function ProcessArrowKeys(key: word): boolean; virtual;}
   end;
 
@@ -314,6 +340,7 @@ type
     MouseState: TMouseState;
     OldMouseState: TMouseState;
     MouseStack: TStack;
+    ActionList: PActionList;
     procedure Init; virtual;
     procedure Paint; virtual;
     procedure GetClientRect(var rect: TRect); virtual;
@@ -321,41 +348,24 @@ type
     procedure SetupControls; virtual;
     procedure HandleError(error: TError); virtual;
     destructor Done; virtual;
+    function AddMenuBar(newMenuBar: PMenuBar): PMenuBar; virtual;
     function FindNextControl(control: PControl): PControl; virtual;
     function FindPreviousControl(control: PControl): PControl; virtual;
   end;
 
-var
-  icDesktop: byte;
-  icDesktopBack: byte;
-  icWindow: byte;
-  icWindowBack: byte;
-  icBorder: byte;
-  icButton: byte;
-  icButtonBack: byte;
-  icButtonDown: byte;
-  icButtonDownBack: byte;
-  icButtonHover: byte;
-  icButtonHoverBack: byte;
-  icButtonHotKey: byte;
-  icWindowTitle: byte;
-  icWindowTitleBack: byte;
-  icMenu: byte;
-  icMenuBack: byte;
-  icHotKey: byte;
-  icScroll: byte;
-  icScrollBack: byte;
-  icEditor: byte;
-  icEditorBack: byte;
-  icDialog: byte;
-  icDialogBack: byte;
-  icSelect: byte;
-  icSelectBack: byte;
-  icFocused: byte;
-  icFocusedBack: byte;
-  FontList: PFontList;
-
 implementation
+
+uses
+  GraphApp;
+
+procedure ActionMouseClick(sender: PActionControl; var mouseState: TMouseState); far;
+var
+  key: word;
+begin
+  key := 0;
+  if (sender^.Action <> nil) and (sender^.Action^.OnExecute <> nil) then
+    TActionEvent(sender^.Action^.OnExecute)(sender, key, mouseState);
+end;
 
 procedure TEventInfo.Clear;
 begin
@@ -381,9 +391,16 @@ begin
   Clear;
 end;
 
+constructor TControlList.CreateParent(newParent: PControl);
+begin
+  Init;
+  Parent := newParent;
+end;
+
 procedure TControlList.Init;
 begin
   inherited Init;
+  Parent := nil;
 end;
 
 function TControlList.ToString: string;
@@ -403,32 +420,42 @@ end;
 
 function TControlList.Add(item: PControl): integer;
 begin
+  Add := -1;
+  if (item = nil) then exit;
   Add := TObjectList.Add(item);
+  item^.Parent := Parent;
 end;
 
 procedure TControlList.Insert(index: integer; item: PControl);
 begin
+  if (item = nil) then exit;
   TObjectList.Insert(index, item);
+  item^.Parent := Parent;
 end;
 
-procedure TControl.SetParent(newParent: PControl);
+function TControlList.GetItemById(idToFind: string): PControl;
 begin
-  Parent := newParent;
-  if (Parent <> nil) then
-    Parent^.Controls^.Add(@self);
+  GetItemById := PControl(inherited GetItemById(idToFind));
+end;
+
+constructor TControl.Create(newId: string);
+begin
+  Init;
+  Id := NewLargeString(newId);
 end;
 
 constructor TControl.CreateParent(newId: string; newParent: PControl);
 begin
   Init;
-  SetParent(newParent);
-  NewLargeString(newId, Id);
+  if (newParent <> nil) then
+    newParent^.Controls^.Add(@self);
+  Id := NewLargeString(newId);
 end;
 
 procedure TControl.Init;
 begin
   inherited Init;
-  Controls := New(PControlList, Create);
+  Controls := New(PControlList, CreateParent(@self));
   SetBounds(0, 0, 0, 0);
   _moving := false;
   Visible := true;
@@ -470,8 +497,12 @@ begin
   DrawEnabled := true;
   ToolTip := nil;
   Parent := nil;
-  ShowHotKey := false;
   Font := FontList^.GetFont('SystemFont');
+end;
+
+function TControl.AddControl(control: PControl): PControl;
+begin
+  Controls^.Add(control);
 end;
 
 function TControl.CheckError(var error: TError): boolean;
@@ -1003,7 +1034,7 @@ procedure TControl.ProcessKeyboard(var info: TEventInfo);
 begin
 end;
 
-function TControl.TrueTextWidth(txt: PChar): integer;
+function TControl.TrueTextWidth(txt: string): integer;
 var
   index: integer;
   len: word;
@@ -1012,49 +1043,106 @@ var
   currentWidth: integer;
 begin
   TrueTextWidth := 0;
-  if ((font = nil) or (txt = nil)) then exit;
-  len := StrLen(txt);
-  if (len = 0) then exit;
-  ptr := txt;
+  len := Length(txt);
+  if (font = nil) or (len = 0) then exit;
   currentWidth := 0;
-  for index := 0 to len - 1 do begin
-    ch := ptr^;
-    Inc(ptr);
+  for index := 1 to len do begin
+    ch := txt[index];
     if (ch = '&') then continue;
     Inc(currentWidth, Font^.TextWidth(ch));
   end;
   TrueTextWidth := currentWidth;
 end;
 
-constructor TPanel.CreateText(newId, newText: string; newParent: PControl);
+constructor TActionControl.Create(newId: string; newActionId: integer);
 begin
   Init;
-  SetParent(newParent);
-  NewLargeString(newId, Id);
-  NewLargeString(newText, Text);
+  Id := NewLargeString(newId);
+  ActionId := newActionId;
+end;
+
+constructor TActionControl.CreateEmpty;
+begin
+  Init;
+end;
+
+destructor TActionControl.Done;
+begin
+  inherited Done;
+  DisposeLargeString(Text);
+  DisposeLargeString(ShortcutDisplayName);
+end;
+
+function TActionControl.Action: PAction;
+begin
+  Action := GetDesktop^.Actionlist^.GetActionById(ActionId);
+end;
+
+procedure TActionControl.Init;
+begin
+  inherited Init;
+  Text := nil;
+  TextAlign := taCenter;
+  VertAlign := vaCenter;
+  Margin := 0;
+  ShortcutDisplayName := nil;
+  ShowShortcut := true;
+  Shortcut := 0;
+  ShortcutColor := 0;
+  ActionId := -1;
+  Id := nil;
+end;
+
+function TActionControl.GetText: string;
+begin
+  if (Text = nil) then begin
+    if (Action <> nil) then
+      GetText := StrPas(Action^.Text)
+    else
+      Text := '';
+  end else
+    GetText := StrPas(Text);
+end;
+
+function TActionControl.GetShortcut: word;
+begin
+  if (Shortcut = 0) then begin
+    if (Action <> nil) then
+      GetShortcut := Action^.Shortcut
+    else
+      GetShortcut := 0;
+  end else
+    GetShortcut := Shortcut;
+end;
+
+function TActionControl.GetShortcutDisplayName: string;
+begin
+  if (ShortcutDisplayName = nil) then begin
+    if (Action <> nil) then
+      GetShortcutDisplayName := StrPas(Action^.ShortcutDisplayName)
+    else
+      GetShortcutDisplayName := '';
+  end else
+    GetShortcutDisplayName := StrPas(ShortcutDisplayName);
 end;
 
 procedure TPanel.Init;
 begin
   inherited Init;
-  ForeColor := icWindow;
-  BackColor := icWindowBack;
-  BorderColor := icBorder;
+  ForeColor := InterfaceColors.Window;
+  BackColor := InterfaceColors.WindowBack;
+  BorderColor := InterfaceColors.Border;
   BorderStyle := bsSingle;
-  FocusedForeColor := icFocusedBack;
-  FocusedBackColor := icFocused;
+  FocusedForeColor := InterfaceColors.FocusedBack;
+  FocusedBackColor := InterfaceColors.Focused;
   DrawBackground := true;
   Text := nil;
-  TextAlign := taCenter;
-  VertAlign := vaCenter;
-  HotKey := 0;
   Margin := 0;
-  HotKeyColor := icButtonHotKey;
+  ShortcutColor := InterfaceColors.ButtonShortcut;
 end;
 
 destructor TPanel.Done;
 begin
-  DisposeLargeString(Text);
   inherited Done;
 end;
 
@@ -1064,11 +1152,12 @@ var
   desktop: PDesktop;
   rect: TRect;
   index, currentX: integer;
-  isHotKey: boolean;
+  isShortcut: boolean;
   textIndex: integer;
   ch: char;
   textWidth: integer;
   mouseState: TMouseState;
+  txt: string;
 begin
   inherited Paint;
   if (not GetVisible) then exit;
@@ -1082,7 +1171,7 @@ begin
   if (BorderStyle <> bsNone) then begin
     Graphics^.Rectangle(rect);
   end;
-  textWidth := TrueTextWidth(Text);
+  textWidth := TrueTextWidth(GetText);
   case TextAlign of
     taLeft: textXPos := rect.X;
     taRight: textXPos := rect.X + rect.Width - textWidth;
@@ -1095,22 +1184,22 @@ begin
   end;
   index := 0;
   textIndex := 0;
-  isHotKey := false;
+  isShortcut := false;
   currentX := Margin;
-  if (Text = nil) then exit;
-  while textIndex < StrLen(Text) do
+  txt := GetText;
+  while textIndex < Length(txt) do
   begin
-    if (Text[textIndex] = '&') then begin
-      isHotKey := true;
+    if (txt[textIndex] = '&') then begin
+      isShortcut := true;
       Inc(textIndex);
     end;
-    if (isHotKey) then begin
-      isHotKey := false;
-      Graphics^.SetForeColor(HotKeyColor);
+    if (isShortcut) then begin
+      isShortcut := false;
+      Graphics^.SetForeColor(ShortcutColor);
     end
     else
       Graphics^.SetForeColor(ForeColor);
-    ch := Text[textIndex];
+    ch := txt[textIndex];
     Graphics^.DrawText(textXPos + currentX, TextYPos, ch);
     Inc(textXPos, Font^.TextWidth(ch));
     Inc(index);
@@ -1125,17 +1214,17 @@ begin
   CanFocus := true;
   Active := false;
   IsMouseOver := false;
-  ForeColor := icButton;
-  BackColor := icButtonBack;
-  HotKeyColor := icButtonHotKey;
+  ForeColor := InterfaceColors.Button;
+  BackColor := InterfaceColors.ButtonBack;
+  ShortcutColor := InterfaceColors.ButtonShortcut;
   BorderStyle := bsNone;
   Pressed := false;
   Toggle := false;
   Grouped := false;
-  PressedBackColor := icButtonDownBack;
-  PressedForeColor := icButtonDown;
-  HoverForeColor := icButtonHover;
-  HoverBackColor := icButtonHoverBack;
+  PressedBackColor := InterfaceColors.ButtonDownBack;
+  PressedForeColor := InterfaceColors.ButtonDown;
+  HoverForeColor := InterfaceColors.ButtonHover;
+  HoverBackColor := InterfaceColors.ButtonHoverBack;
 end;
 
 function TButtonList.ToString: string;
@@ -1145,7 +1234,12 @@ end;
 
 function TButtonList.GetItem(index: integer): PButton;
 begin
-  GetItem := pointer(TObjectList.GetItem(index));
+  GetItem := PButton(TObjectList.GetItem(index));
+end;
+
+function TButtonList.GetItemById(idToFind: string): PButton;
+begin
+  GetItemById := PButton(TObjectList.GetItemById(idToFind));
 end;
 
 function TButtonList.IndexOf(item: PButton): integer;
@@ -1181,7 +1275,7 @@ begin
     ForeColor := HoverForeColor;
     BackColor := HoverBackColor;
   end;
-  TPanel.Paint;
+  inherited Paint;
   ForeColor := fore;
   backColor := back;
 end;
@@ -1219,7 +1313,7 @@ begin
       X := currentX;
       Y := 0;
       Height := Font^.Height + 2;
-      Width := TrueTextWidth(Text) + 2 * spaceWidth;
+      Width := TrueTextWidth(GetText) + 2 * spaceWidth;
       Margin := spaceWidth;
       Inc(currentX, Width);
     end;
@@ -1236,13 +1330,33 @@ begin
   Graphics^.HLine(rect.X, rect.Bottom, rect.Width);
 end;
 
+function TMenuBar.AddMenuItem(newMenuItem: PMenuItem): PMenuItem;
+begin
+  Controls^.Add(newMenuItem);
+  AddMenuItem := newMenuItem;
+end;
+
+function TMenuBar.NewMenu(newId, newText: string): PMenu;
+var
+  item: PMenuItem;
+  menu: PMenu;
+begin
+  item := New(PMenuItem, CreateParent(newId, @self));
+  item^.Text := NewLargeString(newText);
+  AddMenuItem(item);
+  menu := New(PMenu, CreateParent(newId, item));
+  item^.Menu := menu;
+  menu^.ParentItem := item;
+  NewMenu := menu;
+end;
+
 procedure TMenuBar.Init;
 var
   rect: TRect;
 begin
   inherited Init;
-  ForeColor := icMenu;
-  BackColor := icMenuBack;
+  ForeColor := InterfaceColors.Menu;
+  BackColor := InterfaceColors.MenuBack;
   BorderStyle := bsNone;
 end;
 
@@ -1337,7 +1451,7 @@ begin
         X := 1;
         Y := currentY;
         Margin := Font^.TextWidth('w') + 1;
-        Width := Margin + TrueTextWidth(Text) + Font^.TextWidth(' ') * 2 {+ GetKeyDesc(HotKey)} + 2;
+        Width := Margin + TrueTextWidth(GetText) + Font^.TextWidth(' ') * 2 {+ GetKeyDesc(Shortcut)} + 2;
         Height := Font^.Height + 3;
         if (Width > maxWidth) then begin
           maxWidth := Width;
@@ -1355,16 +1469,41 @@ begin
   Height := totalHeight + Font^.Height;
 end;
 
+function TMenu.AddMenuItem(item: PMenuItem): PMenuItem;
+begin
+  Controls^.Add(item);
+  item^.ParentMenu := @Self;
+  AddMenuItem := item;
+end;
+
+function TMenu.NewSeparator: PMenuItem;
+var
+  control: PMenuItem;
+begin
+  control := New(PMenuItem, CreateSeparator);
+  control^.ParentMenu := @self;
+  Controls^.Add(control);
+  NewSeparator := control;
+end;
+
 procedure TMenu.Init;
 begin
   inherited Init;
   ParentItem := nil;
   Position := spAbsolute;
   Visible := false;
-  ForeColor := icMenu;
-  BackColor := icMenuBack;
+  ForeColor := InterfaceColors.Menu;
+  BackColor := InterfaceColors.MenuBack;
   BorderStyle := bsSingle;
   ActiveItem := nil;
+end;
+
+function TMenu.NewMenuItem(newId: string; newActionId: integer): PMenuItem;
+var
+  item: PMenuItem;
+begin
+  item := New(PMenuItem, Create(newId, actionId));
+  NewMenuItem := item;
 end;
 
 procedure TMenu.KeyPress(var key: word; var handled: boolean);
@@ -1374,12 +1513,12 @@ var
   newItem: PMenuItem;
 begin
   if not (GetEnabled and GetVisible) then exit;
-  desktop := GetDesktop;
+{  desktop := GetDesktop;
   if (handled) then exit;
   if (desktop^.ActiveMenu = @self) then
   begin
     if (ActiveItem <> nil) then begin
-      if (key = kDown) or (key = kUp) then
+      if (key = kyDown) or (key = kUp) then
       begin
         handled := true;
         index := Controls^.IndexOf(ActiveItem);
@@ -1425,57 +1564,23 @@ begin
       Hide;
       handled := true;
     end;
-  end;
+  end;}
 end;
 
-constructor TMenuItem.CreateText(newId, newText: string; newParent: PControl; newHotKey: word; click: PMouseEvent);
+constructor TMenuItem.CreateSeparator;
 begin
   Init;
-  SetParent(newParent);
-  NewLargeString(newId, Id);
-  NewLargeString(newText, Text);
-  HotKey := newHotKey;
-  OnMouseClick := click;
-  if (TypeOf(newParent^) = TypeOf(TMenu)) then
-    ParentMenu := PMenu(newParent);
-end;
-
-constructor TMenuItem.CreateSeparator(newId: string; newParent: PControl);
-begin
-  Init;
-  SetParent(newParent);
   Enabled := false;
-  NewLargeString(newId, Id);
-  NewLargeString('-', Text);
-  ShowHotKey := false;
+  ShowShortcut := false;
   Separator := true;
-  ParentMenu := nil;
-  if (TypeOf(newParent^) = TypeOf(TMenu)) then
-    ParentMenu := PMenu(newParent);
 end;
 
-constructor TMenuItem.CreateMenuBar
-(
-  newId,
-  newText: string;
-  newMenubar: PMenuBar;
-  newMenu: PMenu;
-  newHotKey: word;
-  click: PMouseEvent
-);
+function TMenuItem.AddMenu(newMenu: PMenu): PMenu;
 begin
   Init;
-  SetParent(newMenuBar);
-  MenuBar := newMenuBar;
-  NewLargeString(newId, Id);
-  NewLargeString(newText, Text);
-  HotKey := newHotKey;
-  ShowHotKey := false;
-  OnMouseClick := click;
-  ParentMenu := nil;
-  Menu := newMenu;
-  newMenu^.SetParent(@self);
+  Controls^.Add(newMenu);
   newMenu^.ParentItem := @self;
+  AddMenu := newMenu;
 end;
 
 procedure TMenuItem.Init;
@@ -1486,19 +1591,18 @@ begin
   Separator := false;
   MenuBar := nil;
   Enabled := true;
-  HotKey := 0;
-  ShowHotKey := true;
+  Shortcut := 0;
+  ShowShortcut := true;
   OnMouseClick := nil;
   ParentMenu := nil;
   Menu := nil;
-  ForeColor := icMenu;
-  BackColor := icMenuBack;
+  ForeColor := InterfaceColors.Menu;
+  BackColor := InterfaceColors.MenuBack;
   BorderStyle := bsNone;
   Grouped := true;
   Toggle := true;
   VertAlign := vaCenter;
   TextAlign := taLeft;
-  Margin := 0;
 end;
 
 procedure TMenuItem.KeyPress(var key: word; var handled: boolean);
@@ -1638,7 +1742,7 @@ begin
   end
   else
     TButton.Paint;
-  if (ShowHotKey and (HotKey <> 0)) then
+  if (ShowShortcut and (Shortcut <> 0)) then
   begin
     if (Pressed or Active) then
     begin
@@ -1646,7 +1750,7 @@ begin
       Graphics^.SetBackColor(PressedBackColor);
     end;
     GetClipRect(rect);
-    desc := '';{GetKeyDesc(HotKey);}
+    desc := '';{GetKeyDesc(Shortcut);}
     Graphics^.DrawText(rect.X + rect.Width - Font^.TextWidth(desc), rect.Y, desc);
   end;
 end;
@@ -1681,14 +1785,14 @@ begin
     Pressed := false;
     Draw;
   end;
-  TPanel.MouseClick(state);
+  inherited MouseClick(state);
 end;
 
 procedure TStatusBar.Init;
 begin
   inherited Init;
-  ForeColor := icMenu;
-  BackColor := icMenuBack;
+  ForeColor := InterfaceColors.Menu;
+  BackColor := InterfaceColors.MenuBack;
   BorderStyle := bsNone;
   TextPanel := New(PPanel, CreateParent('~TextPanel', @self));
   TextPanel^.TextAlign := taleft;
@@ -1704,8 +1808,8 @@ begin
   with TextPanel^ do
   begin
     BorderStyle := bsNone;
-    ForeColor := icMenu;
-    BackColor := icMenuBack;
+    ForeColor := InterfaceColors.Menu;
+    BackColor := InterfaceColors.MenuBack;
     self.GetClientRect(rect);
     SetBounds(rect.X, rect.Y, rect.Width, rect.Height);
   end;
@@ -1739,11 +1843,12 @@ begin
   inherited Init;
   DrawBackground := true;
   BorderStyle := bsNone;
+  ActionList := New(PActionList, Create);
   ActiveControl := nil;
   ActiveMenu := nil;
   MouseOverControl := nil;
-  ForeColor := icDesktop;
-  BackColor := icDesktopBack;
+  ForeColor := InterfaceColors.Desktop;
+  BackColor := InterfaceColors.DesktopBack;
   MenuBar := New(PMenuBar, CreateParent('DesktopMenuBar', @self));
   StatusBar := New(PStatusBar, CreateParent('DesktopStatusBar', @self));
   OldMouseState.Create;
@@ -1756,6 +1861,7 @@ end;
 destructor TDesktop.Done;
 begin
   MouseStack.Done;
+  Dispose(ActionList, Done);
   inherited Done;
 end;
 
@@ -1813,6 +1919,11 @@ begin
     if (current <> nil) and (not current^.AcceptTab) then
       FindNextControl := FindNextControl(current);
   end;}
+end;
+
+function TDesktop.AddMenuBar(newMenuBar: PMenuBar): PMenuBar;
+begin
+  Controls^.Add(newMenuBar);
 end;
 
 function TDesktop.FindPreviousControl(control: PControl): PControl;

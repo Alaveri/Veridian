@@ -17,6 +17,7 @@ uses
 
 type
   PGraphicApplication = ^TGraphicApplication;
+
   TGraphicApplication = object(TApplication)
   private
     _mouseVisible: boolean;
@@ -36,6 +37,40 @@ type
     constructor Create(const newId: string; interfaceMem: longint; driver: TGraphDrivers; modeId: string);
     destructor Done; virtual;
   end;
+
+  TInterfaceColors = record
+    Desktop: byte;
+    DesktopBack: byte;
+    Window: byte;
+    WindowBack: byte;
+    Border: byte;
+    Button: byte;
+    ButtonBack: byte;
+    ButtonDown: byte;
+    ButtonDownBack: byte;
+    ButtonHover: byte;
+    ButtonHoverBack: byte;
+    ButtonShortcut: byte;
+    WindowTitle: byte;
+    WindowTitleBack: byte;
+    Menu: byte;
+    MenuBack: byte;
+    Shortcut: byte;
+    Scroll: byte;
+    ScrollBack: byte;
+    Editor: byte;
+    EditorBack: byte;
+    Dialog: byte;
+    DialogBack: byte;
+    Select: byte;
+    SelectBack: byte;
+    Focused: byte;
+    FocusedBack: byte;
+  end;
+
+var
+  InterfaceColors: TInterfaceColors;
+  FontList: PFontList;
 
 implementation
 
@@ -78,40 +113,40 @@ procedure TGraphicApplication.InitControls;
 begin
   with Desktop^ do begin
     SetBounds(0, 0, Graphics^.Mode^.Width, Graphics^.Mode^.Height);
-    ForeColor := icDesktop;
-    BackColor := icDesktopBack;
+    ForeColor := InterfaceColors.Desktop;
+    BackColor := InterfaceColors.DesktopBack;
     SetupControls;
   end;
 end;
 
 procedure TGraphicApplication.InitDefaultColors;
 begin
-  icDesktop := Graphics^.GetColor(scWhite, MaxIntensity);
-  icDesktopBack := Graphics^.GetColor(scGreen, MaxIntensity);
-  icWindow := Graphics^.GetColor(scCyan, MaxIntensity);
-  icWindowBack := Graphics^.GetColor(scWhite, MaxIntensity);
-  icBorder := Graphics^.GetColor(scBlack, MinIntensity);
-  icButton := Graphics^.GetColor(scBlack, MinIntensity);
-  icButtonBack := Graphics^.GetColor(scCyan, MaxIntensity);
-  icButtonDown := Graphics^.GetColor(scBlack, MaxIntensity);
-  icButtonDownBack := Graphics^.GetColor(scGreen, MaxIntensity);
-  icButtonHotKey := Graphics^.GetColor(scRed, MaxIntensity);
-  icButtonHover := Graphics^.GetColor(scBlack, MaxIntensity);
-  icButtonHoverBack := Graphics^.GetColor(scGreen, MaxIntensity);
-  icWindowTitle := Graphics^.GetColor(scBlack, MinIntensity);
-  icWindowTitleBack := Graphics^.GetColor(scCyan, MaxIntensity);
-  icMenu := Graphics^.GetColor(scBlack, MinIntensity);
-  icMenuBack := Graphics^.GetColor(scWhite, MaxIntensity);
-  icHotKey := Graphics^.GetColor(scRed, MaxIntensity);
-  icScroll := Graphics^.GetColor(scBlack, MinIntensity);
-  icScrollBack := Graphics^.GetColor(scCyan, MaxIntensity);
-  icEditor := Graphics^.GetColor(scYellow, MaxIntensity);
-  icEditorBack := Graphics^.GetColor(scBlack, MinIntensity);
-  icDialog := Graphics^.GetColor(scBlack, MinIntensity);
-  icDialogBack := Graphics^.GetColor(scCyan, MaxIntensity);
-  icSelect := Graphics^.GetColor(scWhite, Intensity50);
-  icSelectBack := Graphics^.GetColor(scGreen, MaxIntensity);
-  icFocused := Graphics^.GetColor(scGreen, MaxIntensity);
+  InterfaceColors.Desktop := Graphics^.GetColor(scWhite, MaxIntensity);
+  InterfaceColors.DesktopBack := Graphics^.GetColor(scGreen, MaxIntensity);
+  InterfaceColors.Window := Graphics^.GetColor(scCyan, MaxIntensity);
+  InterfaceColors.WindowBack := Graphics^.GetColor(scWhite, MaxIntensity);
+  InterfaceColors.Border := Graphics^.GetColor(scBlack, MinIntensity);
+  InterfaceColors.Button := Graphics^.GetColor(scBlack, MinIntensity);
+  InterfaceColors.ButtonBack := Graphics^.GetColor(scCyan, MaxIntensity);
+  InterfaceColors.ButtonDown := Graphics^.GetColor(scBlack, MaxIntensity);
+  InterfaceColors.ButtonDownBack := Graphics^.GetColor(scGreen, MaxIntensity);
+  InterfaceColors.ButtonShortcut := Graphics^.GetColor(scRed, MaxIntensity);
+  InterfaceColors.ButtonHover := Graphics^.GetColor(scBlack, MaxIntensity);
+  InterfaceColors.ButtonHoverBack := Graphics^.GetColor(scGreen, MaxIntensity);
+  InterfaceColors.WindowTitle := Graphics^.GetColor(scBlack, MinIntensity);
+  InterfaceColors.WindowTitleBack := Graphics^.GetColor(scCyan, MaxIntensity);
+  InterfaceColors.Menu := Graphics^.GetColor(scBlack, MinIntensity);
+  InterfaceColors.MenuBack := Graphics^.GetColor(scWhite, MaxIntensity);
+  InterfaceColors.Shortcut := Graphics^.GetColor(scRed, MaxIntensity);
+  InterfaceColors.Scroll := Graphics^.GetColor(scBlack, MinIntensity);
+  InterfaceColors.ScrollBack := Graphics^.GetColor(scCyan, MaxIntensity);
+  InterfaceColors.Editor := Graphics^.GetColor(scYellow, MaxIntensity);
+  InterfaceColors.EditorBack := Graphics^.GetColor(scBlack, MinIntensity);
+  InterfaceColors.Dialog := Graphics^.GetColor(scBlack, MinIntensity);
+  InterfaceColors.DialogBack := Graphics^.GetColor(scCyan, MaxIntensity);
+  InterfaceColors.Select := Graphics^.GetColor(scWhite, Intensity50);
+  InterfaceColors.SelectBack := Graphics^.GetColor(scGreen, MaxIntensity);
+  InterfaceColors.Focused := Graphics^.GetColor(scGreen, MaxIntensity);
 end;
 
 procedure TGraphicApplication.InitGraphicsDriver(driver: TGraphDrivers; modeId: string);
