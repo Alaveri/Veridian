@@ -8,9 +8,8 @@ uses
   MemDrv,
   GraphDrv,
   Drawing,
-  Crt,
   Apps,
-  Utils,
+  Common,
   Controls,
   StrUtils,
   GraphIni;
@@ -182,13 +181,6 @@ begin
     _eventInfo.NewMouseState.Assign(mouseState);
     Desktop^.ProcessMouse(_eventInfo);
     OldMouseState^ := mouseState;
-  end;
-
-  if (KeyPressed) then
-  begin
-    ch := ReadKey;
-    if (ch = #27) then
-      Close;
   end;
 end;
 

@@ -1,4 +1,8 @@
-{$I COMPILER.INC}
+{$IFDEF debug}
+  {$A-,B-,D+,E+,F+,G+,I+,L+,N+,M 16384 0 655360,O-,P+,Q+,R+,S+,T-,V-,X+,Y+}
+{$ELSE}
+  {$A-,B-,D-,E+,F+,G+,I-,L-,N+,M 16384 0 655360,O-,P+,Q-,R-,S-,T-,V-,X+,Y-}
+{$ENDIF}
 unit Controls;
 
 interface
@@ -15,7 +19,7 @@ uses
   Strings,
   StrUtils,
   Actions,
-  Utils;
+  Common;
 
 type
   TBorderStyle =
@@ -201,6 +205,7 @@ type
     function GetShortcutDisplayName: string;
   public
     ActionId: integer;
+    Action: PAction;
     Text: PChar;
     TextAlign: TTextAlign;
     VertAlign: TVertAlign;
@@ -211,7 +216,6 @@ type
     Margin: integer;
     constructor CreateEmpty;
     constructor Create(newId: string; newActionId: integer);
-    function Action: PAction;
     procedure Init; virtual;
     destructor Done; virtual;
   end;
@@ -1061,6 +1065,7 @@ begin
   Init;
   Id := NewLargeString(newId);
   ActionId := newActionId;
+  Action := GetDesktop^.ActionList^.GetActionById(ActionId);
 end;
 
 constructor TActionControl.CreateEmpty;
@@ -1075,15 +1080,11 @@ begin
   inherited Done;
 end;
 
-function TActionControl.Action: PAction;
-begin
-  Action := GetDesktop^.Actionlist^.GetActionById(ActionId);
-end;
-
 procedure TActionControl.Init;
 begin
   inherited Init;
   Text := nil;
+  Action := nil;
   TextAlign := taCenter;
   VertAlign := vaCenter;
   Margin := 0;
@@ -1158,7 +1159,7 @@ var
   ch: char;
   textWidth: integer;
   mouseState: TMouseState;
-  txt: string;
+  txt, shortcutDesc: string;
 begin
   inherited Paint;
   if (not GetVisible) then exit;
@@ -1205,6 +1206,11 @@ begin
     Inc(textXPos, Font^.TextWidth(ch));
     Inc(index);
     Inc(textIndex);
+  end;
+  if (GetShortcut >= 0) and (ShowShortcut) then begin
+    shortcutDesc := KeyToShortcut(GetShortcut);
+    textXPos := rect.X + rect.Width - Font^.TextWidth(shortcutDesc + '  ');
+    Graphics^.DrawText(textXPos + currentX, TextYPos, shortcutDesc);
   end;
 end;
 
@@ -1433,6 +1439,7 @@ var
   currentY: integer;
   control: PMenuItem;
   totalHeight: integer;
+  shortcutDesc: string;
 begin
   if (Parent <> nil) and (TypeOf(Parent^) = TypeOf(TMenuItem)) then begin
     X := Parent^.X - 1;
@@ -1446,12 +1453,18 @@ begin
     for index := 0 to Controls^.Count - 1 do begin
       control := PMenuItem(Controls^.GetItem(index));
       with (control^) do begin
+        shortcutDesc := '';
+        if (GetShortcut >= 0) then
+          shortcutDesc := KeyToShortcut(GetShortcut);
         if (not GetVisible) then continue;
         TextAlign := taLeft;
-        X := 1;
+        X := borderWidth;
         Y := currentY;
-        Margin := Font^.TextWidth('w') + 1;
-        Width := Margin + TrueTextWidth(GetText) + Font^.TextWidth(' ') * 2 {+ GetKeyDesc(Shortcut)} + 2;
+        Margin := Font^.TextWidth('w');
+        Width := Margin
+          + TrueTextWidth(GetText)
+          + Font^.TextWidth(shortcutDesc)
+          + Font^.TextWidth(' ') * 4;
         Height := Font^.Height + 3;
         if (Width > maxWidth) then begin
           maxWidth := Width;
@@ -1503,7 +1516,8 @@ var
   item: PMenuItem;
 begin
   item := New(PMenuItem, CreateParent(newId, @self));
-  item^.ActionId:= newActionId;
+  item^.ActionId := newActionId;
+  item^.Action := GetDesktop^.ActionList^.GetActionById(newActionId);
   item^.ParentMenu := @self;
   NewMenuItem := item;
 end;

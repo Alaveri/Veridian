@@ -12,7 +12,10 @@ type
   PAction = ^TAction;
   PActionList = ^TActionList;
   PActionEvent = ^TActionEvent;
+  PActionListUpdateEvent = ^TActionListUpdateEvent;
+
   TActionEvent = procedure(sender: PObject; var key: word; var mouseState: TMouseState);
+  TActionListUpdateEvent = procedure(sender: PActionList);
 
   TAction = object(TObject)
   private
@@ -31,6 +34,7 @@ type
 
   TActionList = object(TObjectList)
   public
+    OnUpdate: PActionListUpdateEvent;
     function ToString: string; virtual;
     function GetItem(index: integer): PAction;
     function IndexOf(item: PAction): integer;
@@ -128,6 +132,7 @@ end;
 procedure TActionList.Init;
 begin
   inherited Init;
+  OnUpdate := nil;
 end;
 
 procedure TActionList.Insert(index: integer; item: PAction);
