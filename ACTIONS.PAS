@@ -1,3 +1,8 @@
+{$IFDEF debug}
+  {$A-,B-,D+,E+,F+,G+,I+,L+,N+,M 16384 0 655360,O-,P+,Q+,R+,S+,T-,V-,X+,Y+}
+{$ELSE}
+  {$A-,B-,D-,E+,F+,G+,I+,L-,N+,M 16384 0 655360,O-,P+,Q-,R-,S-,T-,V-,X+,Y-}
+{$ENDIF}
 unit Actions;
 
 interface
@@ -26,6 +31,7 @@ type
     Shortcut: word;
     OnExecute: PActionEvent;
     ParentList: PActionList;
+    Enabled: boolean;
     constructor Create(newActionId: integer; newText: string; newShortcut: word; newOnExecute: PActionEvent);
     constructor CreateEmpty;
     destructor Done; virtual;
@@ -73,6 +79,7 @@ begin
   OnExecute := nil;
   ParentList := nil;
   ActionId := -1;
+  Enabled := true;
 end;
 
 destructor TAction.Done;

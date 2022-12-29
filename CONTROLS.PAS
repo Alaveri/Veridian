@@ -1,7 +1,7 @@
 {$IFDEF debug}
   {$A-,B-,D+,E+,F+,G+,I+,L+,N+,M 16384 0 655360,O-,P+,Q+,R+,S+,T-,V-,X+,Y+}
 {$ELSE}
-  {$A-,B-,D-,E+,F+,G+,I-,L-,N+,M 16384 0 655360,O-,P+,Q-,R-,S-,T-,V-,X+,Y-}
+  {$A-,B-,D-,E+,F+,G+,I+,L-,N+,M 16384 0 655360,O-,P+,Q-,R-,S-,T-,V-,X+,Y-}
 {$ENDIF}
 unit Controls;
 
@@ -13,11 +13,11 @@ uses
   Consts,
   Drawing,
   GraphDrv,
-  KeyDrv,
   MouseDrv,
   Streams,
   Strings,
   StrUtils,
+  KeyDrv,
   Actions,
   Common;
 
@@ -112,6 +112,10 @@ type
     procedure HandleRightUp(var info: TEventInfo); virtual;
     procedure HandleRightDown(var info: TEventInfo); virtual;
     procedure HandleMouseMove(var info: TEventInfo); virtual;
+    function GetAltHotKey(text: PChar): word; virtual;
+    function GetHotKey(text: PChar): word; virtual;
+    function GetNextActiveMenuItem(menu: PMenu; oldMenuItem: PMenuItem): PMenuItem; virtual;
+    function ActiveMenuItem(menu: PMenu): PMenuItem; virtual;
   public
     DrawBackground: boolean;
     X, Y: integer;
@@ -492,7 +496,7 @@ begin
   TakesControl := false;
   TextX := 0;
   TextY := 0;
-  OldCursorOn := true;
+  OldCursorOn := false;
   Focused := false;
   CanFocus := false;
   UsesCursor := false;
@@ -556,7 +560,7 @@ begin
   Draw;
   Graphcis^.SetXY(TextX, TextY);
   if (UsesCursor) then
-    GraphicsDriver^.CursorOn;}
+    Graphics^Driver^.CursorOn;}
 end;
 
 procedure TControl.Unfocus;
@@ -1030,14 +1034,220 @@ begin
 
   HandleMouseMove(info);
   HandleLeftUp(info);
-  HandleLeftUp(info);
   HandleLeftDown(info);
   HandleRightUp(info);
   HandleRightDown(info);
 end;
 
-procedure TControl.ProcessKeyboard(var info: TEventInfo);
+function TControl.GetAltHotKey(text: PChar): word;
+var
+  caption: string;
+  index: integer;
+  ch: char;
 begin
+  caption := StrPas(text);
+  for index := 1 to Length(caption) do begin
+    if (caption[index] = '&') and (length(caption) >= index + 1) then begin
+      GetAltHotKey := Keyboard.CharToAltChar(caption[index + 1]);
+      exit;
+    end;
+  end;
+  GetAltHotKey := 0;
+end;
+
+function TControl.GetHotKey(text: PChar): word;
+var
+  caption: string;
+  index: integer;
+  ch: char;
+begin
+  caption := StrPas(text);
+  for index := 1 to Length(caption) do begin
+    if (caption[index] = '&') and (length(caption) >= index + 1) then begin
+      GetHotKey := Ord(UpCase(caption[index + 1]));
+      exit;
+    end;
+  end;
+  GetHotKey := 0;
+end;
+
+function TControl.ActiveMenuItem(menu: PMenu): PMenuItem;
+var
+  index: integer;
+  menuItem: PMenuItem;
+begin
+  if menu = nil then begin
+    ActiveMenuItem := nil;
+    exit;
+  end;
+  for index := 0 to menu^.Controls^.Count - 1 do begin
+    menuItem := PMenuItem(menu^.Controls^.GetItem(index));
+    if (menuItem^.IsLeftMouseDown) then begin
+      ActiveMenuItem := menuItem;
+      exit;
+    end;
+  end;
+  ActiveMenuItem := nil;
+end;
+
+function TControl.GetNextActiveMenuItem(menu: PMenu; oldMenuItem: PMenuItem): PMenuItem;
+var
+  desktop: PDesktop;
+  index : integer;
+  activeItem: PList;
+  menuItem: PMenuItem;
+begin
+  desktop := GetDesktop;
+  if (desktop^.ActiveMenu = nil) then begin
+    GetNextActiveMenuItem := nil;
+    exit;
+  end;
+  menuItem := ActiveMenuItem(desktop^.ActiveMenu);
+  if (menuItem = nil) then
+    index := -1
+  else
+    index := desktop^.ActiveMenu^.Controls^.IndexOf(menuItem);
+  repeat
+    Inc(index);
+    menuItem := PMenuItem(desktop^.ActiveMenu^.Controls^.GetItem(index));
+    if (not menuItem^.Separator) and (menuItem^.Enabled) then begin
+      break;
+    end;
+  until index > desktop^.ActiveMenu^.Controls^.Count - 1;
+
+  GetNextActiveMenuItem := menuItem;
+  if (oldMenuItem <> nil) then begin
+    oldMenuItem^.Active := false;
+    oldMenuItem^.Pressed := false;
+    oldMenuItem^.IsLeftMouseDown := false;
+    oldMenuItem^.DrawSelf;
+  end;
+end;
+
+procedure TControl.ProcessKeyboard(var info: TEventInfo);
+var
+  index: integer;
+  desktop: PDesktop;
+  action: PAction;
+  menuItem: PMenuItem;
+  key: word;
+  hotKey: word;
+begin
+  desktop := GetDesktop;
+  for index := 0 to Desktop^.ActionList^.Count - 1 do begin
+    action := Desktop^.ActionList^.GetItem(index);
+    if (action^.Shortcut <> 0) and (action^.Shortcut = info.Key) and (action^.Enabled) then begin
+      if (action^.OnExecute <> nil) then begin
+        TActionEvent(action^.OnExecute)(@self, info.Key, info.NewMouseState);
+        info.KeyPressHandled := true;
+        exit;
+      end;
+    end;
+  end;
+  for index := 0 to Desktop^.MenuBar^.Controls^.Count - 1 do begin
+    menuItem := PMenuItem(Desktop^.MenuBar^.Controls^.GetItem(index));
+    if (info.Key = GetAltHotKey(menuItem^.Text)) then begin
+      info.KeyPressHandled := true;
+      if desktop^.ActiveMenu <> nil then begin
+        desktop^.ActiveMenu^.Hide;
+        desktop^.ActiveMenu^.ParentItem^.Pressed := false;
+        desktop^.ActiveMenu^.ParentItem^.Active := false;
+        desktop^.ActiveMenu^.ParentItem^.Paint;
+      end;
+      desktop^.ActiveMenu := menuItem^.Menu;
+      menuItem^.Menu^.ActiveItem := @self;
+      menuItem^.Pressed := true;
+      menuItem^.Active := true;
+      menuItem^.Menu^.Show;
+      menuItem^.Paint;
+      exit;
+    end;
+  end;
+  if (desktop^.ActiveMenu <> nil) and (info.Key = 27) then begin
+    desktop^.ActiveMenu^.Hide;
+    desktop^.ActiveMenu^.ParentItem^.Pressed := false;
+    desktop^.ActiveMenu^.ParentItem^.Active := false;
+    desktop^.ActiveMenu^.ParentItem^.Paint;
+    info.KeyPressHandled := true;
+    exit;
+  end;
+  if (desktop^.ActiveMenu <> nil) then begin
+    for index := 0 to desktop^.ActiveMenu^.Controls^.Count - 1 do begin
+      menuItem := PMenuItem(Desktop^.ActiveMenu^.Controls^.GetItem(index));
+      action := menuItem^.Action;
+      if (action = nil) then continue;
+      key := Keyboard.UpCase(info.Key);
+      hotKey := GetHotKey(action^.Text);
+      if not action^.enabled then continue;
+      if key = hotKey then begin
+        info.KeyPressHandled := true;
+        action := menuItem^.Action;
+        if (action^.OnExecute <> nil) then begin
+          TActionEvent(action^.OnExecute)(@self, info.Key, info.NewMouseState);
+          info.KeyPressHandled := true;
+          exit;
+        end;
+      end;
+    end;
+  end;
+  if (desktop^.ActiveMenu <> nil) then begin
+    case info.Key of
+      kyLeft: begin
+        menuItem := desktop^.ActiveMenu^.ParentItem;
+        index := desktop^.MenuBar^.Controls^.IndexOf(menuItem);
+        Dec(index);
+        if (index < 0) then
+          index := desktop^.MenuBar^.Controls^.Count - 1;
+        menuItem := PMenuItem(desktop^.MenuBar^.Controls^.GetItem(index));
+        desktop^.ActiveMenu^.Hide;
+        desktop^.ActiveMenu^.ParentItem^.Pressed := false;
+        desktop^.ActiveMenu^.ParentItem^.Active := false;
+        desktop^.ActiveMenu^.ParentItem^.Paint;
+        desktop^.ActiveMenu := menuItem^.Menu;
+        menuItem^.Menu^.ActiveItem := @self;
+        menuItem^.Pressed := true;
+        menuItem^.Active := true;
+        menuItem^.Menu^.Show;
+        menuItem^.Paint;
+        info.KeyPressHandled := true;
+        exit;
+      end;
+      kyRight: begin
+        menuItem := desktop^.ActiveMenu^.ParentItem;
+        index := desktop^.MenuBar^.Controls^.IndexOf(menuItem);
+        Inc(index);
+        if (index > desktop^.MenuBar^.Controls^.Count - 1) then
+          index := 0;
+        menuItem := PMenuItem(desktop^.MenuBar^.Controls^.GetItem(index));
+        desktop^.ActiveMenu^.Hide;
+        desktop^.ActiveMenu^.ParentItem^.Pressed := false;
+        desktop^.ActiveMenu^.ParentItem^.Active := false;
+        desktop^.ActiveMenu^.ParentItem^.Paint;
+        desktop^.ActiveMenu := menuItem^.Menu;
+        menuItem^.Pressed := true;
+        menuItem^.Active := true;
+        menuItem^.Menu^.Show;
+        menuItem^.Paint;
+        info.KeyPressHandled := true;
+        exit;
+      end;
+      kyDown: begin
+        menuItem := ActiveMenuItem(desktop^.ActiveMenu);
+        menuItem := GetNextActiveMenuItem(desktop^.ActiveMenu, menuItem);
+        if (menuItem <> nil) then begin
+          desktop^.ActiveMenu^.ActiveItem := menuItem;
+          menuItem^.Active := true;
+          menuItem^.Pressed := true;
+          menuItem^.IsLeftMouseDown := true;
+          menuItem^.DrawSelf;
+          info.KeyPressHandled := true;
+          exit;
+        end;
+      end;
+    end;
+  end;
+  if not Enabled then exit;
+  KeyPress(info.Key, info.KeyPressHandled);
 end;
 
 function TControl.TrueTextWidth(txt: string): integer;
@@ -1208,7 +1418,7 @@ begin
     Inc(textIndex);
   end;
   if (GetShortcut >= 0) and (ShowShortcut) then begin
-    shortcutDesc := KeyToShortcut(GetShortcut);
+    shortcutDesc := Keyboard.KeyToShortcut(GetShortcut);
     textXPos := rect.X + rect.Width - Font^.TextWidth(shortcutDesc + '  ');
     Graphics^.DrawText(textXPos + currentX, TextYPos, shortcutDesc);
   end;
@@ -1412,9 +1622,9 @@ begin
     BackData^.Seek(0, soFromBeginning);
     Graphics^.DrawImageStream(rect.X, rect.Y, rect.Width, rect.Height, BackData);
     Dispose(BackData, Done);
+    CheckError(BackData^.Error);
+    BackData := nil;
   end;
-  CheckError(BackData^.Error);
-  BackData := nil;
   TPanel.Hide;
   EndDrawing;
 end;
@@ -1455,7 +1665,7 @@ begin
       with (control^) do begin
         shortcutDesc := '';
         if (GetShortcut >= 0) then
-          shortcutDesc := KeyToShortcut(GetShortcut);
+          shortcutDesc := Keyboard.KeyToShortcut(GetShortcut);
         if (not GetVisible) then continue;
         TextAlign := taLeft;
         X := borderWidth;
@@ -1767,17 +1977,6 @@ begin
   end
   else
     inherited Paint;
-  if (ShowShortcut and (Shortcut <> 0)) then
-  begin
-    if (Pressed or Active) then
-    begin
-      Graphics^.SetForeColor(PressedForeColor);
-      Graphics^.SetBackColor(PressedBackColor);
-    end;
-    GetClipRect(rect);
-    desc := '';{GetKeyDesc(Shortcut);}
-    Graphics^.DrawText(rect.X + rect.Width - Font^.TextWidth(desc), rect.Y, desc);
-  end;
 end;
 
 procedure TButton.MouseDown(var state: TMouseState);

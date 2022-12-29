@@ -3,10 +3,12 @@ unit GraphApp;
 interface
 
 uses
+  Crt,
   Objects,
   MouseDrv,
   MemDrv,
   GraphDrv,
+  KeyDrv,
   Drawing,
   Apps,
   Common,
@@ -85,8 +87,8 @@ var
   mouseState: TMouseState;
 begin
   inherited Init;
-  InitGraphicsDriver(_driverId, _modeId);
   Memory := new(PMemDrv, CreateReserved(InterfaceMemory));
+  InitGraphicsDriver(_driverId, _modeId);
   FontList := New(PFontList, Create);
   FontList^.Add(New(PSystemFont, CreateId('SystemFont')));
   InitDefaultColors;
@@ -95,9 +97,9 @@ begin
   Desktop^.MouseStack.Create;
   OldMouseState := New(PMouseState, Create);
   _modeId := '';
-  InitControls;
   MouseDriver^.SetMousePosition(Desktop^.Width div 2, Desktop^.Height div 2);
   MouseDriver^.GetMouseState(mouseState);
+  InitControls;
   Desktop^.Draw;
   Graphics^.MouseCursor^.StoreBackground(mouseState.X, mouseState.Y);
   Graphics^.ShowMouseCursor;
@@ -155,7 +157,7 @@ var
   mode: PGraphicsMode;
   mouseState: TMouseState;
 begin
-  factory.CreateGraphicsDriver(driver, Graphics);
+  factory.CreateGraphicsDriver(driver);
   factory.Done;
   modeIndex := Graphics^.Modes^.IndexOfId(modeId);
   if (modeIndex < 0) then
@@ -182,6 +184,12 @@ begin
     Desktop^.ProcessMouse(_eventInfo);
     OldMouseState^ := mouseState;
   end;
+  if (Keyboard.KeyPressed) then begin
+    _eventInfo.Clear;
+    _eventInfo.Key := Keyboard.GetKey;
+    _eventInfo.NewMouseState.Assign(mouseState);
+    Desktop^.ProcessKeyboard(_eventInfo);
+  end;
 end;
 
 destructor TGraphicApplication.Done;
@@ -192,6 +200,7 @@ begin
   Dispose(Graphics, Done);
   Dispose(Memory, Done);
   TApplication.Done;
+  Keyboard.Done;
 end;
 
 procedure TGraphicApplication.Run;
