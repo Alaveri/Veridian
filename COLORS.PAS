@@ -1,3 +1,8 @@
+{$IFDEF debug}
+  {$A-,B-,D+,F+,G-,I+,L+,N+,O+,P+,Q+,R+,S+,T-,V-,X+,Y+}
+{$ELSE}
+  {$A-,B-,D-,F+,G-,I+,L-,N+,O+,P+,Q-,R-,S-,T-,V-,X+,Y-}
+{$ENDIF}
 unit Colors;
 
 interface
@@ -17,14 +22,13 @@ type
     Border: byte;
     Button: byte;
     ButtonBack: byte;
-    ButtonDown: byte;
+    ButtonShadow: byte;
+    ButtonLight: byte;
     ButtonDownBack: byte;
-    ButtonDownHighlight: byte;
-    ButtonHover: byte;
-    ButtonHoverBack: byte;
-    ButtonHoverHighlight: byte;
-    ButtonHighlight: byte;
+    ButtonDownShadow: byte;
+    ButtonDownLight: byte;
     ButtonDisabled: byte;
+    ButtonHighlight: byte;
     Tab: byte;
     TabBack: byte;
     TabHover: byte;
@@ -32,10 +36,15 @@ type
     TabDisabled: byte;
     WindowTitle: byte;
     WindowTitleBack: byte;
+    WindowActiveTitle: byte;
+    WindowActiveTitleBack: byte;
     Menu: byte;
     MenuBack: byte;
+    MenuActive: byte;
+    MenuHighlight: byte;
+    MenuActiveBack: byte;
+    MenuActiveHighlight: byte;
     Shortcut: byte;
-    Scroll: byte;
     ScrollBack: byte;
     Editor: byte;
     EditorBack: byte;
@@ -43,6 +52,8 @@ type
     DialogBack: byte;
     Select: byte;
     SelectBack: byte;
+    ListUnfocusedSelect: byte;
+    ListUnfocusedSelectBack: byte;
     Focused: byte;
     FocusedBack: byte;
     Cursor: byte;
@@ -55,49 +66,57 @@ implementation
 
 uses
   GraphApp,
-  Graph8;
+  GrDrv8;
 
 procedure TInterfaceColors.Init;
+var
+  intensity: byte;
 begin
   inherited Init;
-  Desktop := Graph256^.GetColor256(scWhite, MaxIntensity);
-  DesktopBack := Graph256^.GetColor256(scBlue, Intensity50);
+  Desktop := Graph8^.GetColor8(scWhite, MaxIntensity);
+  DesktopBack := Graph8^.GetColor8(scCyan, Intensity50);
   Window := 0;
-  WindowBack := Graph256^.GetColor256(scWhite, MaxIntensity);
+  WindowBack := Graph8^.GetColor8(scWhite, MaxIntensity);
   Border := 0;
   Button := 0;
-  ButtonBack := Graph256^.GetColor256(scViolet, MaxIntensity);
-  ButtonDown := Graph256^.GetColor256(scWhite, MaxIntensity);
-  ButtonDownBack := Graph256^.GetColor256(scViolet, MaxIntensity);
-  ButtonDisabled := Graph256^.GetColor256(scWhite, Intensity75);
-  ButtonHighlight := Graph256^.GetColor256(scViolet, Intensity75);
-  ButtonDownHighlight := Graph256^.GetColor256(scViolet, Intensity25);
-  ButtonHover := Graph256^.GetColor256(scWhite, MaxIntensity);
-  ButtonHoverBack := Graph256^.GetColor256(scViolet, MaxIntensity);
-  ButtonHoverHighlight := Graph256^.GetColor256(scViolet, Intensity25);
-  TabBack := Graph256^.GetColor256(scWhite, MaxIntensity);
-  TabDisabled := Graph256^.GetColor256(scWhite, Intensity75);
-  TabHover := Graph256^.GetColor256(scViolet, MaxIntensity);
-  TabHoverBack := Graph256^.GetColor256(scWhite, MaxIntensity);
-  WindowTitle := Graph256^.GetColor256(scWhite, MinIntensity);
-  WindowTitleBack := Graph256^.GetColor256(scViolet, MaxIntensity);
+  intensity := 12;
+  ButtonBack := Graph8^.GetColor8(scWhite, intensity);
+  ButtonShadow := Graph8^.GetColor8(scWhite, intensity - 2);
+  ButtonLight := Graph8^.GetColor8(scWhite, intensity + 3);
+  ButtonDownBack := Graph8^.GetColor8(scWhite, intensity - 1);
+  ButtonDownShadow := Graph8^.GetColor8(scWhite, intensity + 2);
+  ButtonDownLight := Graph8^.GetColor8(scWhite, intensity - 2);
+  ButtonDisabled := Graph8^.GetColor8(scWhite, Intensity50);
+  ButtonHighlight := Graph8^.GetColor8(scBlue, Intensity75);
+  TabBack := Graph8^.GetColor8(scWhite, MaxIntensity);
+  TabDisabled := Graph8^.GetColor8(scWhite, Intensity75);
+  TabHover := Graph8^.GetColor8(scCyan, MaxIntensity);
+  TabHoverBack := Graph8^.GetColor8(scWhite, MaxIntensity);
+  WindowTitle := 0;
+  WindowTitleBack := Graph8^.GetColor8(scWhite, Intensity75);
+  WindowActiveTitle := Graph8^.GetColor8(scWhite, MaxIntensity);
+  WindowActiveTitleBack := Graph8^.GetColor8(scBlue, Intensity75);
   Menu := 0;
-  MenuBack := Graph256^.GetColor256(scWhite, MaxIntensity);
-  Shortcut := Graph256^.GetColor256(scViolet, Intensity25);
-  Scroll := Graph256^.GetColor256(scBlack, MinIntensity);
-  ScrollBack := Graph256^.GetColor256(scViolet, MaxIntensity);
+  MenuBack := Graph8^.GetColor8(scWhite, MaxIntensity);
+  MenuActive := Graph8^.GetColor8(scWhite, MaxIntensity);
+  MenuHighlight := Graph8^.GetColor8(scBlue, Intensity75);
+  MenuActiveBack := Graph8^.GetColor8(scBlue, Intensity75);
+  MenuActiveHighLight := Graph8^.GetColor8(scWhite, MaxIntensity);
+  Shortcut := Graph8^.GetColor8(scRed, MaxIntensity);
+  ScrollBack := Graph8^.GetColor8(scWhite, Intensity75);
   Editor := 0;
-  EditorBack := Graph256^.GetColor256(scWhite, MaxIntensity);
+  EditorBack := Graph8^.GetColor8(scWhite, MaxIntensity);
   Dialog := 0;
-  DialogBack := Graph256^.GetColor256(scWhite, MaxIntensity);
-  Select := Graph256^.GetColor256(scWhite, Intensity50);
-  SelectBack := Graph256^.GetColor256(scViolet, MaxIntensity);
-  CursorBack := Graph256^.GetColor256(scBlack, MaxIntensity);
-  Cursor := Graph256^.GetColor256(scWhite, MaxIntensity);
-  Focused := Graph256^.GetColor256(scGreen, Intensity50);
-  EditorDisabled := Graph256^.GetColor256(scWhite, Intensity50);
+  DialogBack := Graph8^.GetColor8(scWhite, MaxIntensity);
+  Select := Graph8^.GetColor8(scBlack, MaxIntensity);
+  SelectBack := Graph8^.GetColor8(scWhite, MaxIntensity);
+  CursorBack := Graph8^.GetColor8(scBlack, MaxIntensity);
+  Cursor := Graph8^.GetColor8(scWhite, MaxIntensity);
+  Focused := Graph8^.GetColor8(scWhite, MaxIntensity);
+  FocusedBack := Graph8^.GetColor8(scBlue, Intensity75);
+  EditorDisabled := Graph8^.GetColor8(scWhite, Intensity50);
+  ListUnfocusedSelect := 0;
+  ListUnfocusedSelectBack := Graph8^.GetColor8(scWhite, Intensity75);
 end;
-
-
 
 end.
