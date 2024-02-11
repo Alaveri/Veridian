@@ -1,7 +1,7 @@
 {$IFDEF debug}
-  {$A-,B-,D+,E+,F+,G-,I+,L+,N+,M 16384 0 655360,O-,P+,Q+,R+,S+,T-,V-,X+,Y+}
+  {$A-,B-,D+,F+,G-,I+,L+,N+,O+,P+,Q+,R+,S+,T-,V-,X+,Y+}
 {$ELSE}
-  {$A-,B-,D-,E+,F+,G-,I+,L-,N+,M 16384 0 655360,O-,P+,Q-,R-,S-,T-,V-,X+,Y-}
+  {$A-,B-,D-,F+,G-,I+,L-,N+,O+,P+,Q-,R-,S-,T-,V-,X+,Y-}
 {$ENDIF}
 unit Desk;
 
@@ -9,7 +9,7 @@ interface
 
 uses
   Objects,
-  Collects,
+  Lists,
   Actions,
   Controls,
   Drawing,
@@ -21,6 +21,7 @@ uses
   GraphDrv,
   Except,
   Colors,
+  Views,
   MouseDrv;
 
 type
@@ -31,23 +32,29 @@ type
   PMainMenuItem = ^TMainMenuItem;
   PStatusBar = ^TStatusBar;
 
-  TMenuItem = object(TButton)
+  TMenuItem = object(TActionControl)
   private
   public
     Separator: boolean;
     ParentMenu: PMenu;
     Menu: PMenu;
     MenuBar: PMenuBar;
+    Active: boolean;
+    ActiveForeColor: byte;
+    ActiveBackColor: byte;
+    ActiveHighlightColor: byte;
     constructor CreateSeparator;
-    procedure KeyPress(var AEvent: TEvent); virtual;
-    procedure MouseEnter(var AEvent: TEvent); virtual;
-    procedure MouseLeave(var AEvent: TEvent); virtual;
-    procedure MouseDown(var AEvent: TEvent); virtual;
-    procedure MouseClick(var AEvent: TEvent); virtual;
+    procedure KeyPress(var AEvent: TKeyEvent); virtual;
+    procedure MouseEnter(var AEvent: TMouseEvent); virtual;
+    procedure MouseLeave(var AEvent: TMouseEvent); virtual;
+    procedure MouseDown(var AEvent: TMouseEvent); virtual;
+    procedure MouseClick(var AEvent: TMouseEvent); virtual;
     procedure Paint; virtual;
     procedure Init; virtual;
-    function GetAltHotKey: word; virtual;
-    function GetHotKey: word; virtual;
+    procedure ActivateMenu; virtual;
+    procedure DeactivateMenu; virtual;
+    procedure Activate; virtual;
+    procedure Deactivate; virtual;
     function AddMenu(AMenu: PMenu): PMenu; virtual;
     function NewMenu(AId: string): PMenu; virtual;
     function IsMainMenuItem: boolean; virtual;
@@ -56,7 +63,8 @@ type
   TMainMenuItem = object(TMenuItem)
   private
   public
-    function IsMainMenuItem: boolean; virtual;
+    procedure MouseEnter(var AEvent: TMouseEvent); virtual;
+    procedure MouseLeave(var AEvent: TMouseEvent); virtual;
   end;
 
   TMenu = object(TPopUp)
@@ -66,9 +74,9 @@ type
     function NewMenuItem(AId: string; AActionId: integer): PMenuItem;
     function AddMenuItem(AItem: PMenuItem): PMenuItem; virtual;
     function NewSeparator: PMenuItem; virtual;
-    procedure KeyPress(var AEvent: TEvent); virtual;
-    procedure MouseEnter(var AEvent: TEvent); virtual;
-    procedure MouseLeave(var AEvent: TEvent); virtual;
+    procedure Activate; virtual;
+    procedure Deactivate; virtual;
+    procedure PaintOccludingControls(AControl: PControl); virtual;
     procedure Init; virtual;
     procedure Show; virtual;
     procedure Hide; virtual;
@@ -76,14 +84,13 @@ type
     function ParentItem: PMenuItem; virtual;
   end;
 
-  TMenuBar = object(TPanel)
+  TMenuBar = object(TTextControl)
   private
   public
     procedure Init; virtual;
     procedure Paint; virtual;
     procedure SetupControls; virtual;
-    procedure KeyPress(var AEvent: TEvent); virtual;
-    procedure ActivateMenuItem(AMenuItem: PMenuItem); virtual;
+    procedure KeyPress(var AEvent: TKeyEvent); virtual;
     function GetActiveMenuItem: PMenuItem; virtual;
     function GetNextActiveMenuItem(AOldMenuItem: PMenuItem; AForward: boolean): PMenuItem; virtual;
     function AddMenuItem(AMenuItem: PMenuItem): PMenuItem; virtual;
@@ -93,12 +100,11 @@ type
   TDesktop = object(TPanel)
   private
   public
-    FontList: PFontList;
     MenuBar: PMenuBar;
     StatusBar: PStatusBar;
-    MouseOverControl: PControl;
     ActiveControl: PControl;
     ActiveMenu: PMenu;
+    ActiveView: PView;
     MouseState: TMouseState;
     OldMouseState: TMouseState;
     MouseStack: TStack;
@@ -111,23 +117,20 @@ type
     procedure Init; virtual;
     procedure Paint; virtual;
     procedure GetClientRect(var ARect: TRect); virtual;
-    procedure KeyPress(var AEvent: TEvent); virtual;
     procedure SetInterfaceColors(AColors: PInterfaceColors); virtual;
     procedure SetupControls; virtual;
     procedure DeactivateCurrentMenu; virtual;
-    procedure DeactivateMenuItem(AMenuItem: PMenuItem); virtual;
   end;
 
   TStatusBar = object(TPanel)
   private
   public
-    TextPanel: PPanel;
+    TextPanel: PTextControl;
     CurrentAction: PAction;
     procedure Init; virtual;
     destructor Free; virtual;
-    procedure Paint; virtual;
-    procedure MouseEnter(var AEvent: TEvent); virtual;
-    procedure MouseLeave(var AEvent: TEvent); virtual;
+    procedure MouseEnter(var AEvent: TMouseEvent); virtual;
+    procedure MouseLeave(var AEvent: TMouseEvent); virtual;
     procedure SetupControls; virtual;
     procedure ClearText; virtual;
     procedure ShowActionHelp(AAction: PAction); virtual;
@@ -140,38 +143,21 @@ implementation
 
 uses
   GraphApp,
-  Graph8,
-  VeriApp;
-
-procedure TDesktop.DeactivateMenuItem(AMenuItem: PMenuItem);
-begin
-  if AMenuItem = nil then
-    exit;
-  AMenuItem^.IsMouseOver := false;
-  AMenuItem^.IsLeftMouseDown := false;
-  AMenuItem^.IsRightMouseDown := false;
-  AMenuItem^.Pressed := false;
-  AMenuItem^.Active := false;
-  AMenuItem^.DrawSelf;
-end;
+  GrDrv8,
+  Veridian;
 
 procedure TDesktop.DeactivateCurrentMenu;
 var
   parentItem: PMenuItem;
   activeItem: PMenuItem;
 begin
-  if ActiveMenu = nil then
+  if not Assigned(ActiveMenu) then
     exit;
-  DeactivateMenuItem(ActiveMenu^.ActiveItem);
-  ActiveMenu^.ActiveItem := nil;
   parentItem := ActiveMenu^.ParentItem;
-  parentItem^.Pressed := false;
-  parentItem^.Active := false;
   parentItem^.IsMouseOver := false;
   parentItem^.IsLeftMouseDown := false;
   parentItem^.DrawSelf;
-  ActiveMenu^.Hide;
-  ActiveMenu := nil;
+  ActiveMenu^.Deactivate;
   StatusBar^.ClearText;
 end;
 
@@ -191,27 +177,15 @@ end;
 procedure TDesktop.Init;
 begin
   inherited Init;
-  FontList := New(PFontList, Create);
+  Font := Application^.Fonts^.GetItemById('System');
   InterfaceColors := New(PInterfaceColors, Create);
-  if FileExists('System.fnt') then begin
-    Font := New(PProportionalFont, Create);
-    Font^.LoadFromFile('System.fnt');
-    if Font^.HasException then begin
-      Font^.ClearException;
-      FreeAndNil(Font);
-      Font := New(PSystemFont, CreateId('System'));
-    end;
-  end
-  else
-    Font := New(PSystemFont, CreateId('System'));
-  FontList^.Add(Font);
   Desktop := @self;
   DrawBackground := true;
   BorderStyle := bsNone;
   ActionList := New(PActionList, Create);
   ActiveControl := nil;
   ActiveMenu := nil;
-  MouseOverControl := nil;
+  ActiveView := nil;
   ForeColor := InterfaceColors^.Desktop;
   BackColor := InterfaceColors^.DesktopBack;
   OldMouseState.Create;
@@ -221,7 +195,6 @@ destructor TDesktop.Free;
 begin
   MouseStack.Free;
   FreeAndNil(ActionList);
-  FreeAndNil(FontList);
   FreeAndNil(InterfaceColors);
   inherited Free;
 end;
@@ -229,6 +202,8 @@ end;
 procedure TDesktop.Paint;
 begin
   inherited Paint;
+{  Graph8^.SetBackColor(BackColor);
+  Graph8^.FillRect(Graph^.Mode^.Bounds);}
 end;
 
 procedure TDesktop.GetClientRect(var ARect: TRect);
@@ -237,49 +212,7 @@ begin
 end;
 
 function TDesktop.FindNextControl(AControl: PControl): PControl;
-var
-  index: integer;
-  par: PControl;
-  current: PControl;
 begin
-  {FindNextControl := nil;
-  par := control^.Parent;
-  if ((par = nil) or (not par^.GetVisible) or (not par^.GetEnabled)
-    or (par^.Controls^.Count = 0)) then
-    exit;
-  index := par^.Controls^.IndexOf(control);
-  Inc(index);
-  if (index > par^.Controls^.Count - 1) then
-  begin
-    if par^.GetModal then
-    begin
-      index := 0;
-      current := par^.Controls^.GetItem(index);
-    end
-    else
-    begin
-      par := par^.Parent;
-      if (par = nil) or (par^.Controls^.Count = 0) then exit;
-      current := par^.Controls^.GetItem(0);
-    end;
-  end
-  else
-    current := par^.Controls^.GetItem(index);
-  if ((current <> nil) and current^.GetVisible and current^.GetEnabled and current^.CanFocus) then
-  begin
-    if (ActiveControl <> nil) then
-    begin
-     HideMouse;
-     ActiveControl^.Unfocus;
-     current^.Focus;
-     ShowMouse;
-    end;
-  end
-  else
-  begin
-    if (current <> nil) and (not current^.AcceptTab) then
-      FindNextControl := FindNextControl(current);
-  end;}
 end;
 
 function TDesktop.AddMenuBar(AMenuBar: PMenuBar): PMenuBar;
@@ -291,16 +224,34 @@ function TDesktop.FindPreviousControl(AControl: PControl): PControl;
 begin
 end;
 
-procedure TDesktop.KeyPress(var AEvent: TEvent);
-begin
-  if AEvent.Handled then
-    exit;
-  inherited KeyPress(AEvent);
-end;
-
 procedure TMenu.Show;
 begin;
   inherited Show;
+end;
+
+procedure TMenu.Activate;
+begin
+  Application^.PushState;
+  Application^.CursorOff;
+  Desktop^.DeactivateCurrentMenu;
+  Desktop^.ActiveMenu := @self;
+  ActiveItem := nil;
+  Show;
+end;
+
+procedure TMenu.Deactivate;
+begin
+  if Assigned(ActiveItem) then
+    ActiveItem^.Deactivate;
+  ActiveItem := nil;
+  if Desktop^.ActiveMenu = @self then
+    Desktop^.ActiveMenu := nil;
+  Hide;
+  if ParentItem <> nil then
+    ParentItem^.Deactivate;
+  Application^.PopState;
+  if Application^.State.CursorOn then
+    Application^.CursorOn;
 end;
 
 procedure TMenu.Hide;
@@ -308,14 +259,8 @@ begin
   inherited Hide;
 end;
 
-procedure TMenu.MouseEnter(var AEvent: TEvent);
+procedure TMenu.PaintOccludingControls(AControl: PControl);
 begin
-  inherited MouseEnter(AEvent);
-end;
-
-procedure TMenu.MouseLeave(var AEvent: TEvent);
-begin
-  inherited MouseLeave(AEvent);
 end;
 
 function TMenu.ParentItem: PMenuItem;
@@ -325,62 +270,58 @@ end;
 
 procedure TMenu.SetupControls;
 var
-  maxWidth: byte;
   index: word;
-  item: PMenuItem;
   itemWidth: integer;
   currentY: integer;
-  control: PMenuItem;
+  item: PMenuItem;
   totalHeight: integer;
   shortcutDesc: string;
   parentRect: TRect;
 begin
-  if (ParentItem <> nil) then begin
-    if (ParentItem^.IsMainMenuItem) then begin
-      X := ParentItem^.X - 1;
-      Y := ParentItem^.Height;
-    end
-    else begin
-      ParentItem^.GetScreenBounds(parentRect);
-      X := ParentItem^.X + ParentItem^.Width + parentRect.X - 1;
-      Y := parentRect.Y - ParentItem^.Y;
-    end;
-  end;
-  maxWidth := 0;
   currentY := Font^.Height div 2;
   totalHeight := 0;
+  itemWidth := 0;
   if Controls^.Count > 0 then begin
     for index := 0 to Controls^.Count - 1 do begin
-      control := PMenuItem(Controls^.GetItem(index));
-      with control^ do begin
-        shortcutDesc := '';
-        if GetShortcut >= 0 then
-          shortcutDesc := Keyboard.KeyToShortcut(GetShortcut);
-        if not GetVisible then
-          continue;
-        TextAlign := taLeft;
-        X := Self.BorderWidth;
-        Y := currentY;
-        Margin := Font^.TextWidth(' ');
-        Width := Margin
-          + TrueTextWidth(GetText)
+      item := PMenuItem(Controls^.GetItem(index));
+      shortcutDesc := '';
+      if item^.GetShortcut >= 0 then
+        shortcutDesc := Keyboard.KeyToShortcut(item^.GetShortcut);
+      if not item^.GetVisible then
+        continue;
+      item^.TextAlign := taLeft;
+      item^.VertAlign := vaCenter;
+      item^.X := BorderWidth;
+      item^.Y := currentY;
+      item^.Margin := 2 * item^.Font^.Spacing;
+      itemWidth :=
+        Max(TrueTextWidth(item^.GetText)
+          + 2 * item^.Margin
           + Font^.TextWidth(shortcutDesc)
-          + Font^.TextWidth(' ') * 4;
-        Height := Font^.Height;
-        if Width > maxWidth then begin
-          maxWidth := Width;
-        end;
-        Inc(currentY, Height);
-        Inc(totalHeight, Height);
-      end;
+          + 8 * Font^.Spacing
+          , itemWidth);
+      item^.Height := Font^.Height + 1;
+      Inc(currentY, item^.Height);
+      Inc(totalHeight, item^.Height);
     end;
     for index := 0 to Controls^.Count - 1 do begin
-      control := PMenuItem(Controls^.GetItem(index));
-      control^.Width := maxWidth;
+      item := PMenuItem(Controls^.GetItem(index));
+      item^.Width := itemWidth;
     end;
   end;
-  Width := maxWidth + 2;
+  Width := itemWidth + 2 * BorderWidth;
   Height := totalHeight + Font^.Height;
+  if ParentItem <> nil then begin
+    if typeof(ParentItem^) = typeof(TMainMenuItem) then begin
+      X := ParentItem^.X;
+      Y := Desktop^.MenuBar^.Height - 1;
+    end
+    else begin
+{      ParentItem^.GetScreenBounds(parentRect);
+      X := parentRect.X + ParentItem^.Width + parentRect.X - 1;
+      Y := parentRect.Y - ParentItem^.Y;}
+    end;
+  end;
 end;
 
 function TMenu.AddMenuItem(AItem: PMenuItem): PMenuItem;
@@ -415,22 +356,15 @@ function TMenu.NewMenuItem(AId: string; AActionId: integer): PMenuItem;
 var
   item: PMenuItem;
 begin
-  item := New(PMenuItem, CreateParent(AId, @self));
-  item^.ActionId := AActionId;
+  item := New(PMenuItem, CreateParent(AId, AActionId, @self));
   item^.Action := Desktop^.ActionList^.GetActionById(AActionId);
   item^.ParentMenu := @self;
   NewMenuItem := item;
 end;
 
-procedure TMenu.KeyPress(var AEvent: TEvent);
-begin
-  inherited KeyPress(AEvent);
-end;
-
 constructor TMenuItem.CreateSeparator;
 begin
   Init;
-  Enabled := false;
   ShowShortcut := false;
   Separator := true;
 end;
@@ -469,150 +403,140 @@ begin
   Menu := nil;
   ForeColor := Desktop^.InterfaceColors^.Menu;
   BackColor := Desktop^.InterfaceColors^.MenuBack;
+  HighlightColor := Desktop^.InterfaceColors^.MenuHighlight;
+  ActiveForeColor := Desktop^.InterfaceColors^.MenuActive;
+  ActiveBackColor := Desktop^.InterfaceColors^.MenuActiveBack;
+  ActiveHighlightColor := Desktop^.InterfaceColors^.MenuActiveHighlight;
   BorderStyle := bsNone;
-{  Grouped := true;
-  Toggle := true;}
   VertAlign := vaCenter;
   TextAlign := taLeft;
+  Active := false;
 end;
 
-procedure TMenuItem.KeyPress(var AEvent: TEvent);
-var
-  state: TMouseState;
-  hotKey : word;
-  mouseState: TMouseState;
+procedure TMenuItem.Activate;
 begin
-  if AEvent.Handled then
-    exit;
+  Active := true;
+  if Assigned(ParentMenu) then begin
+    if Assigned(ParentMenu^.ActiveItem) and (ParentMenu^.ActiveItem <> @self) then
+      ParentMenu^.ActiveItem^.Deactivate;
+    ParentMenu^.ActiveItem := @self;
+  end;
+  DrawSelf;
+end;
 
-  if (AEvent.Key = GetAltHotKey) and (TypeOf(Parent^) = TypeOf(TMenuBar)) then begin
+procedure TMenuItem.Deactivate;
+begin
+  Active := false;
+  if Assigned(ParentMenu) then
+    ParentMenu^.ActiveItem := nil;
+  IsMouseOver := false;
+  IsLeftMouseDown := false;
+  IsRightMouseDown := false;
+  DrawSelf;
+end;
+
+procedure TMenuItem.KeyPress(var AEvent: TKeyEvent);
+var
+  hotKey: word;
+begin
+  hotKey := GetAltHotkey;
+  if (AEvent.Key = hotKey) and (typeof(Parent^) = typeof(TMenuBar)) then begin
     Desktop^.DeactivateCurrentMenu;
-    Desktop^.ActiveMenu := Menu;
-    Pressed := true;
-    Active := true;
-    Desktop^.ActiveMenu^.Show;
-    DrawSelf;
+    ActivateMenu;
     AEvent.Handled := true;
     exit;
   end;
-
-  inherited KeyPress(AEvent);
 end;
 
-procedure TMenuItem.MouseEnter(var AEvent: TEvent);
+procedure TMainMenuItem.MouseEnter(var AEvent: TMouseEvent);
+var
+  activeMenu: PMenu;
+  activeItem: PMenuItem;
+  index: integer;
 begin
   if not (GetVisible and GetEnabled) then
     exit;
-
-  if typeof(self) = typeof(TMainMenuItem) then begin
-    if (Desktop^.ActiveMenu <> nil) and (Desktop^.ActiveMenu <> Menu) then begin
-      Desktop^.DeactivateCurrentMenu;
-      Desktop^.ActiveMenu := Menu;
-      Menu^.ActiveItem := @self;
-      Pressed := true;
-      Active := true;
-      Menu^.Show;
-    end;
+  activeMenu := Desktop^.ActiveMenu;
+  if Assigned(activeMenu) and (activeMenu <> Menu) then begin
+    Desktop^.DeactivateCurrentMenu;
+    Menu^.Activate;
   end;
   inherited MouseEnter(AEvent);
 end;
 
-procedure TMenuItem.MouseLeave(var AEvent: TEvent);
+procedure TMainMenuItem.MouseLeave(var AEvent: TMouseEvent);
 begin
+  if Assigned(Menu) and (Menu^.GetVisible) then
+    exit;
   inherited MouseLeave(AEvent);
 end;
 
-procedure TMenuItem.MouseDown(var AEvent: TEvent);
+procedure TMenuItem.MouseEnter(var AEvent: TMouseEvent);
+begin
+  if not (GetVisible and GetEnabled) then
+    exit;
+  if Assigned(Action) then
+    Desktop^.StatusBar^.ShowActionHelp(Action);
+  Activate;
+  inherited MouseEnter(AEvent);
+end;
+
+procedure TMenuItem.MouseLeave(var AEvent: TMouseEvent);
+begin
+  IsMouseOver := false;
+  IsLeftMouseDown := false;
+  IsRightMouseDown := false;
+  Desktop^.StatusBar^.ClearText;
+  Deactivate;
+  inherited MouseLeave(AEvent);
+end;
+
+procedure TMenuItem.MouseDown(var AEvent: TMouseEvent);
 var
   parentItem: PMenuItem;
 begin
-  if not GetEnabled then
+  if not (GetEnabled and GetVisible) then
     exit;
-
-  if AEvent.Handled then
-    exit;
-
-  if typeof(self) = typeof(TMainMenuItem) then begin
-    Desktop^.DeactivateCurrentMenu;
-    Desktop^.ActiveMenu := Menu;
-    Pressed := true;
-    Active := true;
-    Desktop^.ActiveMenu^.Show;
-    DrawSelf;
-    AEvent.Handled := true;
-  end;
+  ActivateMenu;
 end;
 
-procedure TMenuItem.MouseClick(var AEvent: TEvent);
-var
-  act: PAction;
-  key: word;
-  parentItem: PMenuItem;
+procedure TMenuItem.MouseClick(var AEvent: TMouseEvent);
 begin
   if not GetEnabled then
     exit;
-
-  if (Action <> nil) and (Action^.Enabled) and (Action^.OnExecute <> nil) then begin
-    Desktop^.DeactivateMenuItem(@self);
+  if Assigned(Action) and (Action^.Enabled) then
     Desktop^.DeactivateCurrentMenu;
-    AEvent.Handled := true;
-    TActionEventProc(Action^.OnExecute)(@self);
-  end;
-  if AEvent.Handled then
-    exit;
-  if OnMouseClick <> nil then
-    TEventProc(OnMouseClick)(@self, AEvent);
-end;
-
-function TMenuItem.GetAltHotKey;
-var
-  caption: string;
-  index: integer;
-  ch: char;
-begin
-  caption := StrPas(Text);
-  for index := 1 to Length(caption) do begin
-    if (caption[index] = '&') and (length(caption) >= index + 1) then begin
-      GetAltHotKey := Keyboard.CharToAltChar(caption[index + 1]);
-      exit;
-    end;
-  end;
-  GetAltHotKey := 0;
-end;
-
-function TMenuItem.GetHotKey;
-var
-  caption: string;
-  index: integer;
-  ch: char;
-begin
-  if (Action <> nil) then
-    caption := StrPas(Action^.Text)
-  else
-    caption := StrPas(Text);
-  for index := 1 to Length(caption) do begin
-    if (caption[index] = '&') and (length(caption) >= index + 1) then begin
-      GetHotKey := Ord(UpCase(caption[index + 1]));
-      exit;
-    end;
-  end;
-  GetHotKey := 0;
+  inherited MouseClick(AEvent);
 end;
 
 procedure TMenuItem.Paint;
 var
   rect: TRect;
   desc: string;
+  fore, back, highlight: byte;
 begin
   if not GetVisible then
     exit;
   if Separator then begin
     GetScreenBounds(rect);
     Graph^.SetForeColor(BorderColor);
-    Graph^.HLine(rect.X, Rect.Y + (rect.Height div 2), Parent^.Width - 1);
-  end
-  else
-    inherited Paint;
+    Graph^.HLine(rect.X, rect.Y + (rect.Height div 2), rect.Width);
+    exit;
+  end;
+  fore := ForeColor;
+  back := BackColor;
+  highlight := HighlightColor;
+  if not GetEnabled then
+    ForeColor := DisabledForeColor
+  else if Active or IsMouseOver then begin
+    ForeColor := ActiveForeColor;
+    BackColor := ActiveBackColor;
+    HighlightColor := ActiveHighlightColor;
+  end;
+  inherited Paint;
+  ForeColor := fore;
+  BackColor := back;
+  HighlightColor := highlight;
 end;
 
 procedure TMenuBar.SetupControls;
@@ -639,16 +563,11 @@ begin
   end;
 end;
 
-function TMainMenuItem.IsMainMenuItem;
-begin
-  IsMainMenuItem := true;
-end;
-
 procedure TMenuBar.Paint;
 var
   rect: TRect;
 begin
-  TPanel.Paint;
+  inherited Paint;
   GetScreenBounds(rect);
   Graph^.SetForeColor(BorderColor);
   Graph^.HLine(rect.X, rect.Bottom, rect.Width);
@@ -660,19 +579,11 @@ var
   menuItem: PMenuItem;
   activeMenu : PMenu;
 begin
-  activeMenu := Desktop^.ActiveMenu;
-  if (activeMenu = nil) or (activeMenu^.Controls^.Count = 0) then begin
-    GetActiveMenuItem := nil;
-    exit;
-  end;
-  for index := 0 to activeMenu^.Controls^.Count - 1 do begin
-    menuItem := PMenuItem(activeMenu^.Controls^.GetItem(index));
-    if (menuItem^.Active) then begin
-      GetActiveMenuItem := menuItem;
-      exit;
-    end;
-  end;
   GetActiveMenuItem := nil;
+  activeMenu := Desktop^.ActiveMenu;
+  if not Assigned(activeMenu) or (not Assigned(activeMenu^.ActiveItem)) then
+    exit;
+  GetActiveMenuItem := activeMenu^.ActiveItem;
 end;
 
 function TMenuBar.GetNextActiveMenuItem(AOldMenuItem: PMenuItem; AForward: boolean): PMenuItem;
@@ -682,12 +593,12 @@ var
   menuItem: PMenuItem;
   totalItems: integer;
 begin
-  if Desktop^.ActiveMenu = nil then begin
+  if not Assigned(Desktop^.ActiveMenu) then begin
     GetNextActiveMenuItem := nil;
     exit;
   end;
   menuItem := GetActiveMenuItem;
-  if menuItem = nil then
+  if not Assigned(menuItem) then
     index := -1
   else
     index := Desktop^.ActiveMenu^.Controls^.IndexOf(menuItem);
@@ -703,7 +614,7 @@ begin
     if index < 0 then
       index := Desktop^.ActiveMenu^.Controls^.Count - 1;
     menuItem := PMenuItem(Desktop^.ActiveMenu^.Controls^.GetItem(index));
-    if menuItem = nil then
+    if not Assigned(menuItem) then
       continue;
     if (not menuItem^.Separator) and (menuItem^.GetEnabled) then begin
       break;
@@ -711,42 +622,57 @@ begin
   until (totalItems > Desktop^.ActiveMenu^.Controls^.Count);
 
   GetNextActiveMenuItem := menuItem;
-  if AOldMenuItem <> nil then begin
-    AOldMenuItem^.Active := false;
-    AOldMenuItem^.Pressed := false;
+  if Assigned(AOldMenuItem) then begin
     AOldMenuItem^.IsLeftMouseDown := false;
     AOldMenuItem^.DrawSelf;
   end;
 end;
 
-procedure TMenuBar.ActivateMenuItem(AMenuItem: PMenuItem);
+procedure TMenuItem.ActivateMenu;
 begin
-  Desktop^.DeactivateCurrentMenu;
-  Desktop^.ActiveMenu := AMenuItem^.Menu;
-  Desktop^.ActiveMenu^.ActiveItem := nil;
-  AMenuItem^.Pressed := true;
-  AMenuItem^.Active := true;
-  Desktop^.ActiveMenu^.Show;
-  AMenuItem^.DrawSelf;
+  Active := true;
+  if Assigned(Menu) then
+    Menu^.Activate;
+  DrawSelf;
 end;
 
-procedure TMenuBar.KeyPress(var AEvent: TEvent);
+procedure TMenuItem.DeactivateMenu;
+begin
+  IsMouseOver := false;
+  IsLeftMouseDown := false;
+  IsRightMouseDown := false;
+  Active := false;
+  if Assigned(Menu) then
+   Menu^.Deactivate;
+  DrawSelf;
+end;
+
+procedure TMenuBar.KeyPress(var AEvent: TKeyEvent);
 var
-  menuItem: PMenuItem;
+  menuItem, activeItem: PMenuItem;
   index: integer;
+  action: PAction;
+  activeMenu: PMenu;
 begin
   inherited KeyPress(AEvent);
+  activeMenu := Desktop^.ActiveMenu;
   if AEvent.Handled then
     exit;
+  if not Assigned(activeMenu) then
+    exit;
 
-  if (Desktop^.ActiveMenu <> nil) and (AEvent.Key = kyEsc) then begin
+  if AEvent.Key = kyEsc then begin
+    if Assigned(activeMenu^.activeItem) then begin
+      activeMenu^.activeItem^.Active := false;
+      activeMenu^.activeItem^.Draw;
+    end;
     Desktop^.DeactivateCurrentMenu;
+    Application^.PopState;
+    if Application^.State.CursorOn then
+      Application^.CursorOn;
     AEvent.Handled := true;
     exit;
   end;
-
-  if Desktop^.ActiveMenu = nil then
-    exit;
 
   case AEvent.Key of
     kyLeft: begin
@@ -755,8 +681,12 @@ begin
       Dec(index);
       if (index < 0) then
         index := Controls^.Count - 1;
+      activeItem := GetActiveMenuItem;
+      if Assigned(activeItem) then
+        activeItem^.Deactivate;
       menuItem := PMenuItem(Controls^.GetItem(index));
-      ActivateMenuItem(menuItem);
+      menuItem^.ActivateMenu;
+      menuItem^.Activate;
       AEvent.Handled := true;
       exit;
     end;
@@ -767,21 +697,26 @@ begin
       Inc(index);
       if (index > Controls^.Count - 1) then
         index := 0;
+      activeItem := GetActiveMenuItem;
+      if Assigned(activeItem) then
+        activeItem^.Deactivate;
       menuItem := PMenuItem(Controls^.GetItem(index));
-      ActivateMenuItem(menuItem);
+      menuItem^.ActivateMenu;
+      menuItem^.Activate;
       AEvent.Handled := true;
       exit;
     end;
 
     kyUp, kyDown: begin
-      menuItem := GetActiveMenuItem;
-      menuItem := GetNextActiveMenuItem(menuItem, AEvent.Key = kyDown);
-      if menuItem <> nil then begin
+      activeItem := GetActiveMenuItem;
+      menuItem := GetNextActiveMenuItem(activeItem, AEvent.Key = kyDown);
+      if Assigned(activeItem) then
+        activeItem^.Deactivate;
+      if Assigned(menuItem) then begin
+        menuItem^.Activate;
+        menuItem^.DrawSelf;
         Desktop^.StatusBar^.ShowActionHelp(menuItem^.Action);
         Desktop^.ActiveMenu^.ActiveItem := menuItem;
-        menuItem^.Active := true;
-        menuItem^.Pressed := true;
-        menuItem^.IsLeftMouseDown := true;
         menuItem^.DrawSelf;
         AEvent.Handled := true;
         exit;
@@ -789,35 +724,40 @@ begin
     end;
 
     kyEnter: begin
-      menuItem := GetActiveMenuItem;
-      if (menuItem = nil) then exit;
-      Desktop^.DeactivateCurrentMenu;
-      AEvent.Handled := true;
-      action := menuItem^.Action;
-      if (action = nil) or (action^.OnExecute = nil) then
+      activeItem := GetActiveMenuItem;
+      if not Assigned(activeItem) then
         exit;
-      TActionEventProc(action^.OnExecute)(@self);
+      Desktop^.DeactivateCurrentMenu;
+      if Assigned(activeItem) then
+        activeItem^.Deactivate;
+      AEvent.Handled := true;
+      action := activeItem^.Action;
+      if not Assigned(action) then
+        exit;
+      Application^.HandleActionExecute(action, action^.ActionId);
       exit;
     end;
   end;
 
-  if Desktop^.ActiveMenu^.Controls^.Count = 0 then
+  if (not Assigned(Desktop^.ActiveMenu)) or (Desktop^.ActiveMenu^.Controls^.Count = 0) then
     exit;
   for index := 0 to Desktop^.ActiveMenu^.Controls^.Count - 1 do begin
     menuItem := PMenuItem(Desktop^.ActiveMenu^.Controls^.GetItem(index));
-    with menuItem^ do begin
-      AEvent.Key := Keyboard.UpCase(AEvent.Key);
-      if (Action = nil) or (not Action^.Enabled) or (Action^.OnExecute = nil) then
-        continue;
-      if AEvent.Key <> GetHotKey then
-        continue;
-      Desktop^.DeactivateCurrentMenu;
-      AEvent.Handled := true;
-      TActionEventProc(action^.OnExecute)(@self);
-      AEvent.Handled := true;
-      exit;
-    end;
+    AEvent.Key := Keyboard.UpCase(AEvent.Key);
+    if not (Assigned(menuItem^.Action) and (menuItem^.Action^.Enabled)) then
+      continue;
+    if not menuItem^.Action^.Enabled then
+      continue;
+    if AEvent.Key <> menuItem^.GetHotKey then
+      continue;
+    activeItem := GetActiveMenuItem;
+    if Assigned(activeItem) then
+      activeItem^.Deactivate;
+    Desktop^.DeactivateCurrentMenu;
+    Application^.HandleActionExecute(menuItem^.Action, menuItem^.Action^.ActionId);
+    break;
   end;
+  AEvent.Handled := true;
 end;
 
 function TMenuBar.AddMenuItem(AMenuItem: PMenuItem): PMenuItem;
@@ -831,8 +771,8 @@ var
   item: PMenuItem;
   menu: PMenu;
 begin
-  item := New(PMainMenuItem, CreateParent(AId + 'Item', @self));
-  item^.Text := NewLargeString(AText);
+  item := New(PMainMenuItem, CreateParent(AId + 'Item', -1, @self));
+  item^.Text := TString.New(AText);
   menu := New(PMenu, CreateParent(AId, item));
   item^.Menu := menu;
   NewMenu := menu;
@@ -855,7 +795,10 @@ begin
   Position := spAbsolute;
   ForeColor := Desktop^.InterfaceColors^.Menu;
   BackColor := Desktop^.InterfaceColors^.MenuBack;
-  BorderStyle := bsNone;
+  TextPanel := New(PTextControl, CreateParent('StatusText', @self));
+  TextPanel^.BackColor := ForeColor;
+  TextPanel^.BackColor := BackColor;
+  TextPanel^.Margin := 4;
   CurrentAction := nil;
 end;
 
@@ -864,50 +807,46 @@ begin
   inherited Free;
 end;
 
-procedure TStatusBar.MouseEnter(var AEvent: TEvent);
+procedure TStatusBar.MouseEnter(var AEvent: TMouseEvent);
 begin
 end;
 
-procedure TStatusBar.MouseLeave(var AEvent: TEvent);
+procedure TStatusBar.MouseLeave(var AEvent: TMouseEvent);
 begin
 end;
 
 procedure TStatusBar.SetupControls;
 var
   rect: TRect;
+  maxWidth: integer;
 begin
   Desktop^.GetBounds(rect);
-  SetBounds(0, rect.Height - Font^.Height - 4, rect.Width, Font^.Height + 4);
+  SetBounds(0, rect.Height - Font^.Height - 4, rect.Width + 1, Font^.Height + 5);
+  maxWidth := Desktop^.ActionList^.GetHelpMaxWidth(@self) + 6;
+  TextPanel^.SetBounds(-1, 0, maxWidth + 1, Height + 1);
 end;
 
 procedure TStatusBar.ShowActionHelp(AAction: PAction);
+var
+  maxWidth: integer;
+  rect: TRect;
 begin
-  if AAction = nil then
+  if not Assigned(AAction) then
     exit;
   CurrentAction := AAction;
-  DrawSelf;
+  if AAction^.HelpText = nil then
+    exit;
+  TextPanel^.SetText(StrPas(AAction^.HelpText));
+  TextPanel^.Draw;
 end;
 
 procedure TStatusBar.ClearText;
 begin
-  CurrentAction := nil;
-  DrawSelf;
-end;
-
-procedure TStatusBar.Paint;
-var
-  rect: TRect;
-begin
-  inherited Paint;
-  if not GetVisible then
+  if not Assigned(CurrentAction) then
     exit;
-  GetScreenBounds(rect);
-  if (CurrentAction <> nil) and (CurrentAction^.HelpText <> nil) then begin
-    Graph^.SetForeColor(ForeColor);
-    Graph^.DrawTextLarge(rect.X + 6, rect.Y + 2, CurrentAction^.HelpText);
-  end;
-  Graph^.SetForeColor(BorderColor);
-  Graph^.HLine(rect.X, rect.Y, rect.Width);
+  CurrentAction := nil;
+  TString.Dispose(TextPanel^.Text);
+  TextPanel^.Draw;
 end;
 
 end.

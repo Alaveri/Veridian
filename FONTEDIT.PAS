@@ -1,3 +1,8 @@
+{$IFDEF debug}
+  {$A-,B-,D+,F+,G-,I+,L+,N+,O+,P+,Q+,R+,S+,T-,V-,X+,Y+}
+{$ELSE}
+  {$A-,B-,D-,F+,G-,I+,L-,N+,O+,P+,Q-,R-,S-,T-,V-,X+,Y-}
+{$ENDIF}
 unit FontEdit;
 
 interface
@@ -131,7 +136,7 @@ begin
   if not (AEvent.Intersects and IsLeftMouseDown) then
     exit;
   SetPixel(AEvent, false);
-  if OnMouseMove <> nil then
+  if Assigned(OnMouseMove) then
     TEventProc(OnMouseMove)(@self, AEvent);
   inherited MouseMove(AEvent);
 end;

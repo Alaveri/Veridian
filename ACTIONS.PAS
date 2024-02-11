@@ -1,7 +1,7 @@
 {$IFDEF debug}
-  {$A-,B-,D+,E+,F+,G-,I+,L+,N+,M 16384 0 655360,O-,P+,Q+,R+,S+,T-,V-,X+,Y+}
+  {$A-,B-,D+,F+,G-,I+,L+,N+,O+,P+,Q+,R+,S+,T-,V-,X+,Y+}
 {$ELSE}
-  {$A-,B-,D-,E+,F+,G-,I+,L-,N+,M 16384 0 655360,O-,P+,Q-,R-,S-,T-,V-,X+,Y-}
+  {$A-,B-,D-,F+,G-,I+,L-,N+,O+,P+,Q-,R-,S-,T-,V-,X+,Y-}
 {$ENDIF}
 unit Actions;
 
@@ -9,19 +9,22 @@ interface
 
 uses
   Objects,
+  Types,
   MouseDrv,
   StrUtils,
-  Apps,
-  Collects;
+  GraphDrv,
+  Common,
+  Lists;
 
 type
   PAction = ^TAction;
   PActionListUpdateEventProc = ^TActionListUpdateEventProc;
   PActionList = ^TActionList;
-  PActionEventProc = ^TActionEventProc;
+  PActionExecuteProc = ^TActionExecuteProc;
 
   TActionListUpdateEventProc = procedure(ASender: PActionList);
-  TActionEventProc = procedure(ASender: PObject);
+
+  TActionExecuteProc = procedure(AAction: PAction; AActionId: integer);
 
   TAction = object(TIdentifiable)
   private
@@ -31,10 +34,12 @@ type
     HelpText: PChar;
     ShortcutDisplayName: PChar;
     Shortcut: word;
-    OnExecute: PActionEventProc;
     ParentList: PActionList;
     Enabled: boolean;
-    constructor Create(AActionId: integer; AText: string; AShortcut: word; AOnExecute: PActionEventProc);
+    OnExecute: PActionExecuteProc;
+    ModalResult: TModalResult;
+    Owner: PObject;
+    constructor Create(AActionId: integer; AText: string; AShortcut: word);
     constructor CreateEmpty;
     procedure SetHelpText(AHelpText: string); virtual;
     procedure SetText(AText: string); virtual;
@@ -42,15 +47,16 @@ type
     procedure Init; virtual;
   end;
 
-  TActionList = object(TObjectList)
+  TActionList = object(TIdentifiableList)
   public
     OnUpdate: PActionListUpdateEventProc;
-    function ToString: string; virtual;
-    function GetItem(AIndex: integer): PAction;
     function IndexOf(AItem: PAction): integer;
-    function NewAction(AActionId: integer; AText: string; AShortcut: word; AOnExecute: PActionEventProc): PAction;
+    function NewAction(AActionId: integer; AText: string; AShortcut: word): PAction;
     function Add(AItem: PAction): integer;
-    function GetActionById(AId: integer): PAction;
+    function GetItem(AIndex: integer): PAction;
+    function GetItemById(AId: string): PAction;
+    function GetActionById(AActionId: integer): PAction;
+    function GetHelpMaxWidth(AControl: pointer): integer;
     procedure Init; virtual;
     procedure Insert(AIndex: integer; AItem: PAction);
     destructor Free; virtual;
@@ -58,12 +64,15 @@ type
 
 implementation
 
-constructor TAction.Create(AActionId: integer; AText: string; AShortcut: word; AOnExecute: PActionEventProc);
+uses
+  Controls,
+  Strings;
+
+constructor TAction.Create(AActionId: integer; AText: string; AShortcut: word);
 begin
   inherited Create;
-  Text := NewLargeString(AText);
+  Text := TString.New(AText);
   Shortcut := AShortcut;
-  OnExecute := AOnExecute;
   ActionId := AActionId;
 end;
 
@@ -79,47 +88,62 @@ begin
   HelpText := nil;
   ShortcutDisplayName := nil;
   Shortcut := 0;
-  OnExecute := nil;
   ParentList := nil;
   ActionId := -1;
   Enabled := true;
+  OnExecute := nil;
+  ModalResult := mrNone;
+  Owner := nil;
 end;
 
 destructor TAction.Free;
 begin
-  DisposeLargeString(Text);
-  DisposeLargeString(ShortcutDisplayName);
-  DisposeLargeString(HelpText);
+  TString.Dispose(Text);
+  TString.Dispose(ShortcutDisplayName);
+  TString.Dispose(HelpText);
   inherited Free;
 end;
 
 procedure TAction.SetHelpText(AHelpText: string);
 begin
-  DisposeLargeString(HelpText);
-  HelpText := NewLargeString(AHelpText);
+  TString.Assign(HelpText, AHelpText);
 end;
 
 procedure TAction.SetText(AText: string);
 begin
-  DisposeLargeString(Text);
-  Text := NewLargeString(AText);
+  TString.Assign(Text, AText);
 end;
 
 function TActionList.NewAction(AActionId: integer; AText: string;
-  AShortcut: word; AOnExecute: PActionEventProc): PAction;
+  AShortcut: word): PAction;
 var
   action: PAction;
 begin
-  action := New(PAction, Create(AActionId, AText, AShortcut, AOnExecute));
+  action := New(PAction, Create(AActionId, AText, AShortcut));
   action^.ParentList := @Self;
   action^.ActionId := AActionId;
   Add(action);
   NewAction := action;
 end;
 
-function TActionList.ToString: string;
+function TActionList.GetHelpMaxWidth(AControl: pointer): integer;
+var
+  index: integer;
+  maxWidth: word;
+  action: PAction;
+  txt: string;
+  control: PControl;
 begin
-  ToString := 'TActionList';
+  maxWidth := 0;
+  for index := 0 to Count - 1 do begin
+    action := GetItem(index);
+    if not Assigned(action^.HelpText) then
+      continue;
+    txt := StrPas(action^.HelpText);
+    control := PControl(AControl);
+    maxWidth := MaxWord(control^.TrueTextWidth(txt), maxWidth);
+  end;
+  GetHelpMaxWidth := maxWidth;
 end;
 
 function TActionList.GetItem(AIndex: integer): PAction;
@@ -134,19 +158,24 @@ end;
 
 function TActionList.Add(AItem: PAction): integer;
 begin
-  inherited Add(AItem);
+  Add := inherited Add(AItem);
   AItem^.ParentList := @self;
 end;
 
-function TActionList.GetActionById(AId: integer): PAction;
+function TActionList.GetItemById(AId: string): PAction;
+begin
+  GetItemById := PAction(inherited GetItemById(AId));
+end;
+
+function TActionList.GetActionById(AActionId: integer): PAction;
 var
   index: integer;
   action: PAction;
 begin
-  GetActionById := nil;
+  GetActionByid := nil;
   for index := 0 to Count - 1 do begin
     action := GetItem(index);
-    if (Action^.ActionId = AId) then begin
+    if action^.ActionId = AActionId then begin
       GetActionById := action;
       exit;
     end;
