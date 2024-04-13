@@ -8,27 +8,31 @@ unit Controls;
 interface
 
 uses
+  {$IFDEF DOS}
+  Strings,
+  Dos,
+  {$ENDIF}
   Objects,
   Lists,
-  Consts,
+  AplConst,
   Drawing,
-  GraphDrv,
-  GrDrv8,
-  MouseDrv,
   Streams,
-  Strings,
   StrUtils,
-  KeyDrv,
-  Actions,
   DateTime,
-  FileUtil,
-  Common;
+  Files,
+  Common,
+  Actions,
+  MouseDrv,
+  KeyDrv,
+  GraphDrv,
+  GrDrv8;
 
 type
   TBorderStyle =
   (
     bsNone,
-    bsSingle
+    bsSingle,
+    bsDouble
   );
 
   TScrollStyle =
@@ -40,7 +44,6 @@ type
   TScrollButtonStyle =
   (
     sbInc,
-
     sbDec,
     sbSlider
   );
@@ -81,6 +84,7 @@ type
   PTMouseEventProc = ^TMouseEventProc;
   PKeyEventProc = ^TKeyEventProc;
   PDragEventProc = ^TDragEventProc;
+  PScrollEventProc = ^TScrollEventProc;
 
   TEvent = object(TObject)
   private
@@ -109,15 +113,22 @@ type
     procedure Clear; virtual;
   end;
 
+  TScrollEvent = object(TEvent)
+  private
+  public
+    CurrentPos: longint;
+  end;
+
   TDragEvent = object(TMouseEvent)
   private
   public
   end;
 
   TEventProc = procedure(ASender: PObject; var AEvent: TEvent);
-  TMouseEventProc = procedure(ASender: PObject; var AMouseEvent: TEvent);
-  TKeyEventProc = procedure(ASender: PObject; var AKeyEvent: TEvent);
-  TDragEventProc = procedure(ASender: PObject; var ADragEvent: TEvent);
+  TMouseEventProc = procedure(ASender: PObject; var AEvent: TMouseEvent);
+  TKeyEventProc = procedure(ASender: PObject; var AEvent: TKeyEvent);
+  TDragEventProc = procedure(ASender: PObject; var AEvent: TDragEvent);
+  TScrollEventProc = procedure(ASender: PObject; var AEvent: TScrollEvent);
 
   TControl = object(TIdentifiable)
   private
@@ -159,7 +170,6 @@ type
     Enabled: boolean;
     Focused: boolean;
     CanFocus: boolean;
-    Draggable: boolean;
     UsesCursor: boolean;
     AcceptEnter: boolean;
     AcceptTab: boolean;
@@ -178,12 +188,12 @@ type
     procedure Paint; virtual;
     procedure PaintRegion(AScreenRect: TRect; AExclude: PControl); virtual;
     procedure PaintOccludingControls(AControl: PControl); virtual;
-    {Get bounds of this control relative to parent client rect}
-    procedure GetBounds(var ARect: TRect); virtual;
     {Set bounds relative to parent client rect}
     procedure SetBounds(AX, AY, AWidth, AHeight: integer); virtual;
     {Set bounds rectangle relative to parent client rect}
     procedure SetBoundsRect(ARect: TRect); virtual;
+    {Get bounds of this control relative to parent client rect}
+    procedure GetBounds(var ARect: TRect); virtual;
     {Get bounds in absolute screen coordinates}
     procedure GetScreenBounds(var ARect : TRect); virtual;
     {Get client bounds relative to parent as defined by control
@@ -208,6 +218,7 @@ type
     procedure SetFocus(AFocused, ARedraw: boolean);
     procedure KeyPress(var AEvent: TKeyEvent); virtual;
     procedure StartDrawing; virtual;
+    procedure StartDrawingEx(ASetupControls: boolean); virtual;
     procedure EndDrawing; virtual;
     procedure BringToFront; virtual;
     procedure SendToBack; virtual;
@@ -274,6 +285,7 @@ type
     HighlightColor: byte;
     TextOffsetX: byte;
     TextOffsetY: byte;
+    constructor CreateText(const AId, AText: string; AParent: PControl);
     destructor Free; virtual;
     function GetText: string; virtual;
     procedure Init; virtual;
@@ -309,6 +321,7 @@ type
   private
   public
     Autosize: boolean;
+    constructor CreateText(const AId, AText: string; AParent: PControl);
     procedure Init; virtual;
     procedure Paint; virtual;
     procedure SetupControls; virtual;
@@ -348,6 +361,7 @@ implementation
 
 uses
   GraphApp,
+
   Veridian,
   Desk;
 
@@ -461,7 +475,6 @@ begin
   UsesCursor := false;
   AcceptEnter := false;
   AcceptTab := false;
-  Draggable := false;
   Parent := nil;
   Font := Desktop^.Font;
   MouseCursor := Application^.MouseCursors^.GetItemById('Default');
@@ -813,7 +826,7 @@ begin
     exit;
   StartDrawing;
   Paint;
-  PaintOccludingControls(@self);
+{  PaintOccludingControls(@self);}
   EndDrawing;
 end;
 
@@ -844,20 +857,25 @@ begin
 end;
 
 procedure TControl.StartDrawing;
+begin
+  StartDrawingEx(true);
+end;
+
+procedure TControl.StartDrawingEx(ASetupControls: boolean);
 var
   rect, mouseRect: TRect;
 begin
   Mouse.PushState;
   Graph^.PushState;
-  SetupControls;
+  if ASetupControls then
+    SetupControls;
   GetScreenBounds(rect);
-  MouseRect.CreateDims(Graph8^.MouseCursor^.X, Graph8^.MouseCursor^.Y,
+  mouseRect.CreateDims(Graph8^.MouseCursor^.X, Graph8^.MouseCursor^.Y,
     Graph8^.MouseCursor^.Width, Graph8^.MouseCursor^.Height);
   if rect.IntersectsRect(mouseRect) then
     Graph8^.HideMouseCursor;
   Graph^.SetForeColor(ForeColor);
   Graph^.SetBackColor(BackColor);
-  GetScreenBounds(rect);
   Graph^.State.ViewPort := rect;
 end;
 
@@ -1014,7 +1032,7 @@ begin
   ShowShortcut := true;
   Shortcut := 0;
   ActionId := -1;
-  DisabledForeColor := Desktop^.InterfaceColors^.ButtonDisabled;
+  DisabledForeColor := Desktop^.Colors^.ButtonDisabled;
 end;
 
 procedure TActionControl.Paint;
@@ -1081,7 +1099,7 @@ procedure THorzSeparator.Init;
 begin
   inherited Init;
   BorderStyle := bsNone;
-  ForeColor := Desktop^.InterfaceColors^.Border;
+  ForeColor := Desktop^.Colors^.Border;
 end;
 
 procedure THorzSeparator.Paint;
@@ -1097,12 +1115,12 @@ end;
 procedure TPanel.Init;
 begin
   inherited Init;
-  ForeColor := Desktop^.InterfaceColors^.Window;
-  BackColor := Desktop^.InterfaceColors^.WindowBack;
-  BorderColor := Desktop^.InterfaceColors^.Border;
+  ForeColor := Desktop^.Colors^.Window;
+  BackColor := Desktop^.Colors^.WindowBack;
+  BorderColor := Desktop^.Colors^.Border;
   BorderStyle := bsSingle;
-  FocusedForeColor := Desktop^.InterfaceColors^.Focused;
-  FocusedBackColor := Desktop^.InterfaceColors^.FocusedBack;
+  FocusedForeColor := Desktop^.Colors^.Focused;
+  FocusedBackColor := Desktop^.Colors^.FocusedBack;
   DrawBackground := true;
 end;
 
@@ -1135,6 +1153,12 @@ begin
     else
       Graph^.FillRect(rect);
   end;
+end;
+
+constructor TTextControl.CreateText(const AId, AText: string; AParent: PControl);
+begin
+  CreateParent(AId, AParent);
+  SetText(AText);
 end;
 
 destructor TTextControl.Free;
@@ -1218,23 +1242,23 @@ begin
   Active := false;
   ShowShortcut := false;
   IsMouseOver := false;
-  ForeColor := Desktop^.InterfaceColors^.Button;
-  BackColor := Desktop^.InterfaceColors^.ButtonBack;
-  LightColor := Desktop^.InterfaceColors^.ButtonLight;
+  ForeColor := Desktop^.Colors^.Button;
+  BackColor := Desktop^.Colors^.ButtonBack;
+  LightColor := Desktop^.Colors^.ButtonLight;
   BorderStyle := bsNone;
   Down := false;
   Toggle := false;
   Grouped := false;
   TextAlign := taCenter;
   BorderStyle := bsSingle;
-  ForeColor := Desktop^.InterfaceColors^.Button;
-  BackColor := Desktop^.InterfaceColors^.ButtonBack;
-  ShadowColor := Desktop^.InterfaceColors^.ButtonShadow;
-  HighlightColor := Desktop^.InterfaceColors^.ButtonHighlight;
-  DownBackColor := Desktop^.InterfaceColors^.ButtonDownBack;
-  DownShadowColor := Desktop^.InterfaceColors^.ButtonDownShadow;
-  DownLightColor := Desktop^.InterfaceColors^.ButtonDownLight;
-  DisabledColor := Desktop^.InterfaceColors^.ButtonDisabled;
+  ForeColor := Desktop^.Colors^.Button;
+  BackColor := Desktop^.Colors^.ButtonBack;
+  ShadowColor := Desktop^.Colors^.ButtonShadow;
+  HighlightColor := Desktop^.Colors^.ButtonHighlight;
+  DownBackColor := Desktop^.Colors^.ButtonDownBack;
+  DownShadowColor := Desktop^.Colors^.ButtonDownShadow;
+  DownLightColor := Desktop^.Colors^.ButtonDownLight;
+  DisabledColor := Desktop^.Colors^.ButtonDisabled;
   FocusedForeColor := ForeColor;
   FocusedBackColor := FocusedBackColor;
 end;
@@ -1403,18 +1427,24 @@ begin
   inherited MouseClick(AEvent);
 end;
 
+constructor TLabel.CreateText(const AId, AText: string; AParent: PControl);
+begin
+  CreateParent(AId, AParent);
+  SetText(AText);
+end;
+
 procedure TLabel.Init;
 begin
   inherited Init;
   Drawbackground := false;
   Autosize := true;
-  ForeColor := Desktop^.InterfaceColors^.Window;
-  BackColor := Desktop^.InterfaceColors^.WindowBack;
-  BorderColor := Desktop^.InterfaceColors^.Border;
+  ForeColor := Desktop^.Colors^.Window;
+  BackColor := Desktop^.Colors^.WindowBack;
+  BorderColor := Desktop^.Colors^.Border;
   BorderStyle := bsNone;
   TextAlign := taLeft;
   Margin := 0;
-  HighlightColor := Desktop^.InterfaceColors^.ButtonHighlight;
+  HighlightColor := Desktop^.Colors^.ButtonHighlight;
 end;
 
 procedure TLabel.Paint;

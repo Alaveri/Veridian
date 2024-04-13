@@ -9,8 +9,9 @@ interface
 
 uses
   Objects,
-  Views,
   Lists,
+
+  Views,
   Controls;
 
 type
@@ -82,11 +83,14 @@ type
 implementation
 
 uses
-  StrUtils,
+  {$IFDEF DOS}
   Strings,
+  Dos,
+  {$ENDIF}
+  Drawing,
+  StrUtils,
   GraphDrv,
-  GrDrv8,
-  Drawing;
+  GrDrv8;
 
 function TTableColumn.Header: string;
 begin

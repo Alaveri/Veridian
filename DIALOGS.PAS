@@ -9,14 +9,17 @@ interface
 
 uses
   Objects,
+  AplTypes,
+  Lists,
+  Files,
+  Common,
   Veridian,
   Controls,
   Views,
   Tables,
   Actions,
-  Types,
-  ListBox,
-  Lists;
+  Editors,
+  ListBox;
 
 type
   PDialog = ^TDialog;
@@ -69,10 +72,14 @@ type
 
   TSaveDialog = object(TDialog)
   private
-    procedure PopulateFileBox(const APath: string);
+    CurrentDir: PDirectory;
+    procedure PopulateFileBox(const APath, AFilter: string);
   public
     FileBox: PListBox;
-    constructor Create;
+    FilenameEntry: PEdit;
+    DirectoryLabel: PLabel;
+    InitialDir: string;
+    constructor Create(AInitialDir: string);
     procedure SetupControls; virtual;
     procedure BeforeShow; virtual;
     procedure Init; virtual;
@@ -82,13 +89,14 @@ type
 implementation
 
 uses
-  Desk,
-  Drawing,
-  KeyDrv,
-  StrUtils,
+  {$IFDEF DOS}
   Strings,
-  FileUtil,
-  GraphDrv;
+  {$ENDIF}
+  Drawing,
+  StrUtils,
+  GraphDrv,
+  KeyDrv,
+  Desk;
 
 const
   ActionIds: array [TDialogButton] of integer =
@@ -138,6 +146,23 @@ begin
   dialog := PDialog(AAction^.Owner);
   dialog^.FModalResult := AAction^.ModalResult;
   dialog^.Close;
+end;
+
+procedure SaveDialogSelectedIndexChanged(ASender: PObject; var AEvent: TSelectedIndexChangedEvent); far;
+var
+  list: PListBox;
+  dialog: PSaveDialog;
+  item: PListItem;
+  filename: string;
+  aFile: PFile;
+begin
+  list := PListBox(ASender);
+  dialog := PSaveDialog(list^.Parent^.Parent);
+  item := PListItem(list^.Items^.GetItem(AEvent.NewIndex));
+  aFile := PFile(item^.Value);
+  filename := StrPas(aFile^.Name);
+  dialog^.FilenameEntry^.SetText(filename);
+  dialog^.FilenameEntry^.Draw;
 end;
 
 procedure TDialog.CreateButton(AButton: TDialogButton);
@@ -204,9 +229,9 @@ begin
   ActionList := New(PActionList, Create);
   Font := Desktop^.Font;
   CanFocus := false;
-  ForeColor := Desktop^.InterfaceColors^.Dialog;
-  BackColor := Desktop^.InterfaceColors^.DialogBack;
-  BorderColor := Desktop^.InterfaceColors^.Border;
+  ForeColor := Desktop^.Colors^.Dialog;
+  BackColor := Desktop^.Colors^.DialogBack;
+  BorderColor := Desktop^.Colors^.Border;
   BorderStyle := bsSingle;
   Modal := true;
   Closed := false;
@@ -318,10 +343,12 @@ var
   index: integer;
   button: PModalDialogButton;
 begin
+  inherited KeyPress(AEvent);
+  if AEvent.Handled then
+    exit;
   for index := 0 to FDialogButtons^.Count - 1 do begin
     button := PModalDialogButton(FDialogButtons^.GetItem(index));
-    if ((Keyboard.UpCase(AEvent.Key) = button^.GetHotKey)
-      or (AEvent.Key = kyEsc)) and button^.Cancel then
+    if ((AEvent.Key = kyEsc) and button^.Cancel) then
       Application^.HandleActionExecute(button^.Action, button^.ActionId);
     if AEvent.Key = kyEnter then begin
       if Desktop^.ActiveControl = PControl(button) then
@@ -355,28 +382,33 @@ begin
   Owner := nil;
 end;
 
-constructor TSaveDialog.Create;
+constructor TSaveDialog.Create(AInitialDir: string);
 begin
+  InitialDir := AInitialDir;
   inherited Create('SaveDialog', [mbOk, mbCancel]);
   X := CenterX;
   Y := CenterY;
 end;
 
-procedure TSaveDialog.PopulateFileBox(const APath: string);
+procedure TSaveDialog.PopulateFileBox(const APath, AFilter: string);
 var
-  dir: PDirectory;
   index: integer;
   afile: PFile;
   item: PListItem;
+  filename: string;
 begin
-  dir := Directory.GetDirectory(APath);
-  dir^.Sort(dsFilename, dsAsc, true);
-  for index := 0 to dir^.Files^.Count - 1 do begin
-    afile := dir^.Files^.Getitem(index);
-    item := New(PListItem, CreateTextValue(StrPas(afile^.Name), nil));
+  FreeAndNil(CurrentDir);
+  CurrentDir^.Filter := AFilter;
+  CurrentDir := Directory.GetDirectory(APath + AFilter);
+  CurrentDir^.Sort(dsFilename, dsAsc, true);
+  for index := 0 to CurrentDir^.Files^.Count - 1 do begin
+    afile := CurrentDir^.Files^.Getitem(index);
+    filename := StrPas(afile^.Name);
+    if faDirectory in aFile^.Attr then
+      filename := '<' + filename + '>';
+    item := New(PListItem, CreateTextValue(filename, aFile));
     FileBox^.Items^.Add(item);
   end;
-  FreeAndNil(dir);
 end;
 
 procedure TSaveDialog.BeforeShow;
@@ -388,27 +420,36 @@ procedure TSaveDialog.Init;
 begin
   inherited Init;
   Width := Application^.ScaleX(60);
-  Height := Application^.ScaleY(20);
+  Height := Application^.ScaleY(23);
   SetTitle('Save As');
   ScrollType := scNone;
   ButtonAlign := taRight;
+  CurrentDir := nil;
   FileBox := New(PListBox, CreateParent('FileListBox', Content));
-  PopulateFileBox('c:\*.*');
+  FileBox^.OnSelectedIndexChanged := @SaveDialogSelectedIndexChanged;
+  FilenameEntry := New(PEdit, CreateParent('FilenameEntry', Content));
+  FilenameEntry^.Font := Application^.Fonts^.GetItemById('System');
+  PopulateFileBox(InitialDir, '*.*');
+  DirectoryLabel := New(PLabel, CreateText('', StrPas(CurrentDir^.Name) + CurrentDir^.Filter, Content));
+  DirectoryLabel^.AutoSize := false;
   if FileBox^.Items^.Count > 0 then
     FileBox^.SelectedIndex := 0;
 end;
 
 procedure TSaveDialog.SetupControls;
 var
-  bHeight: integer;
+  items: integer;
 begin
   inherited SetupControls;
-  bHeight := Font^.Height + 6;
-  FileBox^.SetBounds(-1, -1, self.Width, self.Content^.Height - 3 * bHeight);
+  items := 14;
+  FileBox^.SetBounds(-1, 50, self.Width, items * FileBox^.Font^.Height + 2 * FileBox^.BorderWidth);
+  FilenameEntry^.SetBounds(4, FileBox^.Y + FileBox^.Height + Font^.Height div 2, self.Width - 10, 22);
+  DirectoryLabel^.SetBounds(4, 4, self.Width - 10, 25);
 end;
 
 destructor TSaveDialog.Free;
 begin
+  FreeAndNil(CurrentDir);
   inherited Free;
 end;
 

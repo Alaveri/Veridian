@@ -9,12 +9,13 @@ interface
 
 uses
   Objects,
-  Types,
-  MouseDrv,
-  StrUtils,
-  GraphDrv,
+  AplTypes,
   Common,
-  Lists;
+  Lists,
+  StrUtils,
+
+  MouseDrv,
+  GraphDrv;
 
 type
   PAction = ^TAction;
@@ -65,8 +66,11 @@ type
 implementation
 
 uses
-  Controls,
-  Strings;
+  {$IFDEF DOS}
+  Strings,
+  Dos,
+  {$ENDIF}
+  Controls;
 
 constructor TAction.Create(AActionId: integer; AText: string; AShortcut: word);
 begin

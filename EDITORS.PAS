@@ -10,9 +10,11 @@ interface
 uses
   Objects,
   Lists,
-  GrDrv8,
   Drawing,
   Common,
+
+  GrDrv8,
+
   Views,
   Controls;
 
@@ -97,15 +99,18 @@ type
 implementation
 
 uses
-  Desk,
-  Strings,
   StrUtils,
-  MemDrv,
-  GraphDrv,
   GraphApp,
-  MouseDrv,
-  Except,
+  Errors,
+  {$IFDEF DOS}
+  Strings,
+  Dos,
+  {$ENDIF}
   KeyDrv,
+  MouseDrv,
+  GraphDrv,
+  MemDrv,
+  Desk,
   Veridian;
 
 const
@@ -159,7 +164,7 @@ begin
     exit;
   if (longint(FCursorPos) - 1 < SelectStart) or (longint(FCursorPos) - 1 > SelectEnd + 1) then
     exit;
-  GetCursorForeColor := Desktop^.InterfaceColors^.Select;
+  GetCursorForeColor := Desktop^.Colors^.Select;
 end;
 
 function TEdit.GetCursorBackColor: byte;
@@ -171,7 +176,7 @@ begin
     exit;
   if (longint(FCursorPos) - 1 < SelectStart) or (longint(FCursorPos) - 1 > SelectEnd) then
     exit;
-  GetCursorBackColor := Desktop^.InterfaceColors^.SelectBack;
+  GetCursorBackColor := Desktop^.Colors^.SelectBack;
 end;
 
 procedure TEdit.GetCursorRect(var ARect: TRect);
@@ -225,7 +230,7 @@ begin
       break;
     end;
   end;
-  if FCapacity > capacity then begin
+  if FCapacity >= capacity then begin
     CheckSize := capacity;
     exit;
   end;
@@ -238,13 +243,13 @@ begin
   inherited Init;
   Font := Application^.Fonts^.GetItemById('Editor');
   UsesCursor := true;
-  ForeColor := Desktop^.InterfaceColors^.Editor;
-  BackColor := Desktop^.InterfaceColors^.EditorBack;
-  DisabledForeColor := Desktop^.InterfaceColors^.EditorDisabled;
-  FocusedForeColor := Desktop^.InterfaceColors^.Focused;
-  FocusedBackColor := Desktop^.InterfaceColors^.FocusedBack;
-  SelectForeColor := Desktop^.InterfaceColors^.Select;
-  SelectBackColor := Desktop^.InterfaceColors^.SelectBack;
+  ForeColor := Desktop^.Colors^.Editor;
+  BackColor := Desktop^.Colors^.EditorBack;
+  DisabledForeColor := Desktop^.Colors^.EditorDisabled;
+  FocusedForeColor := Desktop^.Colors^.Focused;
+  FocusedBackColor := Desktop^.Colors^.FocusedBack;
+  SelectForeColor := Desktop^.Colors^.Select;
+  SelectBackColor := Desktop^.Colors^.SelectBack;
   TextAlign := taLeft;
   VertAlign := vaCenter;
   Margin := 3;
@@ -701,7 +706,7 @@ begin
   Move(AText^, FBuffer^, ALength);
   Length := ALength;
   FBuffer[Length] := #0;
-  FCursorPos := 0;
+  MoveEnd;
 end;
 
 procedure TEdit.SetText(const AText: string);

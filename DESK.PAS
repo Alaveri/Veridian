@@ -8,21 +8,24 @@ unit Desk;
 interface
 
 uses
+  {$IFDEF DOS}
+  Strings,
+  Dos,
+  {$ENDIF}
   Objects,
   Lists,
-  Actions,
-  Controls,
   Drawing,
   Common,
   StrUtils,
-  Strings,
-  Apps,
-  KeyDrv,
+  AplApps,
+  Errors,
   GraphDrv,
-  Except,
+  MouseDrv,
+  KeyDrv,
+  Actions,
+  Controls,
   Colors,
-  Views,
-  MouseDrv;
+  Views;
 
 type
   PDesktop = ^TDesktop;
@@ -109,7 +112,7 @@ type
     OldMouseState: TMouseState;
     MouseStack: TStack;
     ActionList: PActionList;
-    InterfaceColors: PInterfaceColors;
+    Colors: PColors;
     destructor Free; virtual;
     function AddMenuBar(AMenuBar: PMenuBar): PMenuBar; virtual;
     function FindNextControl(AControl: PControl): PControl; virtual;
@@ -117,7 +120,7 @@ type
     procedure Init; virtual;
     procedure Paint; virtual;
     procedure GetClientRect(var ARect: TRect); virtual;
-    procedure SetInterfaceColors(AColors: PInterfaceColors); virtual;
+    procedure SetColors(AColors: PColors); virtual;
     procedure SetupControls; virtual;
     procedure DeactivateCurrentMenu; virtual;
   end;
@@ -161,10 +164,10 @@ begin
   StatusBar^.ClearText;
 end;
 
-procedure TDesktop.SetInterfaceColors(AColors: PInterfaceColors);
+procedure TDesktop.SetColors(AColors: PColors);
 begin
-  FreeAndNil(InterfaceColors);
-  InterfaceColors := AColors;
+  FreeAndNil(Colors);
+  Colors := AColors;
 end;
 
 procedure TDesktop.SetupControls;
@@ -178,7 +181,7 @@ procedure TDesktop.Init;
 begin
   inherited Init;
   Font := Application^.Fonts^.GetItemById('System');
-  InterfaceColors := New(PInterfaceColors, Create);
+  Colors := New(PColors, Create);
   Desktop := @self;
   DrawBackground := true;
   BorderStyle := bsNone;
@@ -186,8 +189,8 @@ begin
   ActiveControl := nil;
   ActiveMenu := nil;
   ActiveView := nil;
-  ForeColor := InterfaceColors^.Desktop;
-  BackColor := InterfaceColors^.DesktopBack;
+  ForeColor := Colors^.Desktop;
+  BackColor := Colors^.DesktopBack;
   OldMouseState.Create;
 end;
 
@@ -195,7 +198,7 @@ destructor TDesktop.Free;
 begin
   MouseStack.Free;
   FreeAndNil(ActionList);
-  FreeAndNil(InterfaceColors);
+  FreeAndNil(Colors);
   inherited Free;
 end;
 
@@ -346,8 +349,8 @@ begin
   inherited Init;
   Position := spAbsolute;
   Visible := false;
-  ForeColor := Desktop^.InterfaceColors^.Menu;
-  BackColor := Desktop^.InterfaceColors^.MenuBack;
+  ForeColor := Desktop^.Colors^.Menu;
+  BackColor := Desktop^.Colors^.MenuBack;
   BorderStyle := bsSingle;
   ActiveItem := nil;
 end;
@@ -401,12 +404,12 @@ begin
   OnMouseClick := nil;
   ParentMenu := nil;
   Menu := nil;
-  ForeColor := Desktop^.InterfaceColors^.Menu;
-  BackColor := Desktop^.InterfaceColors^.MenuBack;
-  HighlightColor := Desktop^.InterfaceColors^.MenuHighlight;
-  ActiveForeColor := Desktop^.InterfaceColors^.MenuActive;
-  ActiveBackColor := Desktop^.InterfaceColors^.MenuActiveBack;
-  ActiveHighlightColor := Desktop^.InterfaceColors^.MenuActiveHighlight;
+  ForeColor := Desktop^.Colors^.Menu;
+  BackColor := Desktop^.Colors^.MenuBack;
+  HighlightColor := Desktop^.Colors^.MenuHighlight;
+  ActiveForeColor := Desktop^.Colors^.MenuActive;
+  ActiveBackColor := Desktop^.Colors^.MenuActiveBack;
+  ActiveHighlightColor := Desktop^.Colors^.MenuActiveHighlight;
   BorderStyle := bsNone;
   VertAlign := vaCenter;
   TextAlign := taLeft;
@@ -784,8 +787,8 @@ var
 begin
   inherited Init;
   Position := spAbsolute;
-  ForeColor := Desktop^.InterfaceColors^.Menu;
-  BackColor := Desktop^.InterfaceColors^.MenuBack;
+  ForeColor := Desktop^.Colors^.Menu;
+  BackColor := Desktop^.Colors^.MenuBack;
   BorderStyle := bsNone;
 end;
 
@@ -793,8 +796,8 @@ procedure TStatusBar.Init;
 begin
   inherited Init;
   Position := spAbsolute;
-  ForeColor := Desktop^.InterfaceColors^.Menu;
-  BackColor := Desktop^.InterfaceColors^.MenuBack;
+  ForeColor := Desktop^.Colors^.Menu;
+  BackColor := Desktop^.Colors^.MenuBack;
   TextPanel := New(PTextControl, CreateParent('StatusText', @self));
   TextPanel^.BackColor := ForeColor;
   TextPanel^.BackColor := BackColor;

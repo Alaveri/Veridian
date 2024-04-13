@@ -11,9 +11,9 @@ uses
   Objects;
 
 type
-  PInterfaceColors = ^TInterfaceColors;
+  PColors = ^TColors;
 
-  TInterfaceColors = object(TObject)
+  TColors = object(TObject)
   public
     Desktop: byte;
     DesktopBack: byte;
@@ -68,7 +68,7 @@ uses
   GraphApp,
   GrDrv8;
 
-procedure TInterfaceColors.Init;
+procedure TColors.Init;
 var
   intensity: byte;
 begin

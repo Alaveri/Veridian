@@ -9,16 +9,18 @@ interface
 
 uses
   GraphApp,
-  Types,
-  GrDrv8,
-  GraphDrv,
-  GraphIni,
+  AplTypes,
   Lists,
-  MouseDrv,
-  KeyDrv,
   DateTime,
   Drawing,
   Objects,
+
+  GrDrv8,
+  GraphDrv,
+  GraphIni,
+  MouseDrv,
+  KeyDrv,
+
   Controls,
   Actions,
   Desk;
@@ -36,7 +38,7 @@ type
   TAppState = object(TObject)
   private
   public
-    MouseCursorList: PMouseCursorList;
+    MouseCursor: PMouseCursor;
     CursorOn: boolean;
     procedure Init; virtual;
     procedure Assign(var ASource: TObject); virtual;
@@ -82,7 +84,6 @@ type
     procedure ProcessMouseEvents;
     procedure ProcessKeyEvents(AControl: PControl; var AEvent: TKeyEvent);
     procedure ProcessMessages;
-    procedure RedrawMouseCursor(AViewPort: TRect);
   public
     CursorBlinkTime: TDateTime;
     State: TAppState;
@@ -96,12 +97,14 @@ type
     SystemFont: PFont;
     EditorFont: PFont;
     Parameters: PStringList;
+    CurrentScrollSlider: PControl;
     constructor Create(ADriverId: TGraphDrivers; AModeId: string);
     function GetMouseControl(AControl: PControl; var AMouseState: TMouseState): PControl;
     function LoadFont(const AFilename: string): PFont; virtual;
     function HandleActionExecute(AAction: PAction; AActionId: integer): boolean; virtual;
     function ScaleX(AValue: real): integer; virtual;
     function ScaleY(AValue: real): integer; virtual;
+    procedure RedrawMouseCursor(AViewPort: TRect);
     procedure Init; virtual;
     procedure ProcessEvents; virtual;
     procedure InitControls; virtual;
@@ -133,8 +136,9 @@ implementation
 
 uses
   Common,
-  Dos,
-  MemDrv;
+  MemDrv,
+  Views,
+  Dos;
 
 procedure PostMessage(AMessage: PMessage);
 begin
@@ -210,7 +214,7 @@ var
   font: PFont;
 begin
   inherited Init;
-    {$IFDEF debug}
+  {$IFDEF debug}
   FMemAvail := 0;
   FMaxAvail := 0;
   {$ENDIF}
@@ -252,6 +256,7 @@ begin
   LeftMouseDownControl := nil;
   RightMouseDownControl := nil;
   SelectingControl := nil;
+  CurrentScrollSlider := nil;
   InitControls;
 end;
 
@@ -453,6 +458,8 @@ begin
 
   InitMouseEvent(control, FMouseEvent);
   if (FMouseState.X <> FOldMouseState.X) or (FMouseState.Y <> FOldMouseState.Y) then begin
+    if Assigned(CurrentScrollSlider) then
+      PScrollSlider(CurrentScrollSlider)^.ProcessMouseMove(FMouseEvent);
     HandleMouseEnter(control, FMouseEvent);
     HandleMouseMove(control, FMouseEvent);
   end;
@@ -544,6 +551,8 @@ end;
 procedure TVeridianApp.HandleMouseUp(AControl: PControl; var AEvent: TMouseEvent; AButton: TButtonState);
 var
   selecting: boolean;
+  scrollParent: PScrollBar;
+  scrollEvent: TScrollEvent;
 begin
   if AButton in AEvent.NewMouseState.ButtonState then
     exit;
@@ -551,6 +560,15 @@ begin
     exit;
 
   selecting := SelectingControl = AControl;
+  if Assigned(CurrentScrollSlider) and Assigned(CurrentScrollSlider^.Parent) then begin
+    scrollParent := PScrollBar(CurrentScrollSlider^.Parent);
+    if Assigned(scrollParent^.OnCurrentPosChanged) then begin
+      scrollEvent.Create;
+      scrollEvent.CurrentPos := scrollParent^.CurrentPos;
+      TScrollEventProc(scrollParent^.OnCurrentPosChanged)(scrollParent, scrollEvent);
+    end;
+  end;
+  CurrentScrollSlider := nil;
   if Assigned(Desktop^.ActiveMenu) and (AControl = PControl(Desktop^.ActiveMenu^.ActiveItem)) then
     selecting := true;
   if (LeftMouseDownControl = AControl) or selecting then begin
@@ -690,7 +708,40 @@ begin
 end;
 
 procedure TVeridianApp.FocusPrevious;
+var
+  index, controlIndex: integer;
+  parent: PControl;
+  control: PControl;
+  next: PControl;
+  found: PControl;
 begin
+  if not Assigned(Desktop^.ActiveControl) then begin
+    exit;
+  end;
+  control := Desktop^.ActiveControl;
+  parent := control^.Parent;
+  if not Assigned(Parent) then
+    exit;
+  controlIndex := parent^.Controls^.IndexOf(control);
+  found := nil;
+  for index := controlIndex - 1 downto 0 do begin
+    next := parent^.Controls^.GetItem(index);
+    if next^.CanFocus and next^.GetEnabled and next^.GetVisible then begin
+      found := next;
+      break;
+    end;
+  end;
+  if not Assigned(found) then begin
+    for index := parent^.Controls^.Count - 1 downto controlIndex + 1 do begin
+      next := parent^.Controls^.GetItem(index);
+      if next^.CanFocus and next^.GetEnabled and next^.GetVisible then begin
+        found := next;
+        break;
+      end;
+    end;
+  end;
+  if Assigned(found) then
+    found^.Focus;
 end;
 
 {$IFDEF debug}
@@ -773,6 +824,7 @@ procedure TAppState.Init;
 begin
   inherited Init;
   CursorOn := false;
+  MouseCursor := nil;
 end;
 
 procedure TAppState.Assign(var ASource: TObject);
@@ -782,6 +834,7 @@ begin
   inherited Assign(ASource);
   source := PAppState(@ASource);
   CursorOn := source^.CursorOn;
+  MouseCursor := source^.MouseCursor;
 end;
 
 procedure TMessage.Init;

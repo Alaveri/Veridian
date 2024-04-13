@@ -5,14 +5,24 @@ interface
 uses
   Objects,
   Images,
+  Lists,
   Controls,
-  Views,
-  Lists;
+  Views;
 
 type
   PListBox = ^TListBox;
   PListItem = ^TListItem;
   PListItems = ^TListItems;
+  PSelectedIndexChangedProc = ^TSelectedIndexChangedProc;
+
+  TSelectedIndexChangedEvent = object(TEvent)
+  private
+  public
+    OldIndex: integer;
+    NewIndex: integer;
+  end;
+
+  TSelectedIndexChangedProc = procedure(ASender: PObject; var AEvent: TSelectedIndexChangedEvent);
 
   TListItem = object(TObject)
   private
@@ -42,6 +52,7 @@ type
   TListBox = object(TView)
   private
     procedure DrawItem(AIndex: integer);
+    procedure PaintItem(AIndex: integer);
   public
     Items: PListItems;
     ImageList: PImageList;
@@ -49,22 +60,35 @@ type
     SelectedIndex: integer;
     UnfocusedSelectForeColor: byte;
     UnfocusedSelectBackColor: byte;
+    OnSelectedIndexChanged: PSelectedIndexChangedProc;
+    function GetAutoWidth: longint; virtual;
+    function GetAutoHeight: longint; virtual;
     function SelectedItem: PListItem;
+    function GetSelectedIndex(AEvent: TMouseEvent): integer;
     procedure Focus; virtual;
     procedure Unfocus; virtual;
     procedure Init; virtual;
     procedure Paint; virtual;
+    procedure SetupControls; virtual;
+    procedure KeyPress(var AEvent: TKeyEvent); virtual;
+    procedure MouseDown(var AEvent: TMouseEvent); virtual;
+    procedure SelectDown;
+    procedure SelectUp;
+    procedure SelectPageDown;
+    procedure SelectPageUp;
     destructor Free; virtual;
   end;
 
 implementation
 
 uses
+  Drawing,
   StrUtils,
+  Common,
   GraphDrv,
+  KeyDrv,
   Veridian,
-  Desk,
-  Drawing;
+  Desk;
 
 constructor TListItem.CreateText(const AText: string);
 begin
@@ -112,10 +136,11 @@ begin
   CanFocus := true;
   Items := New(PListItems, Create(@self));
   ImageList := new(PImageList, Create);
+  OnSelectedIndexChanged := nil;
   SelectedIndex := -1;
   Margin := 3;
-  UnfocusedSelectForeColor := Desktop^.InterfaceColors^.ListUnfocusedSelect;
-  UnfocusedSelectBackColor := Desktop^.InterfaceColors^.ListUnfocusedSelectBack;
+  UnfocusedSelectForeColor := Desktop^.Colors^.ListUnfocusedSelect;
+  UnfocusedSelectBackColor := Desktop^.Colors^.ListUnfocusedSelectBack;
 end;
 
 function TListBox.SelectedItem: PListItem;
@@ -135,21 +160,24 @@ end;
 
 procedure TListBox.Focus;
 begin
-  Graph^.PushState;
   SetFocus(true, false);
   DrawItem(SelectedIndex);
-  Graph^.PopState;
 end;
 
 procedure TListBox.Unfocus;
 begin
-  Graph^.PushState;
   SetFocus(false, false);
   DrawItem(SelectedIndex);
-  Graph^.PopState;
 end;
 
 procedure TListBox.DrawItem(AIndex: integer);
+begin
+  StartDrawingEx(false);
+  PaintItem(AIndex);
+  EndDrawing;
+end;
+
+procedure TListBox.PaintItem(AIndex: integer);
 var
   rect, itemRect: TRect;
   cx, cy: integer;
@@ -162,11 +190,11 @@ begin
   Graph^.State.ViewPort := rect;
   item := Items^.GetItem(AIndex);
   cx := rect.X + Margin + BorderWidth;
-  cy := rect.Y + AIndex * Font^.Height;
+  cy := rect.Y + AIndex * Font^.Height - ScrollY;
   itemRect.CreateDims(rect.X, cy, rect.Width, Font^.Height);
   if cy > rect.Bottom then
     exit;
-  if cy + Graph^.State.Font^.Height < rect.Y then
+  if cy + Font^.Height < rect.Y then
     exit;
   Graph^.SetForeColor(ForeColor);
   Graph^.SetBackColor(BackColor);
@@ -185,6 +213,208 @@ begin
   Inc(cy, Font^.Height);
 end;
 
+function TListBox.GetAutoWidth: longint;
+begin
+  GetAutoWidth := Width;
+end;
+
+function TListBox.GetAutoHeight: longint;
+begin
+  GetAutoHeight := Items^.Count * Font^.Height;
+end;
+
+procedure TListBox.SelectDown;
+var
+  previousIndex: integer;
+  amount: integer;
+  event: TSelectedIndexChangedEvent;
+begin
+  if SelectedIndex + 1 >= Items^.Count then
+    exit;
+  if (SelectedIndex + 2) * Font^.Height > Height + ScrollY then begin
+    amount := EnsureRange(VertScrollBar^.CurrentPos + VertScrollbar^.Increment,
+      VertScrollBar^.Min, VertScrollBar^.Max);
+    Inc(SelectedIndex);
+    VertScrollBar^.SetCurrentPos(amount);
+    if Assigned(OnSelectedIndexChanged) then begin
+      event.NewIndex := SelectedIndex;
+      event.OldIndex := previousIndex;
+      TSelectedIndexChangedProc(OnSelectedIndexChanged)(@self, event);
+    end;
+    exit;
+  end;
+  previousindex := SelectedIndex;
+  Inc(SelectedIndex);
+  DrawItem(previousIndex);
+  DrawItem(SelectedIndex);
+  if Assigned(OnSelectedIndexChanged) then begin
+    event.NewIndex := SelectedIndex;
+    event.OldIndex := previousIndex;
+    TSelectedIndexChangedProc(OnSelectedIndexChanged)(@self, event);
+  end;
+end;
+
+procedure TListBox.SelectUp;
+var
+  previousIndex: integer;
+  amount: integer;
+  event: TSelectedIndexChangedEvent;
+begin
+  if SelectedIndex - 1 < 0 then
+    exit;
+  if (SelectedIndex - 1) * Font^.Height < ScrollY then begin
+    amount := EnsureRange(VertScrollBar^.CurrentPos - VertScrollBar^.Increment,
+      VertScrollBar^.Min, VertScrollBar^.Max);
+    Dec(SelectedIndex);
+    VertScrollBar^.SetCurrentPos(amount);
+    if Assigned(OnSelectedIndexChanged) then begin
+      event.NewIndex := SelectedIndex;
+      event.OldIndex := previousIndex;
+      TSelectedIndexChangedProc(OnSelectedIndexChanged)(@self, event);
+    end;
+    exit;
+  end;
+  previousindex := SelectedIndex;
+  Dec(SelectedIndex);
+  DrawItem(previousIndex);
+  DrawItem(SelectedIndex);
+  if Assigned(OnSelectedIndexChanged) then begin
+    event.NewIndex := SelectedIndex;
+    event.OldIndex := previousIndex;
+    TSelectedIndexChangedProc(OnSelectedIndexChanged)(@self, event);
+  end;
+end;
+
+procedure TListBox.SelectPageDown;
+var
+  previousIndex: integer;
+  amount: integer;
+  event: TSelectedIndexChangedEvent;
+begin
+  if VertScrollbar^.CurrentPos >= VertScrollbar^.Max then begin
+    previousindex := SelectedIndex;
+    SelectedIndex := Items^.Count - 1;
+    DrawItem(previousIndex);
+    DrawItem(SelectedIndex);
+    if Assigned(OnSelectedIndexChanged) then begin
+      event.NewIndex := SelectedIndex;
+      event.OldIndex := previousIndex;
+      TSelectedIndexChangedProc(OnSelectedIndexChanged)(@self, event);
+    end;
+    exit;
+  end;
+  amount := EnsureRange(VertScrollBar^.CurrentPos + VertScrollbar^.PageIncrement,
+    VertScrollBar^.Min, VertScrollBar^.Max);
+  VertScrollBar^.SetCurrentPos(amount);
+  if SelectedIndex * Font^.Height < ScrollY then begin
+    previousindex := SelectedIndex;
+    SelectedIndex := Round(ScrollY / Font^.Height);
+    DrawItem(previousIndex);
+    DrawItem(SelectedIndex);
+    if Assigned(OnSelectedIndexChanged) then begin
+      event.NewIndex := SelectedIndex;
+      event.OldIndex := previousIndex;
+      TSelectedIndexChangedProc(OnSelectedIndexChanged)(@self, event);
+    end;
+  end;
+end;
+
+procedure TListBox.SelectPageUp;
+var
+  previousIndex: integer;
+  amount: integer;
+  event: TSelectedIndexChangedEvent;
+begin
+  if VertScrollbar^.CurrentPos <= 0 then begin
+    previousindex := SelectedIndex;
+    SelectedIndex := 0;
+    DrawItem(previousIndex);
+    DrawItem(SelectedIndex);
+    if Assigned(OnSelectedIndexChanged) then begin
+      event.NewIndex := SelectedIndex;
+      event.OldIndex := previousIndex;
+      TSelectedIndexChangedProc(OnSelectedIndexChanged)(@self, event);
+    end;
+    exit;
+  end;
+  amount := EnsureRange(VertScrollBar^.CurrentPos - VertScrollbar^.PageIncrement,
+    VertScrollBar^.Min, VertScrollBar^.Max);
+  VertScrollBar^.SetCurrentPos(amount);
+
+  if SelectedIndex * Font^.Height - ScrollY > Content^.Height - Font^.Height then begin
+    previousindex := SelectedIndex;
+    SelectedIndex := Round((Content^.Height + ScrollY) / Font^.Height) - 1;
+    DrawItem(previousIndex);
+    DrawItem(SelectedIndex);
+    if Assigned(OnSelectedIndexChanged) then begin
+      event.NewIndex := SelectedIndex;
+      event.OldIndex := previousIndex;
+      TSelectedIndexChangedProc(OnSelectedIndexChanged)(@self, event);
+    end;
+  end;
+end;
+
+function TListBox.GetSelectedIndex(AEvent: TMouseEvent): integer;
+begin
+  Inc(AEvent.Y, ScrollY);
+  GetSelectedIndex := AEvent.Y div Font^.Height;
+end;
+
+procedure TListBox.MouseDown(var AEvent: TMouseEvent);
+var
+  index: integer;
+  previousIndex: integer;
+  event: TSelectedIndexChangedEvent;
+begin
+  if not (GetEnabled and GetVisible) then
+    exit;
+  with AEvent do begin
+    if CanFocus and not Focused then
+      Focus;
+    previousindex := SelectedIndex;
+    SelectedIndex := GetSelectedIndex(AEvent);
+    SelectedIndex := EnsureRange(SelectedIndex, 0, Items^.Count - 1);
+
+    DrawItem(previousIndex);
+    DrawItem(SelectedIndex);
+    FillChar(event, SizeOf(event), 0);
+    if Assigned(OnSelectedIndexChanged) then begin
+      event.NewIndex := SelectedIndex;
+      event.OldIndex := previousIndex;
+      TSelectedIndexChangedProc(OnSelectedIndexChanged)(@self, event);
+    end;
+  end;
+  inherited MouseDown(AEvent);
+end;
+
+procedure TListBox.KeyPress(var AEvent: TKeyEvent);
+begin
+  if not Focused then
+    exit;
+  AEvent.Handled := true;
+  case AEvent.Key of
+    kyDown: SelectDown;
+    kyUp: SelectUp;
+    kyPageDown: SelectPageDown;
+    kyPageUp: SelectPageUp;
+    else AEvent.Handled := false;
+  end;
+  if not AEvent.Handled then
+    inherited KeyPress(AEvent);
+end;
+
+procedure TListBox.SetupControls;
+var
+  max: longint;
+begin
+  inherited SetupControls;
+  VertScrollbar^.Increment := Font^.Height;
+  VertScrollbar^.PageIncrement := Round(Content^.Height / Font^.Height) * Font^.Height;
+  max := GetAutoHeight;
+  Dec(max, Content^.Height);
+  VertScrollBar^.Max := max;
+end;
+
 procedure TListBox.Paint;
 var
   index: integer;
@@ -199,7 +429,7 @@ begin
   FocusedForeColor := oldFocusedForeColor;
   FocusedBackColor := oldFocusedBackColor;
   for index := 0 to Items^.Count - 1 do
-    DrawItem(index);
+    PaintItem(index);
 end;
 
 constructor TListItems.Create(AOwner: PListBox);

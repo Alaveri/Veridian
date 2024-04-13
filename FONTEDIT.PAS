@@ -153,8 +153,8 @@ procedure TCharacterMap.Init;
 begin
   inherited Init;
   CharsPerRow := 32;
-  ForeColor := Desktop^.InterfaceColors^.ButtonDown;
-  BackColor := Desktop^.InterfaceColors^.ButtonDownBack;
+  ForeColor := Desktop^.Colors^.ButtonDown;
+  BackColor := Desktop^.Colors^.ButtonDownBack;
   DrawBackground := false;
 end;
 
