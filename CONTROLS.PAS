@@ -154,6 +154,7 @@ type
     OnKeyPress: PEventProc;
     OnDragStart: PDragEventProc;
     OnDragEnd: PDragEventProc;
+    OnMouseWheelChanged: PEventProc;
     Controls: PControlList;
     Parent: PControl;
     BorderStyle: TBorderStyle;
@@ -211,6 +212,7 @@ type
     procedure MouseClick(var AEvent: TMouseEvent); virtual;
     procedure MouseEnter(var AEvent: TMouseEvent); virtual;
     procedure MouseLeave(var AEvent: TMouseEvent); virtual;
+    procedure MouseWheelChanged(var AEvent: TMouseEvent); virtual;
     procedure DragStart(var AEvent: TDragEvent); virtual;
     procedure DragEnd(var AEvent: TDragEvent); virtual;
     procedure Focus; virtual;
@@ -452,6 +454,7 @@ begin
   FocusedForeColor := 0;
   FocusedBackColor := 0;
   OnMouseMove := nil;
+  OnMouseWheelChanged := nil;
   OnMouseUp := nil;
   OnMouseDown := nil;
   OnKeyPress := nil;
@@ -510,6 +513,12 @@ end;
 function TControl.AddControl(AControl: PControl): PControl;
 begin
   Controls^.Add(AControl);
+end;
+
+procedure TControl.MouseWheelChanged(var AEvent: TMouseEvent);
+begin
+  if Assigned(OnMouseWheelChanged) then
+    TEventProc(OnMouseWheelChanged)(@self, AEvent);
 end;
 
 procedure TControl.MouseMove(var AEvent: TMouseEvent);

@@ -72,6 +72,7 @@ type
     procedure SetupControls; virtual;
     procedure KeyPress(var AEvent: TKeyEvent); virtual;
     procedure MouseDown(var AEvent: TMouseEvent); virtual;
+    procedure MouseWheelChanged(var AEvent: TMouseEvent); virtual;
     procedure SelectDown;
     procedure SelectUp;
     procedure SelectPageDown;
@@ -358,6 +359,11 @@ function TListBox.GetSelectedIndex(AEvent: TMouseEvent): integer;
 begin
   Inc(AEvent.Y, ScrollY);
   GetSelectedIndex := AEvent.Y div Font^.Height;
+end;
+
+procedure TListBox.MouseWheelChanged(var AEvent: TMouseEvent);
+begin
+  inherited MouseWheelChanged(AEvent);
 end;
 
 procedure TListBox.MouseDown(var AEvent: TMouseEvent);

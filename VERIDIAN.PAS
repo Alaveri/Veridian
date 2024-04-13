@@ -80,6 +80,7 @@ type
     procedure HandleMouseEnter(AControl: PControl; var AEvent: TMouseEvent);
     procedure HandleMouseMove(AControl: PControl; var AEvent: TMouseEvent);
     procedure HandleMouseDown(AControl: PControl; var AEvent: TMouseEvent; AButton: TButtonState);
+    procedure HandleMouseWheelChanged(AControl: PControl; AEvent: TMouseEvent);
     procedure HandleMouseUp(AControl: PControl; var AEvent: TMouseEvent; AButton: TButtonState);
     procedure ProcessMouseEvents;
     procedure ProcessKeyEvents(AControl: PControl; var AEvent: TKeyEvent);
@@ -464,6 +465,8 @@ begin
     HandleMouseMove(control, FMouseEvent);
   end;
   InitMouseEvent(control, FMouseEvent);
+  if (FMouseState.WheelCounter <> FOldMouseState.WheelCounter) then
+    HandleMouseWheelChanged(control, FMouseEvent);
   if (FMouseState.ButtonState <> FOldMouseState.ButtonState) then begin
     HandleMouseDown(control, FMouseEvent, bsLeft);
     HandleMouseDown(control, FMouseEvent, bsRight);
@@ -506,9 +509,16 @@ begin
     Graph8^.DrawMouseCursor(AEvent.NewMouseState);
   end;
   AControl^.MouseEnter(AEvent);
+end;
 
-  if Assigned(Acontrol^.OnMouseEnter) then
-    TEventProc(AControl^.OnMouseEnter)(AControl, AEvent);
+procedure TVeridianApp.HandleMouseWheelChanged(AControl: PControl; AEvent: TMouseEvent);
+var
+  rect: TRect;
+begin
+  AControl^.GetScreenBounds(rect);
+  if rect.IntersectsCoords(AEvent.NewMouseState.X, AEvent.NewMouseState.Y) then begin
+    AControl^.MouseWheelChanged(AEvent);
+  end;
 end;
 
 procedure TVeridianApp.HandleMouseDown(AControl: PControl; var AEvent: TMouseEvent; AButton: TButtonState);
@@ -544,8 +554,6 @@ begin
     RightMouseDownControl := AControl;
 
   AControl^.MouseDown(AEvent);
-  if Assigned(AControl^.OnMouseDown) then
-    TEventProc(AControl^.OnMouseDown)(AControl, AEvent);
 end;
 
 procedure TVeridianApp.HandleMouseUp(AControl: PControl; var AEvent: TMouseEvent; AButton: TButtonState);
