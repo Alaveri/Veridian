@@ -1,7 +1,7 @@
 {$IFDEF debug}
-  {$A-,B-,D+,F+,G-,I+,L+,N+,O+,P+,Q+,R+,S+,T-,V-,X+,Y+}
+  {$A-,B-,D+,F+,G-,I+,L+,N+,O-,P+,Q+,R+,S+,T-,V-,X+,Y+}
 {$ELSE}
-  {$A-,B-,D-,F+,G-,I+,L-,N+,O+,P+,Q-,R-,S-,T-,V-,X+,Y-}
+  {$A-,B-,D-,F+,G-,I+,L-,N+,O-,P+,Q-,R-,S-,T-,V-,X+,Y-}
 {$ENDIF}
 unit FontEdit;
 
@@ -137,7 +137,7 @@ begin
     exit;
   SetPixel(AEvent, false);
   if Assigned(OnMouseMove) then
-    TEventProc(OnMouseMove)(@self, AEvent);
+    TMouseEventProc(OnMouseMove)(@self, AEvent);
   inherited MouseMove(AEvent);
 end;
 

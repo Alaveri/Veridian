@@ -1,7 +1,7 @@
 {$IFDEF debug}
-  {$A-,B-,D+,F+,G-,I+,L+,N+,O+,P+,Q+,R+,S+,T-,V-,X+,Y+}
+  {$A-,B-,D+,F+,G-,I+,L+,N+,O-,P+,Q+,R+,S+,T-,V-,X+,Y+}
 {$ELSE}
-  {$A-,B-,D-,F+,G-,I+,L-,N+,O+,P+,Q-,R-,S-,T-,V-,X+,Y-}
+  {$A-,B-,D-,F+,G-,I+,L-,N+,O-,P+,Q-,R-,S-,T-,V-,X+,Y-}
 {$ENDIF}
 unit Tables;
 
@@ -10,7 +10,9 @@ interface
 uses
   Objects,
   Lists,
-
+  {$IFDEF DOS}
+  Strings,
+  {$ENDIF}
   Views,
   Controls;
 
@@ -83,10 +85,6 @@ type
 implementation
 
 uses
-  {$IFDEF DOS}
-  Strings,
-  Dos,
-  {$ENDIF}
   Drawing,
   StrUtils,
   GraphDrv,
@@ -125,7 +123,7 @@ end;
 
 destructor TTableColumn.Free;
 begin
-  TString.Dispose(FHeader);
+  TString.Free(FHeader);
   inherited Free;
 end;
 

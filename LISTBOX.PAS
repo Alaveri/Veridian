@@ -1,3 +1,8 @@
+{$IFDEF debug}
+  {$A-,B-,D+,F+,G-,I+,L+,N+,O-,P+,Q+,R+,S+,T-,V-,X+,Y+}
+{$ELSE}
+  {$A-,B-,D-,F+,G-,I+,L-,N+,O-,P+,Q-,R-,S-,T-,V-,X+,Y-}
+{$ENDIF}
 unit ListBox;
 
 interface
@@ -77,6 +82,8 @@ type
     procedure SelectUp;
     procedure SelectPageDown;
     procedure SelectPageUp;
+    procedure SelectDownLines(ALines: shortint);
+    procedure SelectUpLines(ALines: shortint);
     destructor Free; virtual;
   end;
 
@@ -124,13 +131,14 @@ end;
 
 destructor TListItem.Free;
 begin
-  TString.Dispose(Text);
+  TString.Free(Text);
   inherited Free;
 end;
 
 procedure TListBox.Init;
 begin
   inherited Init;
+  DrawBackground := false;
   Font := Application^.SystemFont;
   TitleBar^.Visible := false;
   ScrollType := scVertical;
@@ -355,6 +363,75 @@ begin
   end;
 end;
 
+procedure TListBox.SelectDownLines(ALines: shortint);
+var
+  previousIndex: integer;
+  amount: integer;
+  event: TSelectedIndexChangedEvent;
+begin
+  if VertScrollbar^.CurrentPos >= VertScrollbar^.Max then begin
+    previousindex := SelectedIndex;
+    SelectedIndex := Items^.Count - 1;
+    DrawItem(previousIndex);
+    DrawItem(SelectedIndex);
+    if Assigned(OnSelectedIndexChanged) then begin
+      event.NewIndex := SelectedIndex;
+      event.OldIndex := previousIndex;
+      TSelectedIndexChangedProc(OnSelectedIndexChanged)(@self, event);
+    end;
+    exit;
+  end;
+  amount := EnsureRange(VertScrollBar^.CurrentPos + ALines * Font^.Height,
+    VertScrollBar^.Min, VertScrollBar^.Max);
+  VertScrollBar^.SetCurrentPos(amount);
+  if SelectedIndex * Font^.Height < ScrollY then begin
+    previousindex := SelectedIndex;
+    SelectedIndex := Round(ScrollY / Font^.Height);
+    DrawItem(previousIndex);
+    DrawItem(SelectedIndex);
+    if Assigned(OnSelectedIndexChanged) then begin
+      event.NewIndex := SelectedIndex;
+      event.OldIndex := previousIndex;
+      TSelectedIndexChangedProc(OnSelectedIndexChanged)(@self, event);
+    end;
+  end;
+end;
+
+procedure TListBox.SelectUpLines(ALines: shortint);
+var
+  previousIndex: integer;
+  amount: integer;
+  event: TSelectedIndexChangedEvent;
+begin
+  if VertScrollbar^.CurrentPos <= 0 then begin
+    previousindex := SelectedIndex;
+    SelectedIndex := 0;
+    DrawItem(previousIndex);
+    DrawItem(SelectedIndex);
+    if Assigned(OnSelectedIndexChanged) then begin
+      event.NewIndex := SelectedIndex;
+      event.OldIndex := previousIndex;
+      TSelectedIndexChangedProc(OnSelectedIndexChanged)(@self, event);
+    end;
+    exit;
+  end;
+  amount := EnsureRange(VertScrollBar^.CurrentPos + ALines * Font^.Height,
+    VertScrollBar^.Min, VertScrollBar^.Max);
+  VertScrollBar^.SetCurrentPos(amount);
+
+  if SelectedIndex * Font^.Height - ScrollY > Content^.Height - Font^.Height then begin
+    previousindex := SelectedIndex;
+    SelectedIndex := Round((Content^.Height + ScrollY) / Font^.Height) - 1;
+    DrawItem(previousIndex);
+    DrawItem(SelectedIndex);
+    if Assigned(OnSelectedIndexChanged) then begin
+      event.NewIndex := SelectedIndex;
+      event.OldIndex := previousIndex;
+      TSelectedIndexChangedProc(OnSelectedIndexChanged)(@self, event);
+    end;
+  end;
+end;
+
 function TListBox.GetSelectedIndex(AEvent: TMouseEvent): integer;
 begin
   Inc(AEvent.Y, ScrollY);
@@ -364,6 +441,10 @@ end;
 procedure TListBox.MouseWheelChanged(var AEvent: TMouseEvent);
 begin
   inherited MouseWheelChanged(AEvent);
+  if AEvent.NewMouseState.WheelCounter > 0 then
+    SelectDownLines(AEvent.NewMouseState.WheelCounter)
+  else if AEvent.NewMouseState.WheelCounter < 0 then
+    SelectUpLines(AEvent.NewMouseState.WheelCounter)
 end;
 
 procedure TListBox.MouseDown(var AEvent: TMouseEvent);

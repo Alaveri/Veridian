@@ -1,7 +1,7 @@
 {$IFDEF debug}
-  {$A-,B-,D+,F+,G-,I+,L+,N+,O+,P+,Q+,R+,S+,T-,V-,X+,Y+}
+  {$A-,B-,D+,F+,G-,I+,L+,N+,O-,P+,Q+,R+,S+,T-,V-,X+,Y+}
 {$ELSE}
-  {$A-,B-,D-,F+,G-,I+,L-,N+,O+,P+,Q-,R-,S-,T-,V-,X+,Y-}
+  {$A-,B-,D-,F+,G-,I+,L-,N+,O-,P+,Q-,R-,S-,T-,V-,X+,Y-}
 {$ENDIF}
 unit Views;
 
@@ -60,6 +60,7 @@ type
     procedure Init; virtual;
     procedure Paint; virtual;
     procedure MouseDown(var AEvent: TMouseEvent); virtual;
+    procedure MouseWheelChanged(var AEvent: TMouseEvent); virtual;
   end;
 
   TScrollSlider = object(TButton)
@@ -132,10 +133,6 @@ type
 implementation
 
 uses
-  {$IFDEF DOS}
-  Strings,
-  Dos,
-  {$ENDIF}
   Veridian,
   StrUtils,
   GraphDrv,
@@ -327,8 +324,12 @@ begin
 end;
 
 procedure TView.Init;
+var
+  oldDrawEnabled: boolean;
 begin
   inherited Init;
+  oldDrawEnabled := Application^.DrawEnabled;
+  Application^.DrawEnabled := false;
   CanFocus := false;
   IsMouseOver := false;
   ForeColor := Desktop^.Colors^.Window;
@@ -351,6 +352,7 @@ begin
   AutoSize := false;
   ScrollX := 0;
   ScrollY := 0;
+  Application^.DrawEnabled := oldDrawEnabled;
 end;
 
 procedure TView.Close;
@@ -401,7 +403,7 @@ end;
 
 destructor TView.Free;
 begin
-  TString.Dispose(Title);
+  TString.Free(Title);
   inherited Free;
 end;
 
@@ -490,6 +492,12 @@ procedure TViewContent.MouseDown(var AEvent: TMouseEvent);
 begin
   AEvent.Handled := false;
   PControl(Parent)^.MouseDown(AEvent);
+end;
+
+procedure TViewContent.MouseWheelChanged(var AEvent: TMouseEvent);
+begin
+  AEvent.Handled := false;
+  PControl(Parent)^.MouseWheelChanged(AEvent);
 end;
 
 procedure TViewContent.Paint;

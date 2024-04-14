@@ -1,7 +1,7 @@
 {$IFDEF debug}
-  {$A-,B-,D+,F+,G-,I+,L+,N+,O+,P+,Q+,R+,S+,T-,V-,X+,Y+}
+  {$A-,B-,D+,F+,G-,I+,L+,N+,O-,P+,Q+,R+,S+,T-,V-,X+,Y+}
 {$ELSE}
-  {$A-,B-,D-,F+,G-,I+,L-,N+,O+,P+,Q-,R-,S-,T-,V-,X+,Y-}
+  {$A-,B-,D-,F+,G-,I+,L-,N+,O-,P+,Q-,R-,S-,T-,V-,X+,Y-}
 {$ENDIF}
 unit Dialogs;
 
@@ -72,7 +72,7 @@ type
 
   TSaveDialog = object(TDialog)
   private
-    CurrentDir: PDirectory;
+    CurrentDir: PDirectoryContents;
     procedure PopulateFileBox(const APath, AFilter: string);
   public
     FileBox: PListBox;
@@ -139,7 +139,7 @@ const
     kyAltH
   );
 
-procedure DialogButtonActionExecute(ASender: PObject; AAction: PAction; AActionId: integer); far;
+procedure DialogButtonActionExecute(AAction: PAction; AActionId: integer); far;
 var
   dialog: PDialog;
 begin
@@ -148,7 +148,7 @@ begin
   dialog^.Close;
 end;
 
-procedure SaveDialogSelectedIndexChanged(ASender: PObject; var AEvent: TSelectedIndexChangedEvent); far;
+procedure SaveDialogDblClick(ASender: PObject; var AEvent: TMouseEvent); far;
 var
   list: PListBox;
   dialog: PSaveDialog;
@@ -158,7 +158,7 @@ var
 begin
   list := PListBox(ASender);
   dialog := PSaveDialog(list^.Parent^.Parent);
-  item := PListItem(list^.Items^.GetItem(AEvent.NewIndex));
+  item := PListItem(list^.Items^.GetItem(list^.SelectedIndex));
   aFile := PFile(item^.Value);
   filename := StrPas(aFile^.Name);
   dialog^.FilenameEntry^.SetText(filename);
@@ -176,6 +176,7 @@ begin
   action^.OnExecute := @DialogButtonActionExecute;
   action^.ModalResult := TModalResult(AButton);
   action^.Owner := @self;
+
   ActionList^.Add(action);
   button := New(PModalDialogButton, CreateParent(ActionControlIds[AButton], actionId, @self));
   if CancelButton = AButton then
@@ -287,7 +288,6 @@ begin
     Application^.ProcessEvents;
     if Closed then
       break;
-    Application^.MainLoop;
   until Closed;
 
   if Desktop^.ActiveView = @self then
@@ -399,7 +399,7 @@ var
 begin
   FreeAndNil(CurrentDir);
   CurrentDir^.Filter := AFilter;
-  CurrentDir := Directory.GetDirectory(APath + AFilter);
+  CurrentDir := TDirectory.GetDirectory(APath + AFilter);
   CurrentDir^.Sort(dsFilename, dsAsc, true);
   for index := 0 to CurrentDir^.Files^.Count - 1 do begin
     afile := CurrentDir^.Files^.Getitem(index);
@@ -426,7 +426,7 @@ begin
   ButtonAlign := taRight;
   CurrentDir := nil;
   FileBox := New(PListBox, CreateParent('FileListBox', Content));
-  FileBox^.OnSelectedIndexChanged := @SaveDialogSelectedIndexChanged;
+  FileBox^.OnMouseDblClick := @SaveDialogDblClick;
   FilenameEntry := New(PEdit, CreateParent('FilenameEntry', Content));
   FilenameEntry^.Font := Application^.Fonts^.GetItemById('System');
   PopulateFileBox(InitialDir, '*.*');

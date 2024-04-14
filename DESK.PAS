@@ -1,7 +1,7 @@
 {$IFDEF debug}
-  {$A-,B-,D+,F+,G-,I+,L+,N+,O+,P+,Q+,R+,S+,T-,V-,X+,Y+}
+  {$A-,B-,D+,F+,G-,I+,L+,N+,O-,P+,Q+,R+,S+,T-,V-,X+,Y+}
 {$ELSE}
-  {$A-,B-,D-,F+,G-,I+,L-,N+,O+,P+,Q-,R-,S-,T-,V-,X+,Y-}
+  {$A-,B-,D-,F+,G-,I+,L-,N+,O-,P+,Q-,R-,S-,T-,V-,X+,Y-}
 {$ENDIF}
 unit Desk;
 
@@ -10,7 +10,6 @@ interface
 uses
   {$IFDEF DOS}
   Strings,
-  Dos,
   {$ENDIF}
   Objects,
   Lists,
@@ -108,9 +107,6 @@ type
     ActiveControl: PControl;
     ActiveMenu: PMenu;
     ActiveView: PView;
-    MouseState: TMouseState;
-    OldMouseState: TMouseState;
-    MouseStack: TStack;
     ActionList: PActionList;
     Colors: PColors;
     destructor Free; virtual;
@@ -191,12 +187,10 @@ begin
   ActiveView := nil;
   ForeColor := Colors^.Desktop;
   BackColor := Colors^.DesktopBack;
-  OldMouseState.Create;
 end;
 
 destructor TDesktop.Free;
 begin
-  MouseStack.Free;
   FreeAndNil(ActionList);
   FreeAndNil(Colors);
   inherited Free;
@@ -401,7 +395,6 @@ begin
   Enabled := true;
   Shortcut := 0;
   ShowShortcut := true;
-  OnMouseClick := nil;
   ParentMenu := nil;
   Menu := nil;
   ForeColor := Desktop^.Colors^.Menu;
@@ -848,7 +841,7 @@ begin
   if not Assigned(CurrentAction) then
     exit;
   CurrentAction := nil;
-  TString.Dispose(TextPanel^.Text);
+  TString.Free(TextPanel^.Text);
   TextPanel^.Draw;
 end;
 

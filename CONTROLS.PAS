@@ -1,7 +1,7 @@
 {$IFDEF debug}
-  {$A-,B-,D+,F+,G-,I+,L+,N+,O+,P+,Q+,R+,S+,T-,V-,X+,Y+}
+  {$A-,B-,D+,F+,G-,I+,L+,N+,O-,P+,Q+,R+,S+,T-,V-,X+,Y+}
 {$ELSE}
-  {$A-,B-,D-,F+,G-,I+,L-,N+,O+,P+,Q-,R-,S-,T-,V-,X+,Y-}
+  {$A-,B-,D-,F+,G-,I+,L-,N+,O-,P+,Q-,R-,S-,T-,V-,X+,Y-}
 {$ENDIF}
 unit Controls;
 
@@ -10,7 +10,6 @@ interface
 uses
   {$IFDEF DOS}
   Strings,
-  Dos,
   {$ENDIF}
   Objects,
   Lists,
@@ -81,7 +80,7 @@ type
   PHorzSeparator = ^THorzSeparator;
   PTextControl = ^TTextControl;
   PEventProc = ^TEventProc;
-  PTMouseEventProc = ^TMouseEventProc;
+  PMouseEventProc = ^TMouseEventProc;
   PKeyEventProc = ^TKeyEventProc;
   PDragEventProc = ^TDragEventProc;
   PScrollEventProc = ^TScrollEventProc;
@@ -145,16 +144,17 @@ type
     HoverBackColor: byte;
     CanDrag: boolean;
     HoverHighlightColor: byte;
-    OnMouseMove: PEventProc;
-    OnMouseUp: PEventProc;
-    OnMouseDown: PEventProc;
-    OnMouseClick: PEventProc;
-    OnMouseEnter: PEventProc;
-    OnMouseLeave: PEventProc;
-    OnKeyPress: PEventProc;
+    OnMouseMove: PMouseEventProc;
+    OnMouseUp: PMouseEventProc;
+    OnMouseDown: PMouseEventProc;
+    OnMouseClick: PMouseEventProc;
+    OnMouseDblClick: PMouseEventProc;
+    OnMouseEnter: PMouseEventProc;
+    OnMouseLeave: PMouseEventProc;
+    OnMouseWheelChanged: PMouseEventProc;
+    OnKeyPress: PKeyEventProc;
     OnDragStart: PDragEventProc;
     OnDragEnd: PDragEventProc;
-    OnMouseWheelChanged: PEventProc;
     Controls: PControlList;
     Parent: PControl;
     BorderStyle: TBorderStyle;
@@ -209,6 +209,7 @@ type
     procedure MouseMove(var AEvent: TMouseEvent); virtual;
     procedure MouseUp(var AEvent: TMouseEvent); virtual;
     procedure MouseDown(var AEvent: TMouseEvent); virtual;
+    procedure MouseDblClick(var AEvent: TMouseEvent); virtual;
     procedure MouseClick(var AEvent: TMouseEvent); virtual;
     procedure MouseEnter(var AEvent: TMouseEvent); virtual;
     procedure MouseLeave(var AEvent: TMouseEvent); virtual;
@@ -457,6 +458,7 @@ begin
   OnMouseWheelChanged := nil;
   OnMouseUp := nil;
   OnMouseDown := nil;
+  OnMouseDblClick := nil;
   OnKeyPress := nil;
   OnMouseEnter := nil;
   OnMouseLeave := nil;
@@ -518,55 +520,61 @@ end;
 procedure TControl.MouseWheelChanged(var AEvent: TMouseEvent);
 begin
   if Assigned(OnMouseWheelChanged) then
-    TEventProc(OnMouseWheelChanged)(@self, AEvent);
+    TMouseEventProc(OnMouseWheelChanged)(@self, AEvent);
 end;
 
 procedure TControl.MouseMove(var AEvent: TMouseEvent);
 begin
   if Assigned(OnMouseMove) then
-    TEventProc(OnMouseMove)(@self, AEvent);
+    TMouseEventProc(OnMouseMove)(@self, AEvent);
 end;
 
 procedure TControl.MouseUp(var AEvent: TMouseEvent);
 begin
   if Assigned(OnMouseUp) then
-    TEventProc(OnMouseUp)(@self, AEvent);
+    TMouseEventProc(OnMouseUp)(@self, AEvent);
 end;
 
 procedure TControl.MouseDown(var AEvent: TMouseEvent);
 begin
   if Assigned(OnMouseDown) then
-    TEventProc(OnMouseDown)(@self, AEvent);
+    TMouseEventProc(OnMouseDown)(@self, AEvent);
+end;
+
+procedure TControl.MouseDblClick(var AEvent: TMouseEvent);
+begin
+  if Assigned(OnMouseDblClick) then
+    TMouseEventProc(OnMouseDblClick)(@self, AEvent);
 end;
 
 procedure TControl.MouseEnter(var AEvent: TMouseEvent);
 begin
   if Assigned(OnMouseEnter) then
-    TEventProc(OnMouseEnter)(@self, AEvent);
+    TMouseEventProc(OnMouseEnter)(@self, AEvent);
 end;
 
 procedure TControl.MouseLeave(var AEvent: TMouseEvent);
 begin;
   if Assigned(OnMouseLeave) then
-    TEventProc(OnMouseLeave)(@self, AEvent);
+    TMouseEventProc(OnMouseLeave)(@self, AEvent);
 end;
 
 procedure TControl.MouseClick(var AEvent: TMouseEvent);
 begin
   if Assigned(OnMouseClick) then
-    TEventProc(OnMouseClick)(@self, AEvent);
+    TMouseEventProc(OnMouseClick)(@self, AEvent);
 end;
 
 procedure TControl.DragStart(var AEvent: TDragEvent);
 begin
   if Assigned(OnDragStart) then
-    TEventProc(OnDragStart)(@self, AEvent);
+    TDragEventProc(OnDragStart)(@self, AEvent);
 end;
 
 procedure TControl.DragEnd(var AEvent: TDragEvent);
 begin
   if Assigned(OnDragEnd) then
-    TEventProc(OnDragEnd)(@self, AEvent);
+    TDragEventProc(OnDragEnd)(@self, AEvent);
 end;
 
 procedure TControl.Focus;
@@ -1029,7 +1037,7 @@ end;
 
 destructor TActionControl.Free;
 begin
-  TString.Dispose(ShortcutDisplayName);
+  TString.Free(ShortcutDisplayName);
   inherited Free;
 end;
 
@@ -1153,14 +1161,11 @@ begin
     Graph^.SetForeColor(FocusedForeColor);
     Graph^.SetBackColor(FocusedBackColor);
   end;
-  if DrawBackground then begin
-    if BorderStyle <> bsNone then begin
-      Graph^.FillRect(rect);
-      Graph^.SetForeColor(BorderColor);
-      Graph^.Rectangle(rect);
-    end
-    else
-      Graph^.FillRect(rect);
+  if DrawBackground then
+    Graph^.FillRect(rect);
+  if BorderStyle <> bsNone then begin
+    Graph^.SetForeColor(BorderColor);
+    Graph^.Rectangle(rect);
   end;
 end;
 
@@ -1172,7 +1177,7 @@ end;
 
 destructor TTextControl.Free;
 begin
-  TString.Dispose(Text);
+  TString.Free(Text);
   inherited Free;
 end;
 
@@ -1477,10 +1482,9 @@ end;
 procedure TMouseEvent.Init;
 begin
   inherited Init;
-  OldMouseState.Create;
   NewMouseState.Create;
-  X := 0;
-  Y := 0;
+  OldMouseState.Create;
+  Clear;
 end;
 
 procedure TMouseEvent.Clear;

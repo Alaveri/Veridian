@@ -1,7 +1,7 @@
 {$IFDEF debug}
-  {$A-,B-,D+,F+,G-,I+,L+,N+,O+,P+,Q+,R+,S+,T-,V-,X+,Y+}
+  {$A-,B-,D+,F+,G-,I+,L+,N+,O-,P+,Q+,R+,S+,T-,V-,X+,Y+}
 {$ELSE}
-  {$A-,B-,D-,F+,G-,I+,L-,N+,O+,P+,Q-,R-,S-,T-,V-,X+,Y-}
+  {$A-,B-,D-,F+,G-,I+,L-,N+,O-,P+,Q-,R-,S-,T-,V-,X+,Y-}
 {$ENDIF}
 unit Actions;
 
@@ -66,9 +66,6 @@ type
 implementation
 
 uses
-  {$IFDEF DOS}
-  Strings,
-  Dos,
   {$ENDIF}
   Controls;
 
@@ -102,9 +99,9 @@ end;
 
 destructor TAction.Free;
 begin
-  TString.Dispose(Text);
-  TString.Dispose(ShortcutDisplayName);
-  TString.Dispose(HelpText);
+  TString.Free(Text);
+  TString.Free(ShortcutDisplayName);
+  TString.Free(HelpText);
   inherited Free;
 end;
 
