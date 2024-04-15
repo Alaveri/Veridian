@@ -132,7 +132,7 @@ type
   end;
 
 var
-  Application: PVeridianApp;
+  VeridianApp: PVeridianApp;
   AppDir: string;
   MessageQueue: TQueue;
 
@@ -185,7 +185,7 @@ end;
 
 procedure OnAllocError(ASize: word); far;
 begin
-  with Application^ do begin
+  with VeridianApp^ do begin
   end;
 end;
 
@@ -275,7 +275,7 @@ begin
   ParseParameters;
   CreateObjects;
 
-  Application := @self;
+  VeridianApp := @self;
   DrawEnabled := false;
   DoubleClickDelay := DefaultDoubleClickDelay;
   FCursorBlinkRate := 0.4;
@@ -833,8 +833,8 @@ begin
   {$ENDIF}
   if not FMouseState.Equals(FOldMouseState) then begin
     Graph8^.MoveMouseCursor(FMouseState, FOldMouseState);
-{    if State.CursorOn then
-      DrawCursor;}
+    if State.CursorOn then
+      DrawCursor;
     ProcessMouseEvents;
     FOldMouseState.Assign(FMouseState);
   end;
@@ -852,7 +852,6 @@ begin
   Mouse.SetMousePosition(Graph^.Mode^.Width div 2, Graph^.Mode^.Height div 2);
   Mouse.ShowMouse;
   Graph8^.ShowMouseCursor;
-  Mouse.UpdateState;
   FMouseState.Assign(Mouse.State);
   FOldMouseState.Assign(FMouseState);
   inherited Run;

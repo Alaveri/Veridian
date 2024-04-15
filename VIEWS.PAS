@@ -328,8 +328,8 @@ var
   oldDrawEnabled: boolean;
 begin
   inherited Init;
-  oldDrawEnabled := Application^.DrawEnabled;
-  Application^.DrawEnabled := false;
+  oldDrawEnabled := VeridianApp^.DrawEnabled;
+  VeridianApp^.DrawEnabled := false;
   CanFocus := false;
   IsMouseOver := false;
   ForeColor := Desktop^.Colors^.Window;
@@ -352,7 +352,7 @@ begin
   AutoSize := false;
   ScrollX := 0;
   ScrollY := 0;
-  Application^.DrawEnabled := oldDrawEnabled;
+  VeridianApp^.DrawEnabled := oldDrawEnabled;
 end;
 
 procedure TView.Close;
@@ -363,7 +363,7 @@ begin
   StartDrawing;
   Desktop^.PaintRegion(rect, @self);
   EndDrawing;
-  Application^.DeactivateActiveControl;
+  VeridianApp^.DeactivateActiveControl;
   if Desktop^.ActiveView = @self then
     Desktop^.ActiveView^.Deactivate;
   Closed := true;
@@ -517,7 +517,7 @@ end;
 
 procedure TScrollSlider.MouseDown(var AEvent: TMouseEvent);
 begin
-  Application^.CurrentScrollSlider := @self;
+  VeridianApp^.CurrentScrollSlider := @self;
   DownX := AEvent.X;
   DownY := AEvent.Y;
 end;
@@ -639,7 +639,7 @@ var
   min, max: integer;
 begin
   par := PScrollBar(Parent);
-  if Application^.CurrentScrollSlider <> @self then
+  if VeridianApp^.CurrentScrollSlider <> @self then
     exit;
   if par^.Max - par^.Min <= 0 then
     exit;

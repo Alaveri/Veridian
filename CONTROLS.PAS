@@ -482,7 +482,7 @@ begin
   AcceptTab := false;
   Parent := nil;
   Font := Desktop^.Font;
-  MouseCursor := Application^.MouseCursors^.GetItemById('Default');
+  MouseCursor := VeridianApp^.MouseCursors^.GetItemById('Default');
 end;
 
 function TControl.CenterX: integer;
@@ -596,8 +596,8 @@ begin
     if ARedraw then
       Draw;
     if UsesCursor then begin
-      Application^.CursorBlinkTime.SetNow;
-      Application^.CursorOn;
+      VeridianApp^.CursorBlinkTime.SetNow;
+      VeridianApp^.CursorOn;
     end
   end
   else begin
@@ -605,7 +605,7 @@ begin
     if ARedraw then
       Draw;
     if UsesCursor then
-      Application^.CursorOff;
+      VeridianApp^.CursorOff;
   end;
 end;
 
@@ -812,8 +812,8 @@ var
   control: PControl;
   rect, controlRect: TRect;
 begin
-  Application^.PushState;
-  Application^.CursorOff;
+  VeridianApp^.PushState;
+  VeridianApp^.CursorOff;
   Graph^.PushState;
   GetScreenBounds(rect);
   rect.Intersect(AScreenRect);
@@ -832,12 +832,12 @@ begin
     end;
   end;
   Graph^.PopState;
-  Application^.PopState;
+  VeridianApp^.PopState;
 end;
 
 procedure TControl.DrawSelf;
 begin
-  if not Application^.DrawEnabled then
+  if not VeridianApp^.DrawEnabled then
     exit;
   if not GetVisible then
     exit;
@@ -849,7 +849,7 @@ end;
 
 procedure TControl.Draw;
 begin
-  if not Application^.DrawEnabled then
+  if not VeridianApp^.DrawEnabled then
     exit;
   if not GetVisible then
     exit;
@@ -1028,7 +1028,7 @@ begin
 
   if Assigned(Action) and (Action^.Enabled) then begin
     AEvent.Handled := true;
-    Application^.HandleActionExecute(Action, Action^.ActionId);
+    VeridianApp^.HandleActionExecute(Action, Action^.ActionId);
   end;
   if AEvent.Handled then
     exit;
@@ -1365,7 +1365,7 @@ procedure TButton.MouseEnter(var AEvent: TMouseEvent);
 begin
   if not (GetEnabled and GetVisible) then
     exit;
-  if Application^.LeftMouseDownControl = @self then begin
+  if VeridianApp^.LeftMouseDownControl = @self then begin
     Down := true;
     DrawSelf;
   end;
@@ -1376,7 +1376,7 @@ procedure TButton.MouseLeave(var AEvent: TMouseEvent);
 begin
   if not (GetEnabled and GetVisible) then
     exit;
-  if Application^.LeftMouseDownControl = @self then begin
+  if VeridianApp^.LeftMouseDownControl = @self then begin
     Down := false;
     DrawSelf;
   end;

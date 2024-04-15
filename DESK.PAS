@@ -40,7 +40,6 @@ type
     Separator: boolean;
     ParentMenu: PMenu;
     Menu: PMenu;
-    MenuBar: PMenuBar;
     Active: boolean;
     ActiveForeColor: byte;
     ActiveBackColor: byte;
@@ -176,7 +175,7 @@ end;
 procedure TDesktop.Init;
 begin
   inherited Init;
-  Font := Application^.Fonts^.GetItemById('System');
+  Font := VeridianApp^.Fonts^.GetItemById('System');
   Colors := New(PColors, Create);
   Desktop := @self;
   DrawBackground := true;
@@ -228,8 +227,8 @@ end;
 
 procedure TMenu.Activate;
 begin
-  Application^.PushState;
-  Application^.CursorOff;
+  VeridianApp^.PushState;
+  VeridianApp^.CursorOff;
   Desktop^.DeactivateCurrentMenu;
   Desktop^.ActiveMenu := @self;
   ActiveItem := nil;
@@ -246,9 +245,9 @@ begin
   Hide;
   if ParentItem <> nil then
     ParentItem^.Deactivate;
-  Application^.PopState;
-  if Application^.State.CursorOn then
-    Application^.CursorOn;
+  VeridianApp^.PopState;
+  if VeridianApp^.State.CursorOn then
+    VeridianApp^.CursorOn;
 end;
 
 procedure TMenu.Hide;
@@ -354,7 +353,6 @@ var
   item: PMenuItem;
 begin
   item := New(PMenuItem, CreateParent(AId, AActionId, @self));
-  item^.Action := Desktop^.ActionList^.GetActionById(AActionId);
   item^.ParentMenu := @self;
   NewMenuItem := item;
 end;
@@ -391,7 +389,6 @@ begin
   inherited Init;
   Parent := nil;
   Separator := false;
-  MenuBar := nil;
   Enabled := true;
   Shortcut := 0;
   ShowShortcut := true;
@@ -663,9 +660,9 @@ begin
       activeMenu^.activeItem^.Draw;
     end;
     Desktop^.DeactivateCurrentMenu;
-    Application^.PopState;
-    if Application^.State.CursorOn then
-      Application^.CursorOn;
+    VeridianApp^.PopState;
+    if VeridianApp^.State.CursorOn then
+      VeridianApp^.CursorOn;
     AEvent.Handled := true;
     exit;
   end;
@@ -730,7 +727,7 @@ begin
       action := activeItem^.Action;
       if not Assigned(action) then
         exit;
-      Application^.HandleActionExecute(action, action^.ActionId);
+      VeridianApp^.HandleActionExecute(action, action^.ActionId);
       exit;
     end;
   end;
@@ -750,7 +747,7 @@ begin
     if Assigned(activeItem) then
       activeItem^.Deactivate;
     Desktop^.DeactivateCurrentMenu;
-    Application^.HandleActionExecute(menuItem^.Action, menuItem^.Action^.ActionId);
+    VeridianApp^.HandleActionExecute(menuItem^.Action, menuItem^.Action^.ActionId);
     break;
   end;
   AEvent.Handled := true;
@@ -764,7 +761,7 @@ end;
 
 function TMenuBar.NewMenu(AId, AText: string): PMenu;
 var
-  item: PMenuItem;
+  item: PMainMenuItem;
   menu: PMenu;
 begin
   item := New(PMainMenuItem, CreateParent(AId + 'Item', -1, @self));

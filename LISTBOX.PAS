@@ -139,7 +139,7 @@ procedure TListBox.Init;
 begin
   inherited Init;
   DrawBackground := false;
-  Font := Application^.SystemFont;
+  Font := VeridianApp^.SystemFont;
   TitleBar^.Visible := false;
   ScrollType := scVertical;
   CanFocus := true;
@@ -464,7 +464,7 @@ begin
 
     DrawItem(previousIndex);
     DrawItem(SelectedIndex);
-    FillChar(event, SizeOf(event), 0);
+    event.Create;
     if Assigned(OnSelectedIndexChanged) then begin
       event.NewIndex := SelectedIndex;
       event.OldIndex := previousIndex;

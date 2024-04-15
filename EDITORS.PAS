@@ -129,7 +129,7 @@ begin
   if not Assigned(FBuffer) then begin
     GetMem(FBuffer, ACapacity);
     if not Assigned(FBuffer) then begin
-      Application^.Error(@self, ecNotEnoughMemory);
+      VeridianApp^.Error(@self, ecNotEnoughMemory);
       exit;
     end;
     SetCapacity := true;
@@ -140,7 +140,7 @@ begin
   end;
   GetMem(newBuffer, ACapacity);
   if not Assigned(newBuffer) then begin
-    Application^.Error(@self, ecNotEnoughMemory);
+    VeridianApp^.Error(@self, ecNotEnoughMemory);
     exit;
   end;
   FillChar(newBuffer^, ACapacity, 0);
@@ -240,7 +240,7 @@ end;
 procedure TEdit.Init;
 begin
   inherited Init;
-  Font := Application^.Fonts^.GetItemById('Editor');
+  Font := VeridianApp^.Fonts^.GetItemById('Editor');
   UsesCursor := true;
   ForeColor := Desktop^.Colors^.Editor;
   BackColor := Desktop^.Colors^.EditorBack;
@@ -254,7 +254,7 @@ begin
   Margin := 3;
   CanFocus := true;
   BorderStyle := bsSingle;
-  MouseCursor := Application^.MouseCursors^.GetItemById('Beam');
+  MouseCursor := VeridianApp^.MouseCursors^.GetItemById('Beam');
   DrawBackground := true;
   FCursorX := 0;
   ScrollPos := 0;
@@ -287,11 +287,11 @@ end;
 
 procedure TEdit.Draw;
 begin
-  if not Application^.DrawEnabled then
+  if not VeridianApp^.DrawEnabled then
     exit;
-  Application^.PushState;
+  VeridianApp^.PushState;
   inherited Draw;
-  Application^.PopState;
+  VeridianApp^.PopState;
 end;
 
 procedure TEdit.Paint;
@@ -419,7 +419,7 @@ begin
     Length := 0;
     ScrollPos := 0;
     if CheckSize(DefaultEditorSize) = 0 then
-      Application^.Error(@self, ecNotEnoughMemory);
+      VeridianApp^.Error(@self, ecNotEnoughMemory);
   end
   else begin
     Move(FBuffer[SelectEnd], FBuffer[SelectStart], Length - SelectStart);
@@ -519,9 +519,9 @@ end;
 
 procedure TEdit.ResetCursor;
 begin
-  if Application^.State.CursorOn then begin
-    Application^.State.CursorOn := false;
-    Application^.CursorOn;
+  if VeridianApp^.State.CursorOn then begin
+    VeridianApp^.State.CursorOn := false;
+    VeridianApp^.CursorOn;
   end;
 end;
 
@@ -529,21 +529,21 @@ procedure TEdit.MoveLeft;
 begin
   if FCursorPos = 0 then
     exit;
-  Application^.PushState;
-  Application^.CursorOff;
+  VeridianApp^.PushState;
+  VeridianApp^.CursorOff;
   if SetCursorPos(FCursorPos - 1) then
     Draw;
-  Application^.PopState;
+  VeridianApp^.PopState;
   ResetCursor;
 end;
 
 procedure TEdit.MoveRight;
 begin
-  Application^.PushState;
-  Application^.CursorOff;
+  VeridianApp^.PushState;
+  VeridianApp^.CursorOff;
   if SetCursorPos(MaxWord(MinWord(FCursorPos + 1, Length), 0)) then
     Draw;
-  Application^.PopState;
+  VeridianApp^.PopState;
   ResetCursor;
 end;
 
@@ -591,11 +591,11 @@ begin
   pos := GetWordRight;
   if pos = start then
     exit;
-  Application^.PushState;
-  Application^.CursorOff;
+  VeridianApp^.PushState;
+  VeridianApp^.CursorOff;
   if SetCursorPos(pos) then
     inherited Draw;
-  Application^.PopState;
+  VeridianApp^.PopState;
   ResetCursor;
 end;
 
@@ -608,11 +608,11 @@ begin
   pos := GetWordLeft;
   if pos = start then
     exit;
-  Application^.PushState;
-  Application^.CursorOff;
+  VeridianApp^.PushState;
+  VeridianApp^.CursorOff;
   if SetCursorPos(pos) then
     inherited Draw;
-  Application^.PopState;
+  VeridianApp^.PopState;
   ResetCursor;
 end;
 
@@ -696,7 +696,7 @@ begin
   if not Assigned(AText) then begin
     FreeMem(FBuffer, FCapacity);
     if CheckSize(DefaultEditorSize + 1) = 0 then
-      Application^.Error(@self, ecNotEnoughMemory);
+      VeridianApp^.Error(@self, ecNotEnoughMemory);
     Length := 0;
     exit;
   end;
@@ -770,15 +770,15 @@ begin
   index := GetIndexAt(AEvent.X, AEvent.Y);
   if index < 0 then
     exit;
-  Application^.SelectingControl := @self;
+  VeridianApp^.SelectingControl := @self;
   SelectStart := index;
   SelectEnd := index;
   StartDrawing;
-  Application^.CursorOff;
+  VeridianApp^.CursorOff;
   SetCursorPos(index);
   Draw;
   EndDrawing;
-  Application^.CursorOn;
+  VeridianApp^.CursorOn;
 end;
 
 procedure TEdit.MouseMove(var AEvent: TMouseEvent);
@@ -786,7 +786,7 @@ var
   index: longint;
   rect: TRect;
 begin
-  if Application^.SelectingControl = @self then begin
+  if VeridianApp^.SelectingControl = @self then begin
     GetScreenBounds(rect);
     if not rect.IntersectsCoords(AEvent.NewMouseState.X, AEvent.NewMouseState.Y) then begin
 
@@ -808,9 +808,9 @@ var
   mouseControl: PControl;
   selecting: boolean;
 begin
-  selecting := Application^.SelectingControl = @self;
-  Application^.SelectingControl := nil;
-  mouseControl := Application^.GetMouseControl(Desktop, AEvent.NewMouseState);
+  selecting := VeridianApp^.SelectingControl = @self;
+  VeridianApp^.SelectingControl := nil;
+  mouseControl := VeridianApp^.GetMouseControl(Desktop, AEvent.NewMouseState);
   if not Assigned(mouseControl) then
     mouseControl := @self;
   if selecting then begin

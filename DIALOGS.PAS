@@ -217,10 +217,10 @@ end;
 
 constructor TDialog.Create(AId: string; AButtons: TDialogButtons);
 begin
-  Application^.DrawEnabled := false;
+  VeridianApp^.DrawEnabled := false;
   Buttons := AButtons;
   inherited CreateParent(AId, Desktop);
-  Application^.DrawEnabled := true;
+  VeridianApp^.DrawEnabled := true;
   BringToFront;
 end;
 
@@ -268,7 +268,7 @@ begin
   Desktop^.MenuBar^.Draw;
   Modal := true;
   Activate;
-  Application^.DrawEnabled := false;
+  VeridianApp^.DrawEnabled := false;
   for index := 0 to FDialogButtons^.Count - 1 do begin
     button := PModalDialogButton(FDialogButtons^.GetItem(index));
     if button^.Default then begin
@@ -280,19 +280,19 @@ begin
   if (not found) and (FDialogButtons^.Count > 0) then
     FDialogButtons^.GetItem(0)^.Focus;
   BeforeShow;
-  Application^.DrawEnabled := true;
+  VeridianApp^.DrawEnabled := true;
   Draw;
   desktopActions := Desktop^.ActionList;
   Desktop^.ActionList := ActionList;
   repeat
-    Application^.ProcessEvents;
+    VeridianApp^.ProcessEvents;
     if Closed then
       break;
   until Closed;
 
   if Desktop^.ActiveView = @self then
     Desktop^.ActiveView := nil;
-  Application^.DeactivateActiveControl;
+  VeridianApp^.DeactivateActiveControl;
   Deactivate;
   Desktop^.ActionList := desktopActions;
   Desktop^.MenuBar^.Enabled := true;
@@ -349,10 +349,10 @@ begin
   for index := 0 to FDialogButtons^.Count - 1 do begin
     button := PModalDialogButton(FDialogButtons^.GetItem(index));
     if ((AEvent.Key = kyEsc) and button^.Cancel) then
-      Application^.HandleActionExecute(button^.Action, button^.ActionId);
+      VeridianApp^.HandleActionExecute(button^.Action, button^.ActionId);
     if AEvent.Key = kyEnter then begin
       if Desktop^.ActiveControl = PControl(button) then
-        Application^.HandleActionExecute(button^.Action, button^.ActionId)
+        VeridianApp^.HandleActionExecute(button^.Action, button^.ActionId)
     end;
   end;
   AEvent.Handled := true;
@@ -419,8 +419,8 @@ end;
 procedure TSaveDialog.Init;
 begin
   inherited Init;
-  Width := Application^.ScaleX(60);
-  Height := Application^.ScaleY(23);
+  Width := VeridianApp^.ScaleX(60);
+  Height := VeridianApp^.ScaleY(23);
   SetTitle('Save As');
   ScrollType := scNone;
   ButtonAlign := taRight;
@@ -428,7 +428,7 @@ begin
   FileBox := New(PListBox, CreateParent('FileListBox', Content));
   FileBox^.OnMouseDblClick := @SaveDialogDblClick;
   FilenameEntry := New(PEdit, CreateParent('FilenameEntry', Content));
-  FilenameEntry^.Font := Application^.Fonts^.GetItemById('System');
+  FilenameEntry^.Font := VeridianApp^.Fonts^.GetItemById('System');
   PopulateFileBox(InitialDir, '*.*');
   DirectoryLabel := New(PLabel, CreateText('', StrPas(CurrentDir^.Name) + CurrentDir^.Filter, Content));
   DirectoryLabel^.AutoSize := false;
