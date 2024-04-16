@@ -1,7 +1,7 @@
 {$IFDEF debug}
-  {$A-,B-,D+,F+,G-,I+,L+,N+,O-,P+,Q+,R+,S+,T-,V-,X+,Y+}
+  {$A-,B-,D+,F+,G-,I+,L+,N+,O-,P+,Q+,R+,S+,T-,V-,X+}
 {$ELSE}
-  {$A-,B-,D-,F+,G-,I+,L-,N+,O-,P+,Q-,R-,S-,T-,V-,X+,Y-}
+  {$A-,B-,D-,F+,G-,I+,L-,N+,O-,P+,Q+,R-,S-,T+,V-,X+}
 {$ENDIF}
 unit Editors;
 
@@ -58,12 +58,15 @@ type
     SelectStart: word;
     SelectEnd: word;
     WordDelimiters: set of char;
+    ValidChars: set of char;
     function CursorPos: word;
     function SetCursorPos(APos: word): boolean; virtual;
     function GetCursorForeColor: byte; virtual;
     function GetCursorBackColor: byte; virtual;
     function ClearText: boolean; virtual;
     function GetIndexAt(AX, AY: integer): longint;
+    function GetText: string; virtual;
+    function GetTextLarge: PChar; virtual;
     procedure Init; virtual;
     procedure Paint; virtual;
     procedure Draw; virtual;
@@ -266,6 +269,7 @@ begin
   FCapacity := 0;
   FCursorPos := 0;
   WordDelimiters := DefaultWordDelimiters;
+  ValidChars := [#32..#126];
 end;
 
 procedure TEdit.SelectNone;
@@ -472,6 +476,8 @@ end;
 
 procedure TEdit.AddInsertChar(AChar: char);
 begin
+  if not (AChar in ValidChars) then
+    exit;
   if FCursorPos < Length then
     InsertChar(FCursorPos, AChar)
   else
@@ -708,6 +714,19 @@ begin
   MoveEnd;
 end;
 
+function TEdit.GetText: string;
+begin
+  if not Assigned(FBuffer) then
+    GetText := ''
+  else
+    GetText := StrPas(FBuffer);
+end;
+
+function TEdit.GetTextLarge: PChar;
+begin
+  GetTextLarge := FBuffer;
+end;
+
 procedure TEdit.SetText(const AText: string);
 var
   txt: PChar;
@@ -731,7 +750,7 @@ begin
     exit;
   key := AEvent.Key;
   case key of
-    32..127: AddInsertChar(Chr(key));
+    32..126: AddInsertChar(Chr(key));
     kyLeft: MoveLeft;
     kyRight: MoveRight;
     kyEnd, kyCtrlEnd: MoveEnd;

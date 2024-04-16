@@ -1,7 +1,7 @@
 {$IFDEF debug}
-  {$A-,B-,D+,F+,G-,I+,L+,N+,O-,P+,Q+,R+,S+,T-,V-,X+,Y+}
+  {$A-,B-,D+,F+,G-,I+,L+,N+,O-,P+,Q+,R+,S+,T-,V-,X+}
 {$ELSE}
-  {$A-,B-,D-,F+,G-,I+,L-,N+,O-,P+,Q-,R-,S-,T-,V-,X+,Y-}
+  {$A-,B-,D-,F+,G-,I+,L-,N+,O-,P+,Q+,R-,S-,T+,V-,X+}
 {$ENDIF}
 unit Views;
 
@@ -60,6 +60,7 @@ type
     procedure Init; virtual;
     procedure Paint; virtual;
     procedure MouseDown(var AEvent: TMouseEvent); virtual;
+    procedure MouseDblClick(var AEvent: TMouseEvent); virtual;
     procedure MouseWheelChanged(var AEvent: TMouseEvent); virtual;
   end;
 
@@ -78,6 +79,8 @@ type
   private
     procedure GetSliderRect(var ARect: TRect);
     procedure DrawSlider;
+    procedure ScrollBySlider(ADelta: integer);
+    procedure ScrollByPixels(ADelta: integer);
   public
     Size: integer;
     IncButton: PButton;
@@ -120,6 +123,8 @@ type
     procedure SetTitle(const ATitle: string);
     function GetAutoWidth: longint; virtual;
     function GetAutoHeight: longint; virtual;
+    procedure ScrollVert(ADelta: integer); virtual;
+    procedure ScrollHorz(ADelta: integer); virtual;
     destructor Free; virtual;
   end;
 
@@ -148,13 +153,10 @@ var
 begin
   with PButton(ASender)^ do begin
     scrollBar := PScrollbar(Parent);
-    parentView := PView(scrollbar^.Parent);
     if tag = 0 then
-      newPos := scrollbar^.CurrentPos - scrollbar^.Increment
+      scrollBar^.ScrollByPixels(-scrollbar^.Increment)
     else
-      newPos := scrollbar^.CurrentPos + scrollbar^.Increment;
-    newPos := EnsureLongRange(newPos, scrollbar^.Min, scrollbar^.Max);
-    scrollBar^.SetCurrentPos(newPos);
+      scrollBar^.ScrollByPixels(scrollbar^.Increment);
   end;
 end;
 
@@ -163,6 +165,8 @@ var
   par: PView;
   rect: TRect;
 begin
+  if VeridianApp^.Settings.UpdateScrollContents then
+    exit;
   with PScrollBar(ASender)^ do begin
     par := PView(Parent);
     par^.ScrollY := AEvent.CurrentPos;
@@ -494,6 +498,12 @@ begin
   PControl(Parent)^.MouseDown(AEvent);
 end;
 
+procedure TViewContent.MouseDblClick(var AEvent: TMouseEvent);
+begin
+  AEvent.Handled := false;
+  PControl(Parent)^.MouseDblClick(AEvent);
+end;
+
 procedure TViewContent.MouseWheelChanged(var AEvent: TMouseEvent);
 begin
   AEvent.Handled := false;
@@ -630,38 +640,68 @@ begin
   Slider^.DrawSelf;
 end;
 
+procedure TScrollbar.ScrollByPixels(ADelta: integer);
+var
+  pos: longint;
+begin
+  pos := EnsureLongRange(CurrentPos + ADelta, Min, Max);
+  SetCurrentPos(pos);
+end;
+
+procedure TScrollBar.ScrollBySlider(ADelta: integer);
+var
+  scrollSize: integer;
+  minCoord, maxCoord: integer;
+  pos: integer;
+begin
+  minCoord := Size - 2 * BorderWidth;
+  if Orientation = soHorizontal then begin
+    maxCoord := Width - 2 * Size + BorderWidth;
+    slider^.X := EnsureRange(slider^.X + ADelta, minCoord, maxCoord);
+    scrollSize := Width - 3 * Size + 3 * BorderWidth;
+    pos := Round(((slider^.X - Size + 2 * BorderWidth) / scrollSize) * Max);
+  end
+  else begin
+    maxCoord := Height - 2 * Size + BorderWidth;
+    slider^.Y := EnsureRange(slider^.Y + ADelta, minCoord, maxCoord);
+    scrollSize := Height - 3 * Size + 3 * BorderWidth;
+    pos := Round(((slider^.Y - Size + 2 * BorderWidth) / scrollSize) * Max);
+  end;
+  if VeridianApp^.Settings.UpdateScrollContents then
+    SetCurrentPos(pos)
+  else begin
+    CurrentPos := pos;
+    DrawSlider;
+  end;
+end;
+
 procedure TScrollSlider.ProcessMouseMove(var AEvent: TMouseEvent);
 var
-  diff: integer;
+  delta: integer;
   par: PScrollBar;
   rect: TRect;
-  scrollSize: integer;
-  min, max: integer;
 begin
-  par := PScrollBar(Parent);
+  par := PScrollbar(Parent);
   if VeridianApp^.CurrentScrollSlider <> @self then
     exit;
   if par^.Max - par^.Min <= 0 then
     exit;
   GetScreenBounds(rect);
-  if par^.Orientation = soHorizontal then begin
-    rect.Translate(DownX, 0);
-    diff := AEvent.NewMouseState.X - rect.X;
-    min := par^.Size - 2 * par^.BorderWidth;
-    max := par^.Width - 2 * par^.Size + par^.BorderWidth;
-    X := EnsureRange(X + diff, min, max);
-    par^.DrawSlider;
-  end
-  else begin
-    rect.Translate(0, DownY);
-    diff := AEvent.NewMouseState.Y - rect.Y;
-    min := par^.Size - 2 * par^.BorderWidth;
-    max := par^.Height - 2 * par^.Size + par^.BorderWidth;
-    Y := EnsureRange(Y + diff, min, max);
-    scrollSize := par^.Height - 3 * par^.Size + 3 * BorderWidth;
-    par^.CurrentPos := Round(((Y - par^.Size + 2 * BorderWidth) / scrollSize) * par^.Max);
-    par^.DrawSlider;
-  end;
+  if par^.Orientation = soHorizontal then
+    delta := AEvent.NewMouseState.X - rect.X - DownX
+  else
+    delta := AEvent.NewMouseState.Y - rect.Y - DownY;
+  par^.ScrollBySlider(delta);
+end;
+
+procedure TView.ScrollVert(ADelta: integer);
+begin
+  VertScrollBar^.ScrollByPixels(ADelta);
+end;
+
+procedure TView.ScrollHorz(ADelta: integer);
+begin
+  HorzScrollBar^.ScrollByPixels(ADelta);
 end;
 
 end.

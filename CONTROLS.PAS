@@ -1,7 +1,7 @@
 {$IFDEF debug}
-  {$A-,B-,D+,F+,G-,I+,L+,N+,O-,P+,Q+,R+,S+,T-,V-,X+,Y+}
+  {$A-,B-,D+,F+,G-,I+,L+,N+,O-,P+,Q+,R+,S+,T-,V-,X+}
 {$ELSE}
-  {$A-,B-,D-,F+,G-,I+,L-,N+,O-,P+,Q-,R-,S-,T-,V-,X+,Y-}
+  {$A-,B-,D-,F+,G-,I+,L-,N+,O-,P+,Q+,R-,S-,T+,V-,X+}
 {$ENDIF}
 unit Controls;
 
@@ -327,6 +327,7 @@ type
     constructor CreateText(const AId, AText: string; AParent: PControl);
     procedure Init; virtual;
     procedure Paint; virtual;
+    procedure Clear; virtual;
     procedure SetupControls; virtual;
     destructor Free; virtual;
   end;
@@ -843,7 +844,6 @@ begin
     exit;
   StartDrawing;
   Paint;
-{  PaintOccludingControls(@self);}
   EndDrawing;
 end;
 
@@ -855,7 +855,6 @@ begin
     exit;
   StartDrawing;
   Paint;
-{  PaintOccludingControls(@self);}
   DrawControls;
   EndDrawing;
 end;
@@ -923,8 +922,6 @@ var
 begin
   if AEvent.Handled then
     exit;
-  if Controls^.Count = 0 then
-    exit;
   for index := Controls^.Count - 1 downto 0 do begin
     if AEvent.Handled then
       exit;
@@ -935,6 +932,10 @@ begin
       continue;
     control^.KeyPress(AEvent);
   end;
+  if AEvent.Handled then
+    exit;
+  if Assigned(OnKeyPress) then
+    TKeyEventProc(OnKeyPress)(@self, AEvent);
 end;
 
 function TControl.TrueTextWidth(AText: string): integer;
@@ -1445,6 +1446,19 @@ constructor TLabel.CreateText(const AId, AText: string; AParent: PControl);
 begin
   CreateParent(AId, AParent);
   SetText(AText);
+end;
+
+procedure TLabel.Clear;
+var
+  rect: TRect;
+begin
+  StartDrawing;
+  GetScreenBounds(rect);
+  Graph^.SetForeColor(ForeColor);
+  Graph^.SetBackColor(BackColor);
+  Graph^.FillRect(rect);
+  SetText('');
+  EndDrawing;
 end;
 
 procedure TLabel.Init;

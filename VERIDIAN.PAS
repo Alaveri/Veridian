@@ -1,7 +1,7 @@
 {$IFDEF debug}
-  {$A-,B-,D+,F+,G-,I+,L+,N+,O-,P+,Q+,R+,S+,T-,V-,X+,Y+}
+  {$A-,B-,D+,F+,G-,I+,L+,N+,O-,P+,Q+,R+,S+,T-,V-,X+}
 {$ELSE}
-  {$A-,B-,D-,F+,G-,I+,L-,N+,O-,P+,Q-,R-,S-,T-,V-,X+,Y-}
+  {$A-,B-,D-,F+,G-,I+,L-,N+,O-,P+,Q+,R-,S-,T+,V-,X+}
 {$ENDIF}
 unit Veridian;
 
@@ -31,9 +31,11 @@ const
   mKeyUp = 1003;
 
   DefaultDoubleClickDelay: double = 0.5;
+  DefaultCursorBlinkRate = 0.4;
 
 type
   PVeridianApp = ^TVeridianApp;
+  PVeridianAppSettings = ^TVeridianAppSettings;
   PAppState = ^TAppState;
   PMessage = ^TMessage;
 
@@ -59,19 +61,31 @@ type
     procedure Init; virtual;
   end;
 
+  TVeridianAppSettings = object(TObject)
+  private
+  public
+    CursorBlinkRate: double;
+    UpdateScrollContents: boolean;
+    DoubleClickDelay: TTimeSpan;
+    procedure Init; virtual;
+    procedure Assign(var ASource: TObject); virtual;
+  end;
+
   TVeridianApp = object(TGraphApp)
   private
     FMouseEvent: TMouseEvent;
     FKeyEvent: TKeyEvent;
     FMouseState: TMouseState;
     FOldMouseState: TMouseState;
-    FCursorBlinkRate: double;
     FCursorBlinkVisible: boolean;
     FCurrentTime: TDateTime;
     FBlinkElapsed: TTimeSpan;
     FMouseOverControl: PControl;
     FDragControl: PControl;
     FDoubleClickStart: TDateTime;
+    FDoubleClickControl: PControl;
+    FDoubleClickX: integer;
+    FDoubleClickY: integer;
     {$IFDEF debug}
     FMemAvail: longint;
     FMaxAvail: longint;
@@ -85,6 +99,7 @@ type
     procedure HandleMouseDown(AControl: PControl; var AEvent: TMouseEvent; AButton: TButtonState);
     procedure HandleMouseWheelChanged(AControl: PControl; AEvent: TMouseEvent);
     procedure HandleMouseUp(AControl: PControl; var AEvent: TMouseEvent; AButton: TButtonState);
+    procedure HandleDblClick(ATime: TDateTime; AControl: PControl; var AEvent: TMouseEvent);
     procedure ProcessMouseEvents;
     procedure ProcessKeyEvents(AControl: PControl; var AEvent: TKeyEvent);
     procedure ProcessMessages;
@@ -92,6 +107,7 @@ type
     procedure CreateDesktop;
     procedure CreateObjects;
   public
+    Settings: TVeridianAppSettings;
     CursorBlinkTime: TDateTime;
     State: TAppState;
     StateStack: TObjectStack;
@@ -105,7 +121,6 @@ type
     EditorFont: PFont;
     Parameters: PStringList;
     CurrentScrollSlider: PControl;
-    DoubleClickDelay: double;
     constructor Create(ADriverId: TGraphDrivers; AModeId: string);
     function GetMouseControl(AControl: PControl; var AMouseState: TMouseState): PControl;
     function LoadFont(const AFilename: string): PFont; virtual;
@@ -258,6 +273,7 @@ begin
   FDoubleClickStart.Create;
   FCurrentTime.Create;
   FBlinkElapsed.Create;
+  Settings.Create;
 
   State.Create;
   StateStack.Create;
@@ -277,8 +293,6 @@ begin
 
   VeridianApp := @self;
   DrawEnabled := false;
-  DoubleClickDelay := DefaultDoubleClickDelay;
-  FCursorBlinkRate := 0.4;
   FCursorBlinkVisible := false;
   Memory.OnAllocError := @OnAllocError;
   FMouseOverControl := nil;
@@ -287,6 +301,9 @@ begin
   RightMouseDownControl := nil;
   SelectingControl := nil;
   CurrentScrollSlider := nil;
+  FDoubleClickControl := nil;
+  FDoubleClickX := 0;
+  FDoubleClickY := 0;
 
   InitMouseCursors;
   LoadFonts;
@@ -400,7 +417,7 @@ begin
     FCurrentTime.SetNow;
     FBlinkElapsed.Ticks := FCurrentTime.Ticks - CursorBlinkTime.Ticks;
     seconds := FBlinkElapsed.TotalSeconds;
-    if seconds > FCursorBlinkRate then begin
+    if seconds > Settings.CursorBlinkRate then begin
       FCursorBlinkVisible := not FCursorBlinkVisible;
       CursorBlinkTime.SetNow;
       DrawCursor;
@@ -579,12 +596,33 @@ begin
   AControl^.MouseDown(AEvent);
 end;
 
+procedure TVeridianApp.HandleDblClick(ATime: TDateTime; AControl: PControl; var AEvent: TMouseEvent);
+begin
+  if FDoubleClickStart.Ticks = 0 then begin
+    FDoubleClickStart.SetNow;
+    FDoubleClickControl := AControl;
+    FDoubleClickX := AEvent.NewMouseState.X;
+    FDoubleClickY := AEvent.NewMouseState.Y;
+  end
+  else begin
+    if (ATime.Ticks <= FDoubleClickStart.Ticks + Settings.DoubleClickDelay.Ticks)
+      and (FDoubleClickControl = AControl)
+      and (FDoubleClickX = AEvent.NewMouseState.X)
+      and (FDoubleClickY = AEvent.NewMouseState.Y) then begin
+      AControl^.MouseDblClick(AEvent);
+    end;
+    FDoubleClickStart.Ticks := 0;
+    FDoubleClickControl := nil;
+    FDoubleClickX := 0;
+    FDoubleClickY := 0;
+  end;
+end;
+
 procedure TVeridianApp.HandleMouseUp(AControl: PControl; var AEvent: TMouseEvent; AButton: TButtonState);
 var
   selecting: boolean;
   scrollParent: PScrollBar;
   scrollEvent: TScrollEvent;
-  doubleClickSpan: TTimeSpan;
   now: TDateTime;
 begin
   if AButton in AEvent.NewMouseState.ButtonState then
@@ -592,6 +630,7 @@ begin
   if not (AButton in AEvent.OldMouseState.ButtonState) then
     exit;
 
+  now.CreateNow;
   selecting := SelectingControl = AControl;
   if Assigned(CurrentScrollSlider) and Assigned(CurrentScrollSlider^.Parent) then begin
     scrollParent := PScrollBar(CurrentScrollSlider^.Parent);
@@ -609,17 +648,8 @@ begin
     AControl^.MouseClick(AEvent);
   end;
 
-  if FDoubleClickStart.Ticks = 0 then begin
-    if (AButton = bsLeft)  then
-      FDoubleClickStart.SetNow;
-  end else begin
-    now.CreateNow;
-    doubleClickSpan.CreateSeconds(DoubleClickDelay);
-    if now.Ticks <= FDoubleClickStart.Ticks + doubleClickSpan.Ticks then
-      AControl^.MouseDblClick(AEvent)
-    else
-      FDoubleClickStart.Ticks := 0;
-  end;
+  if AButton = bsLeft then
+    HandleDblClick(now, AControl, AEvent);
 
   SelectingControl := nil;
   if AButton = bsLeft then
@@ -884,6 +914,26 @@ begin
   X := 0;
   Y := 0;
   ShiftState := [];
+end;
+
+procedure TVeridianAppSettings.Init;
+begin
+  inherited Init;
+  CursorBlinkRate := DefaultCursorBlinkRate;
+  DoubleClickDelay.CreateSeconds(DefaultDoubleClickDelay);
+  UpdateScrollContents := true;
+end;
+
+procedure TVeridianAppSettings.Assign(var ASource: TObject);
+var
+  source: PVeridianAppSettings;
+begin
+  inherited Assign(ASource);
+  source := PVeridianAppSettings(@source);
+  CursorBlinkRate := source^.CursorBlinkRate;
+  DoubleClickDelay := source^.DoubleClickDelay;
+  UpdateScrollContents := source^.UpdateScrollContents;
+  DoubleClickDelay.Assign(source^.DoubleClickDelay);
 end;
 
 end.
