@@ -1,8 +1,4 @@
-{$IFDEF debug}
-  {$A-,B-,D+,F+,G-,I+,L+,N+,O-,P+,Q+,R+,S+,T-,V-,X+}
-{$ELSE}
-  {$A-,B-,D-,F+,G-,I+,L-,N+,O-,P+,Q+,R-,S-,T+,V-,X+}
-{$ENDIF}
+{$I COMPILER.INC}
 unit Editors;
 
 interface
@@ -12,9 +8,8 @@ uses
   Lists,
   Drawing,
   Common,
-
+  MemDrv,
   GrDrv8,
-
   Views,
   Controls;
 
@@ -29,18 +24,16 @@ type
   PEditable = ^TEditable;
 
   TEditable = object(TTextControl)
-  private
-  public
+  {$IFDEF VER70}private{$ENDIF}
+  {$IFDEF VER70}public{$ENDIF}
     procedure Delete; virtual;
   end;
 
   TEdit = object(TEditable)
-  private
-    FBuffer: PChar;
-    FCapacity: word;
+  {$IFDEF VER70}private{$ENDIF}
+    FBuffer: TBuffer;
     FCursorPos: word;
     FCursorX: longint;
-    function SetCapacity(ACapacity: word): boolean;
     function CheckSize(ALength: word): word;
     function CheckSelection: boolean;
     function GetWordLeft: word;
@@ -48,7 +41,7 @@ type
     procedure SetTextData(AText: PChar; ALength: word);
     procedure ChangeSelect(APosition: word);
     procedure ResetCursor;
-  public
+  {$IFDEF VER70}public{$ENDIF}
     DisabledForeColor: byte;
     SelectForeColor: byte;
     SelectBackColor: byte;
@@ -59,6 +52,7 @@ type
     SelectEnd: word;
     WordDelimiters: set of char;
     ValidChars: set of char;
+    SelectAllOnFocus: boolean;
     function CursorPos: word;
     function SetCursorPos(APos: word): boolean; virtual;
     function GetCursorForeColor: byte; virtual;
@@ -78,6 +72,7 @@ type
     procedure AddInsertChar(AChar: char); virtual;
     procedure AddChar(AChar: char); virtual;
     procedure InsertChar(AIndex: word; AChar: char); virtual;
+    procedure Focus; virtual;
     procedure Delete; virtual;
     procedure BackSpace; virtual;
     procedure MoveEnd; virtual;
@@ -111,7 +106,6 @@ uses
   KeyDrv,
   MouseDrv,
   GraphDrv,
-  MemDrv,
   Desk,
   Veridian;
 
@@ -120,41 +114,6 @@ const
 
 procedure TEditable.Delete;
 begin
-end;
-
-function TEdit.SetCapacity(ACapacity: word): boolean;
-var
-  newBuffer: PChar;
-begin
-  SetCapacity := false;
-  if ACapacity = FCapacity then
-    exit;
-  if not Assigned(FBuffer) then begin
-    GetMem(FBuffer, ACapacity);
-    if not Assigned(FBuffer) then begin
-      VeridianApp^.Error(@self, ecNotEnoughMemory);
-      exit;
-    end;
-    SetCapacity := true;
-    FillChar(FBuffer^, ACapacity, 0);
-    FCapacity := ACapacity;
-    Length := 0;
-    exit;
-  end;
-  GetMem(newBuffer, ACapacity);
-  if not Assigned(newBuffer) then begin
-    VeridianApp^.Error(@self, ecNotEnoughMemory);
-    exit;
-  end;
-  FillChar(newBuffer^, ACapacity, 0);
-  if ACapacity > FCapacity then
-    Move(FBuffer^, newBuffer^, FCapacity)
-  else
-    Move(FBuffer^, newBuffer^, ACapacity);
-  FreeMem(FBuffer, FCapacity);
-  FBuffer := newBuffer;
-  FCapacity := ACapacity;
-  SetCapacity := true;
 end;
 
 function TEdit.GetCursorForeColor: byte;
@@ -205,7 +164,7 @@ begin
   index := 0;
   pos := 0;
   while index < Length do begin
-    Inc(pos, Font^.TextWidth(FBuffer[index]));
+    Inc(pos, Font^.TextWidth(FBuffer.AsString[index]));
     if pos > AX then
       break;
     Inc(index);
@@ -213,13 +172,23 @@ begin
   GetIndexAt := index;
 end;
 
+procedure TEdit.Focus;
+begin
+  if not SelectAllOnFocus then
+    exit;
+  SetFocus(true, false);
+  SelectAll;
+  Draw;
+end;
+
+
 function TEdit.CheckSize(ALength: word): word;
 var
-  capacity: longint;
+  capacity: word;
 begin
-  Inc(ALength);
   CheckSize := 0;
-  capacity := MaxWord(FCapacity, DefaultEditorSize);
+  Inc(ALength);
+  capacity := MaxWord(FBuffer.Size, DefaultEditorSize);
   while capacity < ALength do begin
     if ALength >= 64 then
       capacity := capacity * 3 div 2
@@ -232,12 +201,16 @@ begin
       break;
     end;
   end;
-  if FCapacity >= capacity then begin
+  if FBuffer.Size >= capacity then begin
     CheckSize := capacity;
     exit;
   end;
-  if SetCapacity(capacity) then
-    CheckSize := capacity;
+  FBuffer.SetSizePreserve(capacity, true);
+  if FBuffer.HasException then begin
+    FBuffer.ClearException;
+    exit;
+  end;
+  CheckSize := FBuffer.Size;
 end;
 
 procedure TEdit.Init;
@@ -245,6 +218,7 @@ begin
   inherited Init;
   Font := VeridianApp^.Fonts^.GetItemById('Editor');
   UsesCursor := true;
+  SelectAllOnFocus := true;
   ForeColor := Desktop^.Colors^.Editor;
   BackColor := Desktop^.Colors^.EditorBack;
   DisabledForeColor := Desktop^.Colors^.EditorDisabled;
@@ -265,8 +239,7 @@ begin
   SelectEnd := 0;
   MaxLength := 255;
   Length := 0;
-  FBuffer := nil;
-  FCapacity := 0;
+  FBuffer.Create;
   FCursorPos := 0;
   WordDelimiters := DefaultWordDelimiters;
   ValidChars := [#32..#126];
@@ -340,7 +313,7 @@ begin
       Graph^.SetForeColor(FocusedForeColor);
       Graph^.SetBackColor(FocusedBackColor);
     end;
-    ch := FBuffer[index];
+    ch := FBuffer.AsString[index];
     charWidth := Font^.TextWidth(ch);
     if xPos > drawRect.Right then
       break;
@@ -376,8 +349,8 @@ begin
   NeedsDraw := false;
   CheckWordRange(APos, 0, Length);
   FCursorPos := APos;
-  FCursorX := Font^.TextWidthAny(FBuffer, APos);
-  charWidth := Font^.TextWidth(FBuffer[APos]);
+  FCursorX := Font^.TextWidthAny(FBuffer.AsString, APos);
+  charWidth := Font^.TextWidth(FBuffer.AsString[APos]);
 
   if SelectStart <> SelectEnd then begin
     SelectStart := 0;
@@ -415,9 +388,7 @@ begin
     exit;
   size := SelectEnd - SelectStart;
   if Length - size <= 0 then begin
-    FreeMem(FBuffer, FCapacity);
-    FCapacity := 0;
-    FBuffer := nil;
+    FBuffer.FreeData;
     FCursorPos := 0;
     FCursorX := 0;
     Length := 0;
@@ -426,9 +397,9 @@ begin
       VeridianApp^.Error(@self, ecNotEnoughMemory);
   end
   else begin
-    Move(FBuffer[SelectEnd], FBuffer[SelectStart], Length - SelectStart);
+    FBuffer.Move(SelectEnd, SelectStart, Length - SelectStart);
     Dec(Length, size);
-    FBuffer[Length] := #0;
+    FBuffer.SetByte(Length, 0);
   end;
   if SelectStart <> FCursorPos then begin
     SelectEnd := SelectStart;
@@ -446,9 +417,9 @@ begin
   ClearText;
   if CheckSize(Length + 1) < 0 then
     exit;
-  FBuffer[Length] := AChar;
+  FBuffer.SetChar(Length, AChar);
   Inc(Length);
-  FBuffer[Length] := #0;
+  FBuffer.SetChar(Length, #0);
   MoveEnd;
 end;
 
@@ -465,10 +436,10 @@ begin
   CheckWordRange(AIndex, 0, Length);
   if ClearText then
     AIndex := FCursorPos;
-  Move(FBuffer[AIndex], FBuffer[AIndex + 1], Length - AIndex);
-  FBuffer[AIndex] := AChar;
+  FBuffer.Move(AIndex, AIndex + 1, Length - AIndex);
+  FBuffer.SetChar(AIndex, AChar);
   Inc(Length);
-  FBuffer[Length] := #0;
+  FBuffer.SetChar(Length, #0);
   SetCursorPos(AIndex + 1);
   Draw;
   ResetCursor;
@@ -492,7 +463,7 @@ begin
     ClearText;
   end
   else begin
-    Move(FBuffer[FCursorPos + 1], FBuffer[FCursorPos], Length - FCursorPos);
+    FBuffer.Move(FCursorPos + 1, FCursorPos, Length - FCursorPos);
     Dec(Length);
   end;
   Draw;
@@ -509,9 +480,9 @@ begin
     SetCursorPos(FCursorPos);
   end
   else begin
-    Move(FBuffer[FCursorPos], FBuffer[FCursorPos - 1], Length - FCursorPos);
+    FBuffer.Move(FCursorPos, FCursorPos - 1, Length - FCursorPos);
     Dec(Length);
-    FBuffer[Length] := #0;
+    FBuffer.SetChar(Length, #0);
     SetCursorPos(FCursorPos - 1);
   end;
   Draw;
@@ -561,10 +532,10 @@ begin
   if FCursorPos = 0 then
     exit;
   current := FCursorPos - 1;
-  while (current > 0) and (FBuffer[current] in WordDelimiters) do begin
+  while (current > 0) and (FBuffer.AsString[current] in WordDelimiters) do begin
     Dec(current);
   end;
-  while (current > 0) and not (FBuffer[current - 1] in WordDelimiters) do begin
+  while (current > 0) and not (FBuffer.AsString[current - 1] in WordDelimiters) do begin
     Dec(current);
   end;
   GetWordLeft := MaxWord(0, current);
@@ -575,13 +546,13 @@ var
   current: integer;
 begin
   current := FCursorPos;
-  while (current < Length) and not (FBuffer[current] in WordDelimiters) do begin
-    if FBuffer[current] = #0 then
+  while (current < Length) and not (FBuffer.AsString[current] in WordDelimiters) do begin
+    if FBuffer.AsString[current] = #0 then
       break;
     Inc(current);
   end;
-  while (current < Length) and (FBuffer[current] in WordDelimiters) do begin
-    if FBuffer[current] = #0 then
+  while (current < Length) and (FBuffer.AsString[current] in WordDelimiters) do begin
+    if FBuffer.AsString[current] = #0 then
       break;
     Inc(current);
   end;
@@ -698,33 +669,33 @@ begin
 end;
 
 procedure TEdit.SetTextData(AText: PChar; ALength: word);
+var
+  size: word;
 begin
-  if not Assigned(AText) then begin
-    FreeMem(FBuffer, FCapacity);
-    if CheckSize(DefaultEditorSize + 1) = 0 then
-      VeridianApp^.Error(@self, ecNotEnoughMemory);
+  if ALength = 0 then begin
+    FBuffer.FreeData;
     Length := 0;
     exit;
   end;
-  if CheckSize(ALength) = 0 then
+  if CheckSize(ALength + 1) = 0 then
     exit;
-  Move(AText^, FBuffer^, ALength);
+  Move(AText^, FBuffer.Data^, ALength);
   Length := ALength;
-  FBuffer[Length] := #0;
+  FBuffer.SetByte(ALength, 0);
   MoveEnd;
 end;
 
 function TEdit.GetText: string;
 begin
-  if not Assigned(FBuffer) then
+  if not Assigned(FBuffer.Data) then
     GetText := ''
   else
-    GetText := StrPas(FBuffer);
+    GetText := StrPas(FBuffer.AsString);
 end;
 
 function TEdit.GetTextLarge: PChar;
 begin
-  GetTextLarge := FBuffer;
+  GetTextLarge := FBuffer.AsString;
 end;
 
 procedure TEdit.SetText(const AText: string);
@@ -737,7 +708,10 @@ end;
 
 procedure TEdit.SetTextLarge(AText: PChar);
 begin
-  SetTextData(AText, StrLen(AText));
+  if not Assigned(AText) then
+    SetTextData('', 0)
+  else
+    SetTextData(AText, StrLen(AText));
 end;
 
 procedure TEdit.KeyPress(var AEvent: TKeyEvent);
@@ -841,8 +815,7 @@ end;
 
 destructor TEdit.Free;
 begin
-  if Assigned(FBuffer) then
-    FreeMem(FBuffer, Length);
+  FBuffer.Free;
   inherited Free;
 end;
 

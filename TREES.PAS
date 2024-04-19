@@ -12,8 +12,8 @@ type
   PTreeNode = ^TTreeNode;
 
   TTreeNode = object(TTextControl)
-  private
-  public
+  {$IFDEF VER70}private{$ENDIF}
+  {$IFDEF VER70}public{$ENDIF}
     Data: PObject;
     DisposeData: boolean;
 {    function NewNode: PTreeNode; virtual;
@@ -26,8 +26,8 @@ type
   end;
 
   TTree = object(TView)
-  private
-  public
+  {$IFDEF VER70}private{$ENDIF}
+  {$IFDEF VER70}public{$ENDIF}
 {    function NewNode(AParent: TTreeNode): PTreeNode; virtual;
     procedure DeleteNode(ANode: PTreeNode); virtual;
     procedure ClearNodes; virtual;}

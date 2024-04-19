@@ -1,8 +1,4 @@
-{$IFDEF debug}
-  {$A-,B-,D+,F+,G-,I+,L+,N+,O-,P+,Q+,R+,S+,T-,V-,X+}
-{$ELSE}
-  {$A-,B-,D-,F+,G-,I+,L-,N+,O-,P+,Q+,R-,S-,T+,V-,X+}
-{$ENDIF}
+{$I COMPILER.INC}
 unit FontEdit;
 
 interface
@@ -19,8 +15,8 @@ type
   PFontEditor = ^TFontEditor;
 
   TCharacterMap = object(TPanel)
-  private
-  public
+  {$IFDEF VER70}private{$ENDIF}
+  {$IFDEF VER70}public{$ENDIF}
     CharsPerRow: integer;
     procedure PaintChar(AChar: byte);
     procedure DrawChar(AChar: byte);
@@ -30,10 +26,10 @@ type
   end;
 
   TFontEditor = object(TPanel)
-  private
+  {$IFDEF VER70}private{$ENDIF}
     FPixelOn: boolean;
     procedure SetPixel(var AEvent: TEvent; AToggle: boolean);
-  public
+  {$IFDEF VER70}public{$ENDIF}
     CurrentChar: byte;
     procedure Init; virtual;
     procedure Paint; virtual;

@@ -1,8 +1,4 @@
-{$IFDEF debug}
-  {$A-,B-,D+,F+,G-,I+,L+,N+,O-,P+,Q+,R+,S+,T-,V-,X+}
-{$ELSE}
-  {$A-,B-,D-,F+,G-,I+,L-,N+,O-,P+,Q+,R-,S-,T+,V-,X+}
-{$ENDIF}
+{$I COMPILER.INC}
 unit ListBox;
 
 interface
@@ -12,6 +8,7 @@ uses
   Drawing,
   Images,
   Lists,
+  VeriType,
   Controls,
   Views;
 
@@ -22,8 +19,8 @@ type
   PSelectedIndexChangedProc = ^TSelectedIndexChangedProc;
 
   TSelectedIndexChangedEvent = object(TEvent)
-  private
-  public
+  {$IFDEF VER70}private{$ENDIF}
+  {$IFDEF VER70}public{$ENDIF}
     OldIndex: integer;
     NewIndex: integer;
   end;
@@ -31,8 +28,8 @@ type
   TSelectedIndexChangedProc = procedure(ASender: PObject; var AEvent: TSelectedIndexChangedEvent);
 
   TListItem = object(TObject)
-  private
-  public
+  {$IFDEF VER70}private{$ENDIF}
+  {$IFDEF VER70}public{$ENDIF}
     Text: PChar;
     Value: pointer;
     ImageIndex: integer;
@@ -45,8 +42,8 @@ type
   end;
 
   TListItems = object(TObjectList)
-  private
-  public
+  {$IFDEF VER70}private{$ENDIF}
+  {$IFDEF VER70}public{$ENDIF}
     Owner: PListBox;
     constructor Create(AOwner: PListBox);
     function GetItem(AIndex: integer): PListItem;
@@ -56,10 +53,10 @@ type
   end;
 
   TListBox = object(TView)
-  private
+  {$IFDEF VER70}private{$ENDIF}
     procedure DrawItem(AIndex: integer);
     procedure PaintItem(AIndex: integer);
-  public
+  {$IFDEF VER70}public{$ENDIF}
     Items: PListItems;
     ImageList: PImageList;
     Margin: integer;
@@ -318,6 +315,8 @@ begin
     kyUp: ChangeSelect(-1);
     kyPageDown: ChangeSelect(Content^.Height div Font^.Height - 1);
     kyPageUp: ChangeSelect(-Content^.Height div Font^.Height + 1);
+    kyEnd: ChangeSelect(Items^.Count - 1);
+    kyHome: ChangeSelect(-Items^.Count - 1);
     else AEvent.Handled := false;
   end;
   if not AEvent.Handled then

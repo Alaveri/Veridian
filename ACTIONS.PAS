@@ -1,8 +1,4 @@
-{$IFDEF debug}
-  {$A-,B-,D+,F+,G-,I+,L+,N+,O-,P+,Q+,R+,S+,T-,V-,X+}
-{$ELSE}
-  {$A-,B-,D-,F+,G-,I+,L-,N+,O-,P+,Q+,R-,S-,T+,V-,X+}
-{$ENDIF}
+{$I COMPILER.INC}
 unit Actions;
 
 interface
@@ -28,8 +24,8 @@ type
   TActionExecuteProc = procedure(AAction: PAction; AActionId: integer);
 
   TAction = object(TIdentifiable)
-  private
-  public
+  {$IFDEF VER70}private{$ENDIF}
+  {$IFDEF VER70}public{$ENDIF}
     ActionId: integer;
     Text: PChar;
     HelpText: PChar;
@@ -49,7 +45,7 @@ type
   end;
 
   TActionList = object(TIdentifiableList)
-  public
+  {$IFDEF VER70}public{$ENDIF}
     OnUpdate: PActionListUpdateEventProc;
     function IndexOf(AItem: PAction): integer;
     function NewAction(AActionId: integer; AText: string; AShortcut: word): PAction;

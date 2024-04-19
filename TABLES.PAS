@@ -1,8 +1,4 @@
-{$IFDEF debug}
-  {$A-,B-,D+,F+,G-,I+,L+,N+,O-,P+,Q+,R+,S+,T-,V-,X+}
-{$ELSE}
-  {$A-,B-,D-,F+,G-,I+,L-,N+,O-,P+,Q+,R-,S-,T+,V-,X+}
-{$ENDIF}
+{$I COMPILER.INC}
 unit Tables;
 
 interface
@@ -37,10 +33,10 @@ type
   TTableGetDataFunc = function(var AData: PObject; AColumn: PTableColumn): string;
 
   TTableColumn = object(TIdentifiable)
-  private
+  {$IFDEF VER70}private{$ENDIF}
     FHeader: PChar;
     FBinding: PChar;
-  public
+  {$IFDEF VER70}public{$ENDIF}
     Width: integer;
     Align: TTextAlign;
     VertAlign: TVertAlign;
@@ -55,11 +51,11 @@ type
   end;
 
   TTable = object(TView)
-  private
+  {$IFDEF VER70}private{$ENDIF}
     FColumns: PTableColumnList;
     procedure DrawRow(var ARowInfo: TTableRowInfo);
     procedure RowDataBind(var ARowInfo: TTableRowInfo); virtual;
-  public
+  {$IFDEF VER70}public{$ENDIF}
     DataSource: PObjectList;
     OnRowDataBind: PRowDataBindProc;
     OnGetData: PTableGetDataFunc;
@@ -71,8 +67,8 @@ type
   end;
 
   TTableColumnList = object(TObjectList)
-  private
-  public
+  {$IFDEF VER70}private{$ENDIF}
+  {$IFDEF VER70}public{$ENDIF}
     procedure Init; virtual;
     destructor Free; virtual;
     function Add(AItem: PTableColumn): integer;

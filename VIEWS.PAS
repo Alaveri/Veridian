@@ -1,8 +1,4 @@
-{$IFDEF debug}
-  {$A-,B-,D+,F+,G-,I+,L+,N+,O-,P+,Q+,R+,S+,T-,V-,X+}
-{$ELSE}
-  {$A-,B-,D-,F+,G-,I+,L-,N+,O-,P+,Q+,R-,S-,T+,V-,X+}
-{$ENDIF}
+{$I COMPILER.INC}
 unit Views;
 
 interface
@@ -45,8 +41,8 @@ type
   );
 
   TTitlebar = object(TTextControl)
-  private
-  public
+  {$IFDEF VER70}private{$ENDIF}
+  {$IFDEF VER70}public{$ENDIF}
     ParentView: PView;
     ActiveForeColor: byte;
     ActiveBackColor: byte;
@@ -55,8 +51,8 @@ type
   end;
 
   TViewContent = object(TPanel)
-  private
-  public
+  {$IFDEF VER70}private{$ENDIF}
+  {$IFDEF VER70}public{$ENDIF}
     procedure Init; virtual;
     procedure Paint; virtual;
     procedure MouseDown(var AEvent: TMouseEvent); virtual;
@@ -65,9 +61,9 @@ type
   end;
 
   TScrollSlider = object(TButton)
-  private
+  {$IFDEF VER70}private{$ENDIF}
     DownX, DownY: integer;
-  public
+  {$IFDEF VER70}public{$ENDIF}
     procedure Init; virtual;
     procedure MouseDown(var AEvent: TMouseEvent); virtual;
     procedure MouseUp(var AEvent: TMouseEvent); virtual;
@@ -76,12 +72,12 @@ type
   end;
 
   TScrollbar = object(TPanel)
-  private
+  {$IFDEF VER70}private{$ENDIF}
     procedure GetSliderRect(var ARect: TRect);
     procedure DrawSlider;
     procedure ScrollBySlider(ADelta: integer);
     procedure ScrollByPixels(ADelta: integer);
-  public
+  {$IFDEF VER70}public{$ENDIF}
     Size: integer;
     IncButton: PButton;
     DecButton: PButton;
@@ -101,8 +97,8 @@ type
   end;
 
   TView = object(TPanel)
-  private
-  public
+  {$IFDEF VER70}private{$ENDIF}
+  {$IFDEF VER70}public{$ENDIF}
     Title: PChar;
     Active: boolean;
     Titlebar: PTitlebar;
@@ -129,8 +125,8 @@ type
   end;
 
   TWindow = object(TView)
-  private
-  public
+  {$IFDEF VER70}private{$ENDIF}
+  {$IFDEF VER70}public{$ENDIF}
     procedure Init; virtual;
     destructor Free; virtual;
   end;
@@ -395,7 +391,7 @@ end;
 procedure TView.SetTitle(const ATitle: string);
 begin
   TString.Assign(Title, ATitle);
-  Draw;
+  TitleBar^.Draw;
 end;
 
 procedure TView.Deactivate;

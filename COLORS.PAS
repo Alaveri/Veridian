@@ -1,8 +1,4 @@
-{$IFDEF debug}
-  {$A-,B-,D+,F+,G-,I+,L+,N+,O-,P+,Q+,R+,S+,T-,V-,X+}
-{$ELSE}
-  {$A-,B-,D-,F+,G-,I+,L-,N+,O-,P+,Q+,R-,S-,T+,V-,X+}
-{$ENDIF}
+{$I COMPILER.INC}
 unit Colors;
 
 interface
@@ -14,7 +10,7 @@ type
   PColors = ^TColors;
 
   TColors = object(TObject)
-  public
+  {$IFDEF VER70}public{$ENDIF}
     Desktop: byte;
     DesktopBack: byte;
     Window: byte;
