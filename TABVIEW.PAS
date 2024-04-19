@@ -14,12 +14,14 @@ type
   PTabView = ^TTabView;
   PTabList = ^TTabList;
 
-  TTab = object(TPanel)
+  TTab = object(TTextControl)
   private
   public
     TabButton: PTextControl;
     Contents: PPanel;
     procedure Init; virtual;
+    procedure SetupControls; virtual;
+    procedure Paint; virtual;
     destructor Free; virtual;
   end;
 
@@ -28,6 +30,8 @@ type
   public
     Tabs: PTabList;
     procedure Init; virtual;
+    procedure SetupControls; virtual;
+    procedure Paint; virtual;
     destructor Free; virtual;
   end;
 
@@ -44,11 +48,38 @@ type
 
 implementation
 
+uses
+  Desk;
+
 procedure TTab.Init;
 begin
   inherited Init;
   TabButton := New(PTextControl, CreateParent('TabButton', @self));
+  with TabButton^ do begin
+    BorderStyle := bsNone;
+    Margin := 4;
+  end;
+  ForeColor := Desktop^.Colors^.Window;
+  BackColor := Desktop^.Colors^.WindowBack;
   Contents := New(PPanel, CreateParent('Contents', @self));
+  with Contents^ do begin
+    BorderStyle := bsNone;
+  end;
+end;
+
+procedure TTab.SetupControls;
+var
+  tabHeight: integer;
+begin
+  inherited SetupControls;
+  tabHeight := Font^.Height + 2 * Margin;
+  TabButton^.SetBounds(0, 0, Parent^.Width, tabHeight);
+  Contents^.SetBounds(0, tabHeight, Parent^.Width, Parent^.Height - tabHeight);
+end;
+
+procedure TTab.Paint;
+begin
+  inherited Paint;
 end;
 
 destructor TTab.Free;
@@ -62,10 +93,20 @@ begin
   Tabs := New(PTabList, Create);
 end;
 
+procedure TTabView.Paint;
+begin
+  inherited Paint;
+end;
+
 destructor TTabView.Free;
 begin
   FreeAndNil(Tabs);
   inherited Free;
+end;
+
+procedure TTabView.SetupControls;
+begin
+  inherited SetupControls;
 end;
 
 function TTabList.IndexOf(AItem: PTab): integer;

@@ -206,7 +206,7 @@ begin
   end;
 end;
 
-procedure FileDialogIndexChanged(ASender: PObject; var AEvent: TSelectedIndexChangedEvent); far;
+procedure FileDialogIndexChanged(ASender: PObject; var AEvent: TIndexChangedEvent); far;
 var
   list: PListBox;
   dialog: PFileDialog;

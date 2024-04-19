@@ -16,16 +16,16 @@ type
   PListBox = ^TListBox;
   PListItem = ^TListItem;
   PListItems = ^TListItems;
-  PSelectedIndexChangedProc = ^TSelectedIndexChangedProc;
+  PIndexChangedProc = ^TIndexChangedProc;
 
-  TSelectedIndexChangedEvent = object(TEvent)
+  TIndexChangedEvent = object(TEvent)
   {$IFDEF VER70}private{$ENDIF}
   {$IFDEF VER70}public{$ENDIF}
     OldIndex: integer;
     NewIndex: integer;
   end;
 
-  TSelectedIndexChangedProc = procedure(ASender: PObject; var AEvent: TSelectedIndexChangedEvent);
+  TIndexChangedProc = procedure(ASender: PObject; var AEvent: TIndexChangedEvent);
 
   TListItem = object(TObject)
   {$IFDEF VER70}private{$ENDIF}
@@ -63,7 +63,7 @@ type
     SelectedIndex: integer;
     UnfocusedSelectForeColor: byte;
     UnfocusedSelectBackColor: byte;
-    OnSelectedIndexChanged: PSelectedIndexChangedProc;
+    OnSelectedIndexChanged: PIndexChangedProc;
     function GetAutoWidth: longint; virtual;
     function GetAutoHeight: longint; virtual;
     function SelectedItem: PListItem;
@@ -76,6 +76,7 @@ type
     procedure KeyPress(var AEvent: TKeyEvent); virtual;
     procedure MouseDown(var AEvent: TMouseEvent); virtual;
     procedure MouseWheelChanged(var AEvent: TMouseEvent); virtual;
+    procedure SelectedIndexChanged(var AEvent: TIndexChangedEvent); virtual;
     procedure GetItemRect(AIndex: integer; var ARect: TRect); virtual;
     procedure ChangeSelect(ADelta: integer); virtual;
     procedure Clear; virtual;
@@ -238,6 +239,15 @@ begin
   GetSelectedIndex := AEvent.Y div Font^.Height;
 end;
 
+procedure TListBox.SelectedIndexChanged(var AEvent: TIndexChangedEvent);
+begin
+  if AEvent.OldIndex = AEvent.NewIndex then
+    exit;
+  VeridianApp^.ResetDoubleClick;
+  if Assigned(OnSelectedIndexChanged) then
+    TIndexChangedProc(OnSelectedIndexChanged)(@self, AEvent);
+end;
+
 procedure TListBox.MouseWheelChanged(var AEvent: TMouseEvent);
 var
   amount: integer;
@@ -254,7 +264,7 @@ procedure TListBox.MouseDown(var AEvent: TMouseEvent);
 var
   index: integer;
   previousIndex: integer;
-  event: TSelectedIndexChangedEvent;
+  event: TIndexChangedEvent;
 begin
   if not (GetEnabled and GetVisible) then
     exit;
@@ -268,11 +278,9 @@ begin
     DrawItem(previousIndex);
     DrawItem(SelectedIndex);
     event.Create;
-    if Assigned(OnSelectedIndexChanged) then begin
-      event.NewIndex := SelectedIndex;
-      event.OldIndex := previousIndex;
-      TSelectedIndexChangedProc(OnSelectedIndexChanged)(@self, event);
-    end;
+    event.NewIndex := SelectedIndex;
+    event.OldIndex := previousIndex;
+    SelectedIndexChanged(event);
   end;
   inherited MouseDown(AEvent);
 end;
@@ -282,7 +290,7 @@ var
   index: integer;
   rect, itemRect: TRect;
   previousIndex: integer;
-  event: TSelectedIndexChangedEvent;
+  event: TIndexChangedEvent;
 begin
   index := EnsureRange(SelectedIndex + ADelta, 0, Items^.Count - 1);
   if index = SelectedIndex then
@@ -298,11 +306,9 @@ begin
   DrawItem(previousIndex);
   DrawItem(SelectedIndex);
   event.Create;
-  if Assigned(OnSelectedIndexChanged) then begin
-    event.NewIndex := SelectedIndex;
-    event.OldIndex := previousIndex;
-    TSelectedIndexChangedProc(OnSelectedIndexChanged)(@self, event);
-  end;
+  event.NewIndex := SelectedIndex;
+  event.OldIndex := previousIndex;
+  SelectedIndexChanged(event);
 end;
 
 procedure TListBox.KeyPress(var AEvent: TKeyEvent);

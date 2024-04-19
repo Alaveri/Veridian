@@ -26,9 +26,11 @@ const
   mKeyPressed = 1002;
   mKeyUp = 1003;
 
-  DefaultDoubleClickDelay: double = 0.5;
+  DefaultDoubleClickDelay: double = 1;
   DefaultCursorBlinkRate = 0.4;
-  DefaultMouseSensitivity = 1.2;
+  DefaultMouseSensitivity = 2.0;
+
+  MemoryCheckString = 'Memory Check';
 
 type
   PVeridianApp = ^TVeridianApp;
@@ -82,8 +84,6 @@ type
     FDragControl: PControl;
     FDoubleClickStart: TDateTime;
     FDoubleClickControl: PControl;
-    FDoubleClickX: integer;
-    FDoubleClickY: integer;
     {$IFDEF debug}
     FMemAvail: longint;
     FMaxAvail: longint;
@@ -140,6 +140,7 @@ type
     procedure FocusPrevious;
     procedure DeactivateActiveControl;
     procedure UpdateActionControl(AControl: PActionControl); virtual;
+    procedure ResetDoubleClick; virtual;
     procedure Run; virtual;
     {$IFDEF debug}
     procedure DrawDebugInfo;
@@ -164,7 +165,11 @@ uses
   {$ENDIF}
   Common,
   MemDrv,
+  StrUtils,
   Views;
+
+var
+  PreviousExitProc: PProc;
 
 procedure PostMessage(AMessage: PMessage);
 begin
@@ -298,10 +303,8 @@ begin
   FMemAvail := 0;
   FMaxAvail := 0;
   {$ENDIF}
-
   ParseParameters;
   CreateObjects;
-
   VeridianApp := @self;
   DrawEnabled := false;
   FCursorBlinkVisible := false;
@@ -313,8 +316,6 @@ begin
   SelectingControl := nil;
   CurrentScrollSlider := nil;
   FDoubleClickControl := nil;
-  FDoubleClickX := 0;
-  FDoubleClickY := 0;
   ApplySettings;
   InitMouseCursors;
   LoadFonts;
@@ -350,6 +351,12 @@ end;
 function TVeridianApp.ScaleY(AValue: real): integer;
 begin
   ScaleY := Min(Graph^.Mode^.Height, Round(AValue * SystemFont^.Height));
+end;
+
+procedure TVeridianApp.ResetDoubleClick;
+begin
+  FDoubleClickStart.Ticks := 0;
+  FDoubleClickControl := nil;
 end;
 
 procedure TVeridianApp.CursorOn;
@@ -612,20 +619,14 @@ begin
   if FDoubleClickStart.Ticks = 0 then begin
     FDoubleClickStart.Ticks := ATime.Ticks;
     FDoubleClickControl := AControl;
-    FDoubleClickX := AEvent.NewMouseState.X;
-    FDoubleClickY := AEvent.NewMouseState.Y;
   end
   else begin
     if (ATime.Ticks <= FDoubleClickStart.Ticks + Settings.DoubleClickDelay.Ticks)
-      and (FDoubleClickControl = AControl)
-      and (FDoubleClickX = AEvent.NewMouseState.X)
-      and (FDoubleClickY = AEvent.NewMouseState.Y) then begin
+      and (FDoubleClickControl = AControl) then begin
       AControl^.MouseDblClick(AEvent);
     end;
     FDoubleClickStart.Ticks := 0;
     FDoubleClickControl := nil;
-    FDoubleClickX := 0;
-    FDoubleClickY := 0;
   end;
 end;
 
@@ -958,4 +959,14 @@ begin
   MouseSensitivity := source^.MouseSensitivity;
 end;
 
+procedure Finalize; far;
+begin
+  ExitProc := PreviousExitProc;
+  TString.Free(PChar(NilPointer));
+end;
+
+begin
+  NilPointer := pointer(TString.New(MemoryCheckString));
+  PreviousExitProc := ExitProc;
+  ExitProc := @Finalize;
 end.
