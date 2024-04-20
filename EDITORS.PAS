@@ -1,8 +1,4 @@
-{$IFDEF debug}
-  {$A-,B-,D+,F+,G-,I+,L+,N+,O+,P+,Q+,R+,S+,T-,V-,X+,Y+}
-{$ELSE}
-  {$A-,B-,D-,F+,G-,I+,L-,N+,O+,P+,Q-,R-,S-,T-,V-,X+,Y-}
-{$ENDIF}
+{$I COMPILER.INC}
 unit Editors;
 
 interface
@@ -10,9 +6,10 @@ interface
 uses
   Objects,
   Lists,
-  GrDrv8,
   Drawing,
   Common,
+  MemDrv,
+  GrDrv8,
   Views,
   Controls;
 
@@ -34,11 +31,9 @@ type
 
   TEdit = object(TEditable)
   private
-    FBuffer: PChar;
-    FCapacity: word;
+    FBuffer: TBuffer;
     FCursorPos: word;
     FCursorX: longint;
-    function SetCapacity(ACapacity: word): boolean;
     function CheckSize(ALength: word): word;
     function CheckSelection: boolean;
     function GetWordLeft: word;
@@ -56,12 +51,16 @@ type
     SelectStart: word;
     SelectEnd: word;
     WordDelimiters: set of char;
+    ValidChars: set of char;
+    SelectAllOnFocus: boolean;
     function CursorPos: word;
     function SetCursorPos(APos: word): boolean; virtual;
     function GetCursorForeColor: byte; virtual;
     function GetCursorBackColor: byte; virtual;
     function ClearText: boolean; virtual;
     function GetIndexAt(AX, AY: integer): longint;
+    function GetText: string; virtual;
+    function GetTextLarge: PChar; virtual;
     procedure Init; virtual;
     procedure Paint; virtual;
     procedure Draw; virtual;
@@ -73,6 +72,7 @@ type
     procedure AddInsertChar(AChar: char); virtual;
     procedure AddChar(AChar: char); virtual;
     procedure InsertChar(AIndex: word; AChar: char); virtual;
+    procedure Focus; virtual;
     procedure Delete; virtual;
     procedure BackSpace; virtual;
     procedure MoveEnd; virtual;
@@ -97,15 +97,16 @@ type
 implementation
 
 uses
-  Desk,
-  Strings,
   StrUtils,
-  MemDrv,
-  GraphDrv,
   GraphApp,
-  MouseDrv,
-  Except,
+  Errors,
+  {$IFDEF DOS}
+  Strings,
+  {$ENDIF}
   KeyDrv,
+  MouseDrv,
+  GraphDrv,
+  Desk,
   Veridian;
 
 const
@@ -113,41 +114,6 @@ const
 
 procedure TEditable.Delete;
 begin
-end;
-
-function TEdit.SetCapacity(ACapacity: word): boolean;
-var
-  newBuffer: PChar;
-begin
-  SetCapacity := false;
-  if ACapacity = FCapacity then
-    exit;
-  if not Assigned(FBuffer) then begin
-    GetMem(FBuffer, ACapacity);
-    if not Assigned(FBuffer) then begin
-      Application^.Error(@self, ecNotEnoughMemory);
-      exit;
-    end;
-    SetCapacity := true;
-    FillChar(FBuffer^, ACapacity, 0);
-    FCapacity := ACapacity;
-    Length := 0;
-    exit;
-  end;
-  GetMem(newBuffer, ACapacity);
-  if not Assigned(newBuffer) then begin
-    Application^.Error(@self, ecNotEnoughMemory);
-    exit;
-  end;
-  FillChar(newBuffer^, ACapacity, 0);
-  if ACapacity > FCapacity then
-    Move(FBuffer^, newBuffer^, FCapacity)
-  else
-    Move(FBuffer^, newBuffer^, ACapacity);
-  FreeMem(FBuffer, FCapacity);
-  FBuffer := newBuffer;
-  FCapacity := ACapacity;
-  SetCapacity := true;
 end;
 
 function TEdit.GetCursorForeColor: byte;
@@ -159,7 +125,7 @@ begin
     exit;
   if (longint(FCursorPos) - 1 < SelectStart) or (longint(FCursorPos) - 1 > SelectEnd + 1) then
     exit;
-  GetCursorForeColor := Desktop^.InterfaceColors^.Select;
+  GetCursorForeColor := Desktop^.Colors^.Select;
 end;
 
 function TEdit.GetCursorBackColor: byte;
@@ -171,7 +137,7 @@ begin
     exit;
   if (longint(FCursorPos) - 1 < SelectStart) or (longint(FCursorPos) - 1 > SelectEnd) then
     exit;
-  GetCursorBackColor := Desktop^.InterfaceColors^.SelectBack;
+  GetCursorBackColor := Desktop^.Colors^.SelectBack;
 end;
 
 procedure TEdit.GetCursorRect(var ARect: TRect);
@@ -198,7 +164,7 @@ begin
   index := 0;
   pos := 0;
   while index < Length do begin
-    Inc(pos, Font^.TextWidth(FBuffer[index]));
+    Inc(pos, Font^.TextWidth(FBuffer.AsString[index]));
     if pos > AX then
       break;
     Inc(index);
@@ -206,13 +172,21 @@ begin
   GetIndexAt := index;
 end;
 
+procedure TEdit.Focus;
+begin
+  if not SelectAllOnFocus then
+    exit;
+  SelectAll;
+  SetFocus(true, true);
+end;
+
 function TEdit.CheckSize(ALength: word): word;
 var
-  capacity: longint;
+  capacity: word;
 begin
-  Inc(ALength);
   CheckSize := 0;
-  capacity := MaxWord(FCapacity, DefaultEditorSize);
+  Inc(ALength);
+  capacity := MaxWord(FBuffer.Size, DefaultEditorSize);
   while capacity < ALength do begin
     if ALength >= 64 then
       capacity := capacity * 3 div 2
@@ -225,32 +199,37 @@ begin
       break;
     end;
   end;
-  if FCapacity > capacity then begin
+  if FBuffer.Size >= capacity then begin
     CheckSize := capacity;
     exit;
   end;
-  if SetCapacity(capacity) then
-    CheckSize := capacity;
+  FBuffer.SetSizePreserve(capacity, true);
+  if FBuffer.HasException then begin
+    FBuffer.ClearException;
+    exit;
+  end;
+  CheckSize := FBuffer.Size;
 end;
 
 procedure TEdit.Init;
 begin
   inherited Init;
-  Font := Application^.Fonts^.GetItemById('Editor');
+  Font := VeridianApp^.Fonts^.GetItemById('Editor');
   UsesCursor := true;
-  ForeColor := Desktop^.InterfaceColors^.Editor;
-  BackColor := Desktop^.InterfaceColors^.EditorBack;
-  DisabledForeColor := Desktop^.InterfaceColors^.EditorDisabled;
-  FocusedForeColor := Desktop^.InterfaceColors^.Focused;
-  FocusedBackColor := Desktop^.InterfaceColors^.FocusedBack;
-  SelectForeColor := Desktop^.InterfaceColors^.Select;
-  SelectBackColor := Desktop^.InterfaceColors^.SelectBack;
+  SelectAllOnFocus := true;
+  ForeColor := Desktop^.Colors^.Editor;
+  BackColor := Desktop^.Colors^.EditorBack;
+  DisabledForeColor := Desktop^.Colors^.EditorDisabled;
+  FocusedForeColor := Desktop^.Colors^.Focused;
+  FocusedBackColor := Desktop^.Colors^.FocusedBack;
+  SelectForeColor := Desktop^.Colors^.Select;
+  SelectBackColor := Desktop^.Colors^.SelectBack;
   TextAlign := taLeft;
   VertAlign := vaCenter;
   Margin := 3;
   CanFocus := true;
   BorderStyle := bsSingle;
-  MouseCursor := Application^.MouseCursors^.GetItemById('Beam');
+  MouseCursor := VeridianApp^.MouseCursors^.GetItemById('Beam');
   DrawBackground := true;
   FCursorX := 0;
   ScrollPos := 0;
@@ -258,10 +237,10 @@ begin
   SelectEnd := 0;
   MaxLength := 255;
   Length := 0;
-  FBuffer := nil;
-  FCapacity := 0;
+  FBuffer.Create;
   FCursorPos := 0;
   WordDelimiters := DefaultWordDelimiters;
+  ValidChars := [#32..#126];
 end;
 
 procedure TEdit.SelectNone;
@@ -283,11 +262,11 @@ end;
 
 procedure TEdit.Draw;
 begin
-  if not Application^.DrawEnabled then
+  if not VeridianApp^.DrawEnabled then
     exit;
-  Application^.PushState;
+  VeridianApp^.PushState;
   inherited Draw;
-  Application^.PopState;
+  VeridianApp^.PopState;
 end;
 
 procedure TEdit.Paint;
@@ -317,11 +296,7 @@ begin
   if DrawBackground then
     Graph^.FillRect(drawRect);
   xPos := drawRect.X + Margin - ScrollPos + BorderWidth;
-  case VertAlign of
-    vaTop: yPos := drawRect.Y + BorderWidth;
-    vaBottom: yPos := drawRect.Y + drawRect.Height - Font^.Height - BorderWidth;
-    vaCenter: yPos := drawRect.Y + (drawRect.Height - Font^.Height) div 2;
-  end;
+  GetTextAlign(drawRect, xPos, yPos);
   charRect.Create;
 
   index := 0;
@@ -332,7 +307,7 @@ begin
       Graph^.SetForeColor(FocusedForeColor);
       Graph^.SetBackColor(FocusedBackColor);
     end;
-    ch := FBuffer[index];
+    ch := FBuffer.AsString[index];
     charWidth := Font^.TextWidth(ch);
     if xPos > drawRect.Right then
       break;
@@ -368,8 +343,8 @@ begin
   NeedsDraw := false;
   CheckWordRange(APos, 0, Length);
   FCursorPos := APos;
-  FCursorX := Font^.TextWidthAny(FBuffer, APos);
-  charWidth := Font^.TextWidth(FBuffer[APos]);
+  FCursorX := Font^.TextWidthAny(FBuffer.AsString, APos);
+  charWidth := Font^.TextWidth(FBuffer.AsString[APos]);
 
   if SelectStart <> SelectEnd then begin
     SelectStart := 0;
@@ -407,20 +382,18 @@ begin
     exit;
   size := SelectEnd - SelectStart;
   if Length - size <= 0 then begin
-    FreeMem(FBuffer, FCapacity);
-    FCapacity := 0;
-    FBuffer := nil;
+    FBuffer.FreeData;
     FCursorPos := 0;
     FCursorX := 0;
     Length := 0;
     ScrollPos := 0;
     if CheckSize(DefaultEditorSize) = 0 then
-      Application^.Error(@self, ecNotEnoughMemory);
+      VeridianApp^.Error(@self, ecNotEnoughMemory);
   end
   else begin
-    Move(FBuffer[SelectEnd], FBuffer[SelectStart], Length - SelectStart);
+    FBuffer.Move(SelectEnd, SelectStart, Length - SelectStart);
     Dec(Length, size);
-    FBuffer[Length] := #0;
+    FBuffer.SetByte(Length, 0);
   end;
   if SelectStart <> FCursorPos then begin
     SelectEnd := SelectStart;
@@ -438,9 +411,9 @@ begin
   ClearText;
   if CheckSize(Length + 1) < 0 then
     exit;
-  FBuffer[Length] := AChar;
+  FBuffer.SetChar(Length, AChar);
   Inc(Length);
-  FBuffer[Length] := #0;
+  FBuffer.SetChar(Length, #0);
   MoveEnd;
 end;
 
@@ -457,10 +430,10 @@ begin
   CheckWordRange(AIndex, 0, Length);
   if ClearText then
     AIndex := FCursorPos;
-  Move(FBuffer[AIndex], FBuffer[AIndex + 1], Length - AIndex);
-  FBuffer[AIndex] := AChar;
+  FBuffer.Move(AIndex, AIndex + 1, Length - AIndex);
+  FBuffer.SetChar(AIndex, AChar);
   Inc(Length);
-  FBuffer[Length] := #0;
+  FBuffer.SetChar(Length, #0);
   SetCursorPos(AIndex + 1);
   Draw;
   ResetCursor;
@@ -468,6 +441,8 @@ end;
 
 procedure TEdit.AddInsertChar(AChar: char);
 begin
+  if not (AChar in ValidChars) then
+    exit;
   if FCursorPos < Length then
     InsertChar(FCursorPos, AChar)
   else
@@ -482,7 +457,7 @@ begin
     ClearText;
   end
   else begin
-    Move(FBuffer[FCursorPos + 1], FBuffer[FCursorPos], Length - FCursorPos);
+    FBuffer.Move(FCursorPos + 1, FCursorPos, Length - FCursorPos);
     Dec(Length);
   end;
   Draw;
@@ -499,9 +474,9 @@ begin
     SetCursorPos(FCursorPos);
   end
   else begin
-    Move(FBuffer[FCursorPos], FBuffer[FCursorPos - 1], Length - FCursorPos);
+    FBuffer.Move(FCursorPos, FCursorPos - 1, Length - FCursorPos);
     Dec(Length);
-    FBuffer[Length] := #0;
+    FBuffer.SetChar(Length, #0);
     SetCursorPos(FCursorPos - 1);
   end;
   Draw;
@@ -515,9 +490,9 @@ end;
 
 procedure TEdit.ResetCursor;
 begin
-  if Application^.State.CursorOn then begin
-    Application^.State.CursorOn := false;
-    Application^.CursorOn;
+  if VeridianApp^.State.CursorOn then begin
+    VeridianApp^.State.CursorOn := false;
+    VeridianApp^.CursorOn;
   end;
 end;
 
@@ -525,21 +500,21 @@ procedure TEdit.MoveLeft;
 begin
   if FCursorPos = 0 then
     exit;
-  Application^.PushState;
-  Application^.CursorOff;
+  VeridianApp^.PushState;
+  VeridianApp^.CursorOff;
   if SetCursorPos(FCursorPos - 1) then
     Draw;
-  Application^.PopState;
+  VeridianApp^.PopState;
   ResetCursor;
 end;
 
 procedure TEdit.MoveRight;
 begin
-  Application^.PushState;
-  Application^.CursorOff;
+  VeridianApp^.PushState;
+  VeridianApp^.CursorOff;
   if SetCursorPos(MaxWord(MinWord(FCursorPos + 1, Length), 0)) then
     Draw;
-  Application^.PopState;
+  VeridianApp^.PopState;
   ResetCursor;
 end;
 
@@ -551,10 +526,10 @@ begin
   if FCursorPos = 0 then
     exit;
   current := FCursorPos - 1;
-  while (current > 0) and (FBuffer[current] in WordDelimiters) do begin
+  while (current > 0) and (FBuffer.AsString[current] in WordDelimiters) do begin
     Dec(current);
   end;
-  while (current > 0) and not (FBuffer[current - 1] in WordDelimiters) do begin
+  while (current > 0) and not (FBuffer.AsString[current - 1] in WordDelimiters) do begin
     Dec(current);
   end;
   GetWordLeft := MaxWord(0, current);
@@ -565,13 +540,13 @@ var
   current: integer;
 begin
   current := FCursorPos;
-  while (current < Length) and not (FBuffer[current] in WordDelimiters) do begin
-    if FBuffer[current] = #0 then
+  while (current < Length) and not (FBuffer.AsString[current] in WordDelimiters) do begin
+    if FBuffer.AsString[current] = #0 then
       break;
     Inc(current);
   end;
-  while (current < Length) and (FBuffer[current] in WordDelimiters) do begin
-    if FBuffer[current] = #0 then
+  while (current < Length) and (FBuffer.AsString[current] in WordDelimiters) do begin
+    if FBuffer.AsString[current] = #0 then
       break;
     Inc(current);
   end;
@@ -587,11 +562,11 @@ begin
   pos := GetWordRight;
   if pos = start then
     exit;
-  Application^.PushState;
-  Application^.CursorOff;
+  VeridianApp^.PushState;
+  VeridianApp^.CursorOff;
   if SetCursorPos(pos) then
     inherited Draw;
-  Application^.PopState;
+  VeridianApp^.PopState;
   ResetCursor;
 end;
 
@@ -604,11 +579,11 @@ begin
   pos := GetWordLeft;
   if pos = start then
     exit;
-  Application^.PushState;
-  Application^.CursorOff;
+  VeridianApp^.PushState;
+  VeridianApp^.CursorOff;
   if SetCursorPos(pos) then
     inherited Draw;
-  Application^.PopState;
+  VeridianApp^.PopState;
   ResetCursor;
 end;
 
@@ -688,20 +663,33 @@ begin
 end;
 
 procedure TEdit.SetTextData(AText: PChar; ALength: word);
+var
+  size: word;
 begin
-  if not Assigned(AText) then begin
-    FreeMem(FBuffer, FCapacity);
-    if CheckSize(DefaultEditorSize + 1) = 0 then
-      Application^.Error(@self, ecNotEnoughMemory);
+  if ALength = 0 then begin
+    FBuffer.FreeData;
     Length := 0;
     exit;
   end;
-  if CheckSize(ALength) = 0 then
+  if CheckSize(ALength + 1) = 0 then
     exit;
-  Move(AText^, FBuffer^, ALength);
+  Move(AText^, FBuffer.Data^, ALength);
   Length := ALength;
-  FBuffer[Length] := #0;
-  FCursorPos := 0;
+  FBuffer.SetByte(ALength, 0);
+  MoveEnd;
+end;
+
+function TEdit.GetText: string;
+begin
+  if not Assigned(FBuffer.Data) then
+    GetText := ''
+  else
+    GetText := StrPas(FBuffer.AsString);
+end;
+
+function TEdit.GetTextLarge: PChar;
+begin
+  GetTextLarge := FBuffer.AsString;
 end;
 
 procedure TEdit.SetText(const AText: string);
@@ -714,7 +702,10 @@ end;
 
 procedure TEdit.SetTextLarge(AText: PChar);
 begin
-  SetTextData(AText, StrLen(AText));
+  if not Assigned(AText) then
+    SetTextData('', 0)
+  else
+    SetTextData(AText, StrLen(AText));
 end;
 
 procedure TEdit.KeyPress(var AEvent: TKeyEvent);
@@ -727,7 +718,7 @@ begin
     exit;
   key := AEvent.Key;
   case key of
-    32..127: AddInsertChar(Chr(key));
+    32..126: AddInsertChar(Chr(key));
     kyLeft: MoveLeft;
     kyRight: MoveRight;
     kyEnd, kyCtrlEnd: MoveEnd;
@@ -766,15 +757,15 @@ begin
   index := GetIndexAt(AEvent.X, AEvent.Y);
   if index < 0 then
     exit;
-  Application^.SelectingControl := @self;
+  VeridianApp^.SelectingControl := @self;
   SelectStart := index;
   SelectEnd := index;
   StartDrawing;
-  Application^.CursorOff;
+  VeridianApp^.CursorOff;
   SetCursorPos(index);
   Draw;
   EndDrawing;
-  Application^.CursorOn;
+  VeridianApp^.CursorOn;
 end;
 
 procedure TEdit.MouseMove(var AEvent: TMouseEvent);
@@ -782,7 +773,7 @@ var
   index: longint;
   rect: TRect;
 begin
-  if Application^.SelectingControl = @self then begin
+  if VeridianApp^.SelectingControl = @self then begin
     GetScreenBounds(rect);
     if not rect.IntersectsCoords(AEvent.NewMouseState.X, AEvent.NewMouseState.Y) then begin
 
@@ -804,9 +795,9 @@ var
   mouseControl: PControl;
   selecting: boolean;
 begin
-  selecting := Application^.SelectingControl = @self;
-  Application^.SelectingControl := nil;
-  mouseControl := Application^.GetMouseControl(Desktop, AEvent.NewMouseState);
+  selecting := VeridianApp^.SelectingControl = @self;
+  VeridianApp^.SelectingControl := nil;
+  mouseControl := VeridianApp^.GetMouseControl(Desktop, AEvent.NewMouseState);
   if not Assigned(mouseControl) then
     mouseControl := @self;
   if selecting then begin
@@ -818,8 +809,7 @@ end;
 
 destructor TEdit.Free;
 begin
-  if Assigned(FBuffer) then
-    FreeMem(FBuffer, Length);
+  FBuffer.Free;
   inherited Free;
 end;
 

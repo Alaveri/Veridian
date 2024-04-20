@@ -1,28 +1,26 @@
-{$IFDEF debug}
-  {$A-,B-,D+,F+,G-,I+,L+,N+,O+,P+,Q+,R+,S+,T-,V-,X+,Y+}
-{$ELSE}
-  {$A-,B-,D-,F+,G-,I+,L-,N+,O+,P+,Q-,R-,S-,T-,V-,X+,Y-}
-{$ENDIF}
+{$I COMPILER.INC}
 unit Desk;
 
 interface
 
 uses
+  {$IFDEF DOS}
+  Strings,
+  {$ENDIF}
   Objects,
   Lists,
-  Actions,
-  Controls,
   Drawing,
   Common,
   StrUtils,
-  Strings,
-  Apps,
-  KeyDrv,
+  AplApps,
+  Errors,
   GraphDrv,
-  Except,
+  MouseDrv,
+  KeyDrv,
+  Actions,
+  Controls,
   Colors,
-  Views,
-  MouseDrv;
+  Views;
 
 type
   PDesktop = ^TDesktop;
@@ -38,7 +36,6 @@ type
     Separator: boolean;
     ParentMenu: PMenu;
     Menu: PMenu;
-    MenuBar: PMenuBar;
     Active: boolean;
     ActiveForeColor: byte;
     ActiveBackColor: byte;
@@ -105,11 +102,8 @@ type
     ActiveControl: PControl;
     ActiveMenu: PMenu;
     ActiveView: PView;
-    MouseState: TMouseState;
-    OldMouseState: TMouseState;
-    MouseStack: TStack;
     ActionList: PActionList;
-    InterfaceColors: PInterfaceColors;
+    Colors: PColors;
     destructor Free; virtual;
     function AddMenuBar(AMenuBar: PMenuBar): PMenuBar; virtual;
     function FindNextControl(AControl: PControl): PControl; virtual;
@@ -117,7 +111,7 @@ type
     procedure Init; virtual;
     procedure Paint; virtual;
     procedure GetClientRect(var ARect: TRect); virtual;
-    procedure SetInterfaceColors(AColors: PInterfaceColors); virtual;
+    procedure SetColors(AColors: PColors); virtual;
     procedure SetupControls; virtual;
     procedure DeactivateCurrentMenu; virtual;
   end;
@@ -125,10 +119,10 @@ type
   TStatusBar = object(TPanel)
   private
   public
-    TextPanel: PTextControl;
     CurrentAction: PAction;
     procedure Init; virtual;
     destructor Free; virtual;
+    function NewHelpPanel: PTextControl;
     procedure MouseEnter(var AEvent: TMouseEvent); virtual;
     procedure MouseLeave(var AEvent: TMouseEvent); virtual;
     procedure SetupControls; virtual;
@@ -161,10 +155,10 @@ begin
   StatusBar^.ClearText;
 end;
 
-procedure TDesktop.SetInterfaceColors(AColors: PInterfaceColors);
+procedure TDesktop.SetColors(AColors: PColors);
 begin
-  FreeAndNil(InterfaceColors);
-  InterfaceColors := AColors;
+  FreeAndNil(Colors);
+  Colors := AColors;
 end;
 
 procedure TDesktop.SetupControls;
@@ -177,8 +171,8 @@ end;
 procedure TDesktop.Init;
 begin
   inherited Init;
-  Font := Application^.Fonts^.GetItemById('System');
-  InterfaceColors := New(PInterfaceColors, Create);
+  Font := VeridianApp^.Fonts^.GetItemById('System');
+  Colors := New(PColors, Create);
   Desktop := @self;
   DrawBackground := true;
   BorderStyle := bsNone;
@@ -186,16 +180,14 @@ begin
   ActiveControl := nil;
   ActiveMenu := nil;
   ActiveView := nil;
-  ForeColor := InterfaceColors^.Desktop;
-  BackColor := InterfaceColors^.DesktopBack;
-  OldMouseState.Create;
+  ForeColor := Colors^.Desktop;
+  BackColor := Colors^.DesktopBack;
 end;
 
 destructor TDesktop.Free;
 begin
-  MouseStack.Free;
   FreeAndNil(ActionList);
-  FreeAndNil(InterfaceColors);
+  FreeAndNil(Colors);
   inherited Free;
 end;
 
@@ -231,8 +223,8 @@ end;
 
 procedure TMenu.Activate;
 begin
-  Application^.PushState;
-  Application^.CursorOff;
+  VeridianApp^.PushState;
+  VeridianApp^.CursorOff;
   Desktop^.DeactivateCurrentMenu;
   Desktop^.ActiveMenu := @self;
   ActiveItem := nil;
@@ -249,9 +241,9 @@ begin
   Hide;
   if ParentItem <> nil then
     ParentItem^.Deactivate;
-  Application^.PopState;
-  if Application^.State.CursorOn then
-    Application^.CursorOn;
+  VeridianApp^.PopState;
+  if VeridianApp^.State.CursorOn then
+    VeridianApp^.CursorOn;
 end;
 
 procedure TMenu.Hide;
@@ -346,8 +338,8 @@ begin
   inherited Init;
   Position := spAbsolute;
   Visible := false;
-  ForeColor := Desktop^.InterfaceColors^.Menu;
-  BackColor := Desktop^.InterfaceColors^.MenuBack;
+  ForeColor := Desktop^.Colors^.Menu;
+  BackColor := Desktop^.Colors^.MenuBack;
   BorderStyle := bsSingle;
   ActiveItem := nil;
 end;
@@ -357,7 +349,6 @@ var
   item: PMenuItem;
 begin
   item := New(PMenuItem, CreateParent(AId, AActionId, @self));
-  item^.Action := Desktop^.ActionList^.GetActionById(AActionId);
   item^.ParentMenu := @self;
   NewMenuItem := item;
 end;
@@ -394,19 +385,17 @@ begin
   inherited Init;
   Parent := nil;
   Separator := false;
-  MenuBar := nil;
   Enabled := true;
   Shortcut := 0;
   ShowShortcut := true;
-  OnMouseClick := nil;
   ParentMenu := nil;
   Menu := nil;
-  ForeColor := Desktop^.InterfaceColors^.Menu;
-  BackColor := Desktop^.InterfaceColors^.MenuBack;
-  HighlightColor := Desktop^.InterfaceColors^.MenuHighlight;
-  ActiveForeColor := Desktop^.InterfaceColors^.MenuActive;
-  ActiveBackColor := Desktop^.InterfaceColors^.MenuActiveBack;
-  ActiveHighlightColor := Desktop^.InterfaceColors^.MenuActiveHighlight;
+  ForeColor := Desktop^.Colors^.Menu;
+  BackColor := Desktop^.Colors^.MenuBack;
+  HighlightColor := Desktop^.Colors^.MenuHighlight;
+  ActiveForeColor := Desktop^.Colors^.MenuActive;
+  ActiveBackColor := Desktop^.Colors^.MenuActiveBack;
+  ActiveHighlightColor := Desktop^.Colors^.MenuActiveHighlight;
   BorderStyle := bsNone;
   VertAlign := vaCenter;
   TextAlign := taLeft;
@@ -526,9 +515,7 @@ begin
   fore := ForeColor;
   back := BackColor;
   highlight := HighlightColor;
-  if not GetEnabled then
-    ForeColor := DisabledForeColor
-  else if Active or IsMouseOver then begin
+  if Active or IsMouseOver then begin
     ForeColor := ActiveForeColor;
     BackColor := ActiveBackColor;
     HighlightColor := ActiveHighlightColor;
@@ -667,9 +654,9 @@ begin
       activeMenu^.activeItem^.Draw;
     end;
     Desktop^.DeactivateCurrentMenu;
-    Application^.PopState;
-    if Application^.State.CursorOn then
-      Application^.CursorOn;
+    VeridianApp^.PopState;
+    if VeridianApp^.State.CursorOn then
+      VeridianApp^.CursorOn;
     AEvent.Handled := true;
     exit;
   end;
@@ -734,7 +721,7 @@ begin
       action := activeItem^.Action;
       if not Assigned(action) then
         exit;
-      Application^.HandleActionExecute(action, action^.ActionId);
+      VeridianApp^.HandleActionExecute(activeItem, action);
       exit;
     end;
   end;
@@ -754,7 +741,7 @@ begin
     if Assigned(activeItem) then
       activeItem^.Deactivate;
     Desktop^.DeactivateCurrentMenu;
-    Application^.HandleActionExecute(menuItem^.Action, menuItem^.Action^.ActionId);
+    VeridianApp^.HandleActionExecute(menuItem, menuItem^.Action);
     break;
   end;
   AEvent.Handled := true;
@@ -768,7 +755,7 @@ end;
 
 function TMenuBar.NewMenu(AId, AText: string): PMenu;
 var
-  item: PMenuItem;
+  item: PMainMenuItem;
   menu: PMenu;
 begin
   item := New(PMainMenuItem, CreateParent(AId + 'Item', -1, @self));
@@ -784,21 +771,37 @@ var
 begin
   inherited Init;
   Position := spAbsolute;
-  ForeColor := Desktop^.InterfaceColors^.Menu;
-  BackColor := Desktop^.InterfaceColors^.MenuBack;
+  ForeColor := Desktop^.Colors^.Menu;
+  BackColor := Desktop^.Colors^.MenuBack;
   BorderStyle := bsNone;
+end;
+
+function TStatusBar.NewHelpPanel: PTextControl;
+var
+  result: PTextControl;
+begin
+  result := New(PTextControl, CreateParent('HelpPanel', @self));
+  result^.BackColor := ForeColor;
+  result^.BackColor := BackColor;
+  result^.Margin := 4;
+  result^.TextOffsetX := 2;
+  with result^ do begin
+    SetBounds(
+      -BorderWidth,
+      0,
+      Desktop^.ActionList^.GetHelpMaxWidth(result) + 2 * Margin + BorderWidth,
+      Desktop^.Font^.Height + Margin
+    );
+  end;
+  NewHelpPanel := result;
 end;
 
 procedure TStatusBar.Init;
 begin
   inherited Init;
   Position := spAbsolute;
-  ForeColor := Desktop^.InterfaceColors^.Menu;
-  BackColor := Desktop^.InterfaceColors^.MenuBack;
-  TextPanel := New(PTextControl, CreateParent('StatusText', @self));
-  TextPanel^.BackColor := ForeColor;
-  TextPanel^.BackColor := BackColor;
-  TextPanel^.Margin := 4;
+  ForeColor := Desktop^.Colors^.Menu;
+  BackColor := Desktop^.Colors^.MenuBack;
   CurrentAction := nil;
 end;
 
@@ -818,35 +821,38 @@ end;
 procedure TStatusBar.SetupControls;
 var
   rect: TRect;
-  maxWidth: integer;
 begin
   Desktop^.GetBounds(rect);
-  SetBounds(0, rect.Height - Font^.Height - 4, rect.Width + 1, Font^.Height + 5);
-  maxWidth := Desktop^.ActionList^.GetHelpMaxWidth(@self) + 6;
-  TextPanel^.SetBounds(-1, 0, maxWidth + 1, Height + 1);
+  SetBounds(-BorderWidth, rect.Height - Font^.Height - 3,
+  rect.Width + 2 * BorderWidth, Font^.Height + 6);
 end;
 
 procedure TStatusBar.ShowActionHelp(AAction: PAction);
 var
-  maxWidth: integer;
-  rect: TRect;
+  helpPanel: PTextControl;
 begin
   if not Assigned(AAction) then
     exit;
   CurrentAction := AAction;
   if AAction^.HelpText = nil then
     exit;
-  TextPanel^.SetText(StrPas(AAction^.HelpText));
-  TextPanel^.Draw;
+  helpPanel := PTextControl(Controls^.GetItemById('HelpPanel'));
+  if Assigned(helpPanel) then
+    helpPanel^.SetText(StrPas(AAction^.HelpText));
 end;
 
 procedure TStatusBar.ClearText;
+var
+  helpPanel: PTextControl;
 begin
   if not Assigned(CurrentAction) then
     exit;
   CurrentAction := nil;
-  TString.Dispose(TextPanel^.Text);
-  TextPanel^.Draw;
+  helpPanel := PTextControl(Controls^.GetItemById('HelpPanel'));
+  if Assigned(helpPanel) then begin
+    TString.Free(HelpPanel^.Text);
+    helpPanel^.SetText('');
+  end;
 end;
 
 end.

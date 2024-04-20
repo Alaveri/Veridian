@@ -1,8 +1,4 @@
-{$IFDEF debug}
-  {$A-,B-,D+,F+,G-,I+,L+,N+,O+,P+,Q+,R+,S+,T-,V-,X+,Y+}
-{$ELSE}
-  {$A-,B-,D-,F+,G-,I+,L-,N+,O+,P+,Q-,R-,S-,T-,V-,X+,Y-}
-{$ENDIF}
+{$I COMPILER.INC}
 unit FontEdit;
 
 interface
@@ -137,7 +133,7 @@ begin
     exit;
   SetPixel(AEvent, false);
   if Assigned(OnMouseMove) then
-    TEventProc(OnMouseMove)(@self, AEvent);
+    TMouseEventProc(OnMouseMove)(@self, AEvent);
   inherited MouseMove(AEvent);
 end;
 
@@ -153,8 +149,8 @@ procedure TCharacterMap.Init;
 begin
   inherited Init;
   CharsPerRow := 32;
-  ForeColor := Desktop^.InterfaceColors^.ButtonDown;
-  BackColor := Desktop^.InterfaceColors^.ButtonDownBack;
+  ForeColor := Desktop^.Colors^.ButtonDown;
+  BackColor := Desktop^.Colors^.ButtonDownBack;
   DrawBackground := false;
 end;
 

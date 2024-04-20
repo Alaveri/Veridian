@@ -1,16 +1,15 @@
-{$IFDEF debug}
-  {$A-,B-,D+,F+,G-,I+,L+,N+,O+,P+,Q+,R+,S+,T-,V-,X+,Y+}
-{$ELSE}
-  {$A-,B-,D-,F+,G-,I+,L-,N+,O+,P+,Q-,R-,S-,T-,V-,X+,Y-}
-{$ENDIF}
+{$I COMPILER.INC}
 unit Tables;
 
 interface
 
 uses
   Objects,
-  Views,
   Lists,
+  {$IFDEF DOS}
+  Strings,
+  {$ENDIF}
+  Views,
   Controls;
 
 type
@@ -82,11 +81,10 @@ type
 implementation
 
 uses
+  Drawing,
   StrUtils,
-  Strings,
   GraphDrv,
-  GrDrv8,
-  Drawing;
+  GrDrv8;
 
 function TTableColumn.Header: string;
 begin
@@ -121,7 +119,7 @@ end;
 
 destructor TTableColumn.Free;
 begin
-  TString.Dispose(FHeader);
+  TString.Free(FHeader);
   inherited Free;
 end;
 

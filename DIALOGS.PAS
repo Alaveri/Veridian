@@ -1,27 +1,31 @@
-{$IFDEF debug}
-  {$A-,B-,D+,F+,G-,I+,L+,N+,O+,P+,Q+,R+,S+,T-,V-,X+,Y+}
-{$ELSE}
-  {$A-,B-,D-,F+,G-,I+,L-,N+,O+,P+,Q-,R-,S-,T-,V-,X+,Y-}
-{$ENDIF}
+{$I COMPILER.INC}
 unit Dialogs;
 
 interface
 
 uses
+  {$IFDEF DOS}
+  Dos,
+  {$ENDIF}
   Objects,
+  AplTypes,
+  Lists,
+  Files,
+  Errors,
+  Common,
   Veridian,
   Controls,
   Views,
   Tables,
   Actions,
-  Types,
-  ListBox,
-  Lists;
+  Editors,
+  ListBox;
 
 type
   PDialog = ^TDialog;
   PModalDialogButton = ^TModalDialogButton;
-  PSaveDialog = ^TSaveDialog;
+  PFileDialog = ^TFileDialog;
+  PDialogActionExecuteProc = ^TDialogActionExecuteProc;
 
   TDialogButton =
   (
@@ -34,6 +38,7 @@ type
   );
 
   TDialogButtons = set of TDialogButton;
+  TDialogActionExecuteProc = procedure(ASender: PObject; var AModalResult: TModalResult);
 
   TDialog = object(TView)
   private
@@ -47,10 +52,12 @@ type
     ButtonAlign: TTextAlign;
     DefaultButton: TDialogButton;
     CancelButton: TDialogButton;
+    OnActionExecute: PDialogActionExecuteProc;
     constructor Create(AId: string; AButtons: TDialogButtons);
     function ShowModal: TModalResult;
     procedure Init; virtual;
     procedure BeforeShow; virtual;
+    procedure AfterShow; virtual;
     procedure SetupControls; virtual;
     procedure KeyPress(var AEvent: TKeyEvent); virtual;
     procedure Close; virtual;
@@ -67,14 +74,35 @@ type
     procedure Init; virtual;
   end;
 
-  TSaveDialog = object(TDialog)
+  TFileDialogOption =
+  (
+    foFileMustExist
+  );
+
+  TFileDialogOptions = set of TFileDialogOption;
+
+  TFileDialog = object(TDialog)
   private
+    CurrentDir: PDirectoryContents;
+    LastDir: string;
     procedure PopulateFileBox(const APath: string);
+    procedure ReadPath(const APath: string);
+    procedure Ok;
+    procedure Cancel;
   public
     FileBox: PListBox;
-    constructor Create;
+    FilenameEntry: PEdit;
+    DirectoryLabel: PLabel;
+    InitialPath: string;
+    Filename: string;
+    Options: TFileDialogOptions;
+    constructor Create(const ATitle, AInitialPath: string);
+    constructor CreateOptions(const ATitle, AInitialPath: string; AOptions: TFileDialogOptions);
+    procedure SelectFile(AFile: PFile); virtual;
+    procedure SelectText(const AFilename: string); virtual;
     procedure SetupControls; virtual;
     procedure BeforeShow; virtual;
+    procedure AfterShow; virtual;
     procedure Init; virtual;
     destructor Free; virtual;
   end;
@@ -82,23 +110,24 @@ type
 implementation
 
 uses
-  Desk,
-  Drawing,
-  KeyDrv,
-  StrUtils,
+  {$IFDEF DOS}
   Strings,
-  FileUtil,
-  GraphDrv;
+  {$ENDIF}
+  Drawing,
+  StrUtils,
+  GraphDrv,
+  KeyDrv,
+  Desk;
 
 const
   ActionIds: array [TDialogButton] of integer =
   (
     -1,
-    1001,
-    1002,
-    1003,
-    1004,
-    1005
+    10001,
+    10002,
+    10003,
+    10004,
+    10005
   );
 
   ActionTexts: array[TDialogButton] of string =
@@ -131,13 +160,106 @@ const
     kyAltH
   );
 
-procedure DialogButtonActionExecute(ASender: PObject; AAction: PAction; AActionId: integer); far;
+procedure DialogButtonActionExecute(ASender: PObject; AAction: PAction); far;
 var
   dialog: PDialog;
+  result: TModalResult;
 begin
   dialog := PDialog(AAction^.Owner);
-  dialog^.FModalResult := AAction^.ModalResult;
+  result := AAction^.ModalResult;
+  if Assigned(dialog^.OnActionExecute) then
+    TDialogActionExecuteProc(dialog^.OnActionExecute)(dialog, result);
+  if result = mrNone then
+    exit;
+  dialog^.FModalResult := result;
   dialog^.Close;
+end;
+
+procedure FileDialogDblClick(ASender: PObject; var AEvent: TMouseEvent); far;
+var
+  list: PListBox;
+  dialog: PFileDialog;
+  item: PListItem;
+  aFile: PFile;
+begin
+  list := PListBox(ASender);
+  dialog := PFileDialog(list^.Parent^.Parent);
+  item := PListItem(list^.Items^.GetItem(list^.SelectedIndex));
+  aFile := PFile(item^.Value);
+  dialog^.SelectFile(aFile);
+end;
+
+procedure FileDialogActionExecute(ASender: PObject; var AModalResult: TModalResult); far;
+var
+  dialog: PFileDialog;
+  item: PListItem;
+  list: PListBox;
+  aFile: PFile;
+begin
+  dialog := PFileDialog(ASender);
+  list := PListBox(dialog^.FileBox);
+  if AModalResult = mrOk then begin
+    item := PListItem(list^.Items^.GetItem(list^.SelectedIndex));
+    aFile := PFile(item^.Value);
+    dialog^.SelectText(dialog^.FileNameEntry^.GetText);
+    AModalResult := mrNone;
+  end;
+end;
+
+procedure FileDialogIndexChanged(ASender: PObject; var AEvent: TIndexChangedEvent); far;
+var
+  list: PListBox;
+  dialog: PFileDialog;
+  aFile: PFile;
+  index: integer;
+  name: string;
+begin
+  list := PListBox(ASender);
+  dialog := PFileDialog(list^.Parent^.Parent);
+  aFile := dialog^.CurrentDir^.Files^.GetItem(AEvent.NewIndex);
+  name := StrPas(aFile^.Name);
+  if faDirectory in aFile^.Attr then
+    name := IncludeBackslash(name);
+  dialog^.FilenameEntry^.SetText(name);
+end;
+
+procedure FileDialogListKeyPress(ASender: PObject; var AEvent: TKeyEvent); far;
+var
+  dialog: PFileDialog;
+  list: PListBox;
+  item: PListItem;
+  aFile: PFile;
+begin
+  list := PListBox(ASender);
+  dialog := PFileDialog(list^.Parent^.Parent);
+  case AEvent.Key of
+    kyEnter: begin
+      item := PListItem(list^.Items^.GetItem(list^.SelectedIndex));
+      aFile := PFile(item^.Value);
+      dialog^.SelectFile(aFile);
+    end;
+  end;
+end;
+
+procedure FilenameKeyPress(ASender: PObject; var AEvent: TKeyEvent); far;
+var
+  entry: PEdit;
+  txt: string;
+  dir: PDirectoryContents;
+  dialog: PFileDialog;
+  result: integer;
+begin
+  entry := PEdit(ASender);
+  dialog := PFileDialog(entry^.Parent^.Parent);
+  case AEvent.Key of
+    kyEnter: begin
+      dialog^.SelectText(dialog^.FileNameEntry^.GetText);
+    end;
+    kyPageUp, kyPageDown, kyUp, kyDown: begin
+      dialog^.FileBox^.Focus;
+      dialog^.FileBox^.KeyPress(AEvent);
+    end
+  end;
 end;
 
 procedure TDialog.CreateButton(AButton: TDialogButton);
@@ -151,6 +273,7 @@ begin
   action^.OnExecute := @DialogButtonActionExecute;
   action^.ModalResult := TModalResult(AButton);
   action^.Owner := @self;
+
   ActionList^.Add(action);
   button := New(PModalDialogButton, CreateParent(ActionControlIds[AButton], actionId, @self));
   if CancelButton = AButton then
@@ -161,6 +284,10 @@ begin
 end;
 
 procedure TDialog.BeforeShow;
+begin
+end;
+
+procedure TDialog.AfterShow;
 begin
 end;
 
@@ -191,10 +318,10 @@ end;
 
 constructor TDialog.Create(AId: string; AButtons: TDialogButtons);
 begin
-  Application^.DrawEnabled := false;
+  VeridianApp^.DrawEnabled := false;
   Buttons := AButtons;
   inherited CreateParent(AId, Desktop);
-  Application^.DrawEnabled := true;
+  VeridianApp^.DrawEnabled := true;
   BringToFront;
 end;
 
@@ -204,9 +331,9 @@ begin
   ActionList := New(PActionList, Create);
   Font := Desktop^.Font;
   CanFocus := false;
-  ForeColor := Desktop^.InterfaceColors^.Dialog;
-  BackColor := Desktop^.InterfaceColors^.DialogBack;
-  BorderColor := Desktop^.InterfaceColors^.Border;
+  ForeColor := Desktop^.Colors^.Dialog;
+  BackColor := Desktop^.Colors^.DialogBack;
+  BorderColor := Desktop^.Colors^.Border;
   BorderStyle := bsSingle;
   Modal := true;
   Closed := false;
@@ -214,6 +341,7 @@ begin
   ButtonAlign := taCenter;
   FDialogButtons := New(PButtonList, Create);
   FDialogButtons^.DisposeObjects := false;
+  OnActionExecute := nil;
   FModalResult := mrNone;
   CancelButton := mbNone;
   DefaultButton := mbNone;
@@ -242,7 +370,7 @@ begin
   Desktop^.MenuBar^.Draw;
   Modal := true;
   Activate;
-  Application^.DrawEnabled := false;
+  VeridianApp^.DrawEnabled := false;
   for index := 0 to FDialogButtons^.Count - 1 do begin
     button := PModalDialogButton(FDialogButtons^.GetItem(index));
     if button^.Default then begin
@@ -254,29 +382,28 @@ begin
   if (not found) and (FDialogButtons^.Count > 0) then
     FDialogButtons^.GetItem(0)^.Focus;
   BeforeShow;
-  Application^.DrawEnabled := true;
-  Draw;
   desktopActions := Desktop^.ActionList;
+  VeridianApp^.DrawEnabled := true;
+  Draw;
+  AfterShow;
   Desktop^.ActionList := ActionList;
   repeat
-    Application^.ProcessEvents;
+    VeridianApp^.ProcessEvents;
     if Closed then
       break;
-    Application^.MainLoop;
   until Closed;
-
+  Desktop^.ActionList := desktopActions;
   if Desktop^.ActiveView = @self then
     Desktop^.ActiveView := nil;
-  Application^.DeactivateActiveControl;
+  VeridianApp^.DeactivateActiveControl;
   Deactivate;
-  Desktop^.ActionList := desktopActions;
   Desktop^.MenuBar^.Enabled := true;
   Desktop^.MenuBar^.Draw;
   if Assigned(oldActiveView) then
     oldActiveView^.Activate;
   if Assigned(oldActiveControl) then
     oldActiveControl^.Focus;
-
+  Desktop^.ActionList := desktopActions;
   ShowModal := FModalResult;
 end;
 
@@ -288,12 +415,18 @@ var
   control: PControl;
   button: PModalDialogButton;
   totalWidth: integer;
+  lowRes: boolean;
+  fontHeight: integer;
 begin
   inherited SetupControls;
+  lowRes := Graph^.Mode^.Height < 640;
+  fontHeight := Font^.Height + 6;
+  if lowRes then
+    fontHeight := Font^.Height + 4;
   Content^.GetBounds(rect);
   totalWidth := 0;
   bWidth := Font^.TextWidth('Cancel') + 12 * Font^.Spacing;
-  bHeight := Font^.Height + 6;
+  bHeight := fontHeight;
   by := rect.Height - bHeight - Font^.Height div 2;
   for index := 0 to FDialogButtons^.Count - 1 do begin
     button := PModalDialogButton(FDialogButtons^.GetItem(index));
@@ -318,14 +451,19 @@ var
   index: integer;
   button: PModalDialogButton;
 begin
+  inherited KeyPress(AEvent);
+  if AEvent.Handled then
+    exit;
   for index := 0 to FDialogButtons^.Count - 1 do begin
     button := PModalDialogButton(FDialogButtons^.GetItem(index));
-    if ((Keyboard.UpCase(AEvent.Key) = button^.GetHotKey)
-      or (AEvent.Key = kyEsc)) and button^.Cancel then
-      Application^.HandleActionExecute(button^.Action, button^.ActionId);
+    if not Assigned(button^.Action) then
+      continue;
+    if ((AEvent.Key = kyEsc) and button^.Cancel) then begin
+      VeridianApp^.HandleActionExecute(button, button^.Action);
+    end;
     if AEvent.Key = kyEnter then begin
       if Desktop^.ActiveControl = PControl(button) then
-        Application^.HandleActionExecute(button^.Action, button^.ActionId)
+        VeridianApp^.HandleActionExecute(button, button^.Action);
     end;
   end;
   AEvent.Handled := true;
@@ -355,60 +493,252 @@ begin
   Owner := nil;
 end;
 
-constructor TSaveDialog.Create;
+constructor TFileDialog.Create(const ATitle, AInitialPath: string);
 begin
-  inherited Create('SaveDialog', [mbOk, mbCancel]);
+  InitialPath := FExpand(AInitialPath);
+  inherited Create('FileDialog', [mbOk, mbCancel]);
   X := CenterX;
   Y := CenterY;
+  SetTitle(ATitle);
 end;
 
-procedure TSaveDialog.PopulateFileBox(const APath: string);
+constructor TFileDialog.CreateOptions(const ATitle, AInitialPath: string; AOptions: TFileDialogOptions);
+begin
+  Create(ATitle, AInitialPath);
+  Options := AOptions;
+end;
+
+procedure TFileDialog.Ok;
 var
-  dir: PDirectory;
+  txt: string;
+  aFile: File;
+  attributes: word;
+  error: integer;
+begin
+  txt := Trim(FilenameEntry^.GetText);
+  if txt = '' then
+    exit;
+  txt := FExpand(txt);
+  System.Assign(aFile, txt);
+  GetFAttr(aFile, attributes);
+  error := DosError;
+  if error = 0 then begin
+    if faDirectory in TFileAttributes(byte(attributes)) then begin
+      if not ChangeDirectory(ExtractDirectory(txt)) then
+        exit;
+      ReadPath(IncludeBackslash(txt) + CurrentDir^.Filter);
+      FilenameEntry^.SetText('');
+    end else begin
+      Filename := txt;
+      FModalResult := mrOk;
+      Close;
+    end;
+  end else begin
+    if HasWildCard(txt) then begin
+      if not ChangeDirectory(ExtractDirectory(txt)) then
+        exit;
+      ReadPath(txt);
+      FilenameEntry^.SetText('');
+    end;
+    if not (foFileMustExist in Options) then begin
+    end;
+  end;
+end;
+
+procedure TFileDialog.Cancel;
+begin
+end;
+
+procedure TFileDialog.SelectText(const AFilename: string);
+var
+ txt: string;
+ isDir: boolean;
+begin
+  txt := Trim(AFilename);
+  if txt = '' then
+    exit;
+  isDir := EndsWith(txt, '\')
+    or (txt = '..')
+    or (txt = '.')
+    or ((Length(txt) = 2) and (txt[2] = ':'));
+  txt := FExpand(txt);
+  if isDir and DirectoryExists(txt) then begin
+    if not ChangeDirectory(ExtractDirectory(txt)) then
+      exit;
+    ReadPath(IncludeBackslash(txt) + CurrentDir^.Filter);
+    FilenameEntry^.SetText('');
+    exit;
+  end;
+  if HasWildcard(txt) then begin
+    ReadPath(txt);
+    FilenameEntry^.SetText('');
+    exit;
+  end;
+  if not FileExists(txt) and (foFileMustExist in Options) then
+    exit;
+  if EndsWith(txt, '\') then
+    exit;
+  Filename := txt;
+  FModalResult := mrOk;
+  Close;
+end;
+
+procedure TFileDialog.SelectFile(AFile: PFile);
+var
+  txt: string;
+  attributes: word;
+  error: integer;
+  tempFile: File;
+  dir: string;
+begin
+  dir := IncludeBackSlash(StrPas(CurrentDir^.Name));
+  txt := dir + StrPas(AFile^.Name);
+  System.Assign(tempFile, txt);
+  GetFAttr(tempFile, attributes);
+  error := DosError;
+  if error = 0 then begin
+    if faDirectory in TFileAttributes(byte(attributes)) then begin
+      if not ChangeDirectory(IncludeBackslash(txt)) then
+        exit;
+      txt := FExpand(txt);
+      ReadPath(IncludeBackslash(txt) + CurrentDir^.Filter);
+      FilenameEntry^.SetText('');
+    end else begin
+      Filename := txt;
+      FModalResult := mrOk;
+      Close;
+    end;
+  end;
+end;
+
+procedure TFileDialog.PopulateFileBox(const APath: string);
+var
   index: integer;
   afile: PFile;
   item: PListItem;
+  afilename: string;
+  path: string;
 begin
-  dir := Directory.GetDirectory(APath);
-  dir^.Sort(dsFilename, dsAsc, true);
-  for index := 0 to dir^.Files^.Count - 1 do begin
-    afile := dir^.Files^.Getitem(index);
-    item := New(PListItem, CreateTextValue(StrPas(afile^.Name), nil));
+  FreeAndNil(CurrentDir);
+  FileBox^.Clear;
+  path := FExpand(Trim(APath));
+  CurrentDir := TDirectory.GetDirectory(path);
+  CurrentDir^.Sort(dsFilename, dsAsc, true);
+  for index := 0 to CurrentDir^.Files^.Count - 1 do begin
+    afile := CurrentDir^.Files^.Getitem(index);
+    afilename := StrPas(afile^.Name);
+    if faDirectory in aFile^.Attr then
+      afilename := '<' + afilename + '>';
+    item := New(PListItem, CreateTextValue(afilename, aFile));
     FileBox^.Items^.Add(item);
   end;
-  FreeAndNil(dir);
 end;
 
-procedure TSaveDialog.BeforeShow;
+procedure TFileDialog.BeforeShow;
 begin
+end;
+
+procedure TFileDialog.AfterShow;
+begin
+  FilenameEntry^.SetText(Filename);
   FileBox^.Focus;
 end;
 
-procedure TSaveDialog.Init;
+procedure TFileDialog.ReadPath(const APath: string);
+var
+  path: string;
+begin
+  path := FExpand(APath);
+  PopulateFileBox(APath);
+  FileBox^.SelectedIndex := 0;
+  FileBox^.Draw;
+  DirectoryLabel^.Clear;
+  DirectoryLabel^.SetText(APath);
+end;
+
+procedure TFileDialog.Init;
+var
+  lowRes: boolean;
 begin
   inherited Init;
-  Width := Application^.ScaleX(60);
-  Height := Application^.ScaleY(20);
-  SetTitle('Save As');
+  lowRes := Graph^.Mode^.Width < 640;
+  if lowRes then begin
+    Width := VeridianApp^.ScaleX(50);
+    Height := VeridianApp^.ScaleY(20);
+  end
+  else begin
+    Width := VeridianApp^.ScaleX(60);
+    Height := VeridianApp^.ScaleY(23);
+  end;
+  LastDir := GetCurrentDirectory;
+  Options := [];
+  Title := nil;
   ScrollType := scNone;
   ButtonAlign := taRight;
+  CurrentDir := nil;
+  Filename := '';
   FileBox := New(PListBox, CreateParent('FileListBox', Content));
-  PopulateFileBox('c:\*.*');
-  if FileBox^.Items^.Count > 0 then
-    FileBox^.SelectedIndex := 0;
+  OnActionExecute := @FileDialogActionExecute;
+  FileBox^.OnMouseDblClick := @FileDialogDblClick;
+  FileBox^.OnSelectedIndexChanged := @FileDialogIndexChanged;
+  FileBox^.OnKeyPress := @FileDialogListKeyPress;
+  FilenameEntry := New(PEdit, CreateParent('FilenameEntry', Content));
+  FilenameEntry^.ValidChars := ValidDosChars + ['\', ':', #9];
+  FilenameEntry^.MaxLength := 255;
+  FilenameEntry^.OnKeyPress := @FilenameKeyPress;
+  FilenameEntry^.Font := VeridianApp^.Fonts^.GetItemById('System');
+  DirectoryLabel := New(PLabel, CreateText('', InitialPath, Content));
+  DirectoryLabel^.AutoSize := false;
+  ReadPath(InitialPath);
 end;
 
-procedure TSaveDialog.SetupControls;
+procedure TFileDialog.SetupControls;
 var
-  bHeight: integer;
+  items: integer;
+  lowRes: boolean;
+  dirHeight: integer;
+  entryHeight, entryWidth: integer;
+  margin: integer;
 begin
   inherited SetupControls;
-  bHeight := Font^.Height + 6;
-  FileBox^.SetBounds(-1, -1, self.Width, self.Content^.Height - 3 * bHeight);
+  lowRes := Graph^.Mode^.Width < 640;
+  if lowRes then begin
+    items := 12;
+    dirHeight := Font^.Height + 3;
+    entryHeight := Font^.Height + 4;
+    margin := 2;
+  end
+  else begin
+    items := 16;
+    dirHeight := Font^.Height + 4;
+    entryHeight := Font^.Height + 6;
+    margin := 4;
+  end;
+  entryWidth := self.Width - 2 * Margin - 2 * BorderWidth;
+  DirectoryLabel^.SetBounds(
+    margin,
+    0,
+    entryWidth,
+    dirHeight);
+  DirectoryLabel^.VertAlign := vaCenter;
+  FileBox^.SetBounds(
+    margin,
+    DirectoryLabel^.Height,
+    entryWidth,
+    items * FileBox^.Font^.Height + 2 * FileBox^.BorderWidth
+  );
+  FilenameEntry^.SetBounds(
+    Margin,
+    FileBox^.Y + FileBox^.Height + Font^.Height div 2,
+    entryWidth,
+    entryHeight
+  );
 end;
 
-destructor TSaveDialog.Free;
+destructor TFileDialog.Free;
 begin
+  FreeAndNil(CurrentDir);
+  ChangeDirectory(LastDir);
   inherited Free;
 end;
 

@@ -63,9 +63,9 @@ end;
 procedure TTree.Init;
 begin
   inherited Init;
-  ForeColor := Desktop^.InterfaceColors^.Dialog;
-  BackColor := Desktop^.InterfaceColors^.DialogBack;
-  BorderColor := Desktop^.InterfaceColors^.Border;
+  ForeColor := Desktop^.Colors^.Dialog;
+  BackColor := Desktop^.Colors^.DialogBack;
+  BorderColor := Desktop^.Colors^.Border;
   Titlebar^.Visible := false;
   ScrollType := scAsNeeded;
 end;

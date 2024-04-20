@@ -1,8 +1,4 @@
-{$IFDEF debug}
-  {$A-,B-,D+,F+,G-,I+,L+,N+,O+,P+,Q+,R+,S+,T-,V-,X+,Y+}
-{$ELSE}
-  {$A-,B-,D-,F+,G-,I+,L-,N+,O+,P+,Q-,R-,S-,T-,V-,X+,Y-}
-{$ENDIF}
+{$I COMPILER.INC}
 unit Colors;
 
 interface
@@ -11,9 +7,9 @@ uses
   Objects;
 
 type
-  PInterfaceColors = ^TInterfaceColors;
+  PColors = ^TColors;
 
-  TInterfaceColors = object(TObject)
+  TColors = object(TObject)
   public
     Desktop: byte;
     DesktopBack: byte;
@@ -34,6 +30,8 @@ type
     TabHover: byte;
     TabHoverBack: byte;
     TabDisabled: byte;
+    TabView: byte;
+    TabViewBack: byte;
     WindowTitle: byte;
     WindowTitleBack: byte;
     WindowActiveTitle: byte;
@@ -68,7 +66,7 @@ uses
   GraphApp,
   GrDrv8;
 
-procedure TInterfaceColors.Init;
+procedure TColors.Init;
 var
   intensity: byte;
 begin
@@ -88,7 +86,7 @@ begin
   ButtonDownLight := Graph8^.GetColor8(scWhite, intensity - 2);
   ButtonDisabled := Graph8^.GetColor8(scWhite, Intensity50);
   ButtonHighlight := Graph8^.GetColor8(scBlue, Intensity75);
-  TabBack := Graph8^.GetColor8(scWhite, MaxIntensity);
+  TabBack := Graph8^.GetColor8(scWhite, Intensity75);
   TabDisabled := Graph8^.GetColor8(scWhite, Intensity75);
   TabHover := Graph8^.GetColor8(scCyan, MaxIntensity);
   TabHoverBack := Graph8^.GetColor8(scWhite, MaxIntensity);
