@@ -11,8 +11,8 @@ type
   PRegion = ^TRegion;
 
   TRegion = object(TObjectList)
-  {$IFDEF VER70}private{$ENDIF}
-  {$IFDEF VER70}public{$ENDIF}
+  private
+  public
     function IntersectsPoint(APoint: TPoint): boolean;
     function IntersectsCoords(AX, AY: longint): boolean;
     function IntersectsRect(ARect: TRect): boolean;

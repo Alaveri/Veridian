@@ -6,6 +6,7 @@ interface
 uses
   Objects,
   Controls,
+  Errors,
   Lists,
   Views;
 
@@ -19,6 +20,7 @@ type
   public
     TabButton: PTextControl;
     Contents: PPanel;
+    Data: pointer;
     procedure Init; virtual;
     procedure SetupControls; virtual;
     procedure Paint; virtual;
@@ -28,7 +30,10 @@ type
   TTabView = object(TPanel)
   private
   public
-    Tabs: PTabList;
+    TabIndex: integer;
+    function CurrentTab: PTab;
+    function GetTabIndex(ATab: PTab): integer;
+    function NewTab: PTab;
     procedure Init; virtual;
     procedure SetupControls; virtual;
     procedure Paint; virtual;
@@ -36,8 +41,8 @@ type
   end;
 
   TTabList = object(TObjectList)
-  {$IFDEF VER70}private{$ENDIF}
-  {$IFDEF VER70}public{$ENDIF}
+  private
+  public
     function IndexOf(AItem: PTab): integer;
     function Add(AItem: PTab): integer;
     function GetItem(AIndex: integer): PTab;
@@ -54,14 +59,18 @@ uses
 procedure TTab.Init;
 begin
   inherited Init;
+  Data := nil;
   TabButton := New(PTextControl, CreateParent('TabButton', @self));
   with TabButton^ do begin
     BorderStyle := bsNone;
     Margin := 4;
   end;
-  ForeColor := Desktop^.Colors^.Window;
-  BackColor := Desktop^.Colors^.WindowBack;
+  BorderStyle := bsNone;
+  ForeColor := Desktop^.Colors^.Tab;
+  BackColor := Desktop^.Colors^.TabBack;
   Contents := New(PPanel, CreateParent('Contents', @self));
+  Contents^.ForeColor := ForeColor;
+  Contents^.BackColor := BackColor;
   with Contents^ do begin
     BorderStyle := bsNone;
   end;
@@ -90,7 +99,21 @@ end;
 procedure TTabView.Init;
 begin
   inherited Init;
-  Tabs := New(PTabList, Create);
+end;
+
+function TTabView.CurrentTab: PTab;
+begin
+  CurrentTab := PTab(Controls^.GetItem(TabIndex));
+end;
+
+function TTabView.GetTabIndex(ATab: PTab): integer;
+begin
+  GetTabIndex := Controls^.IndexOf(ATab);
+end;
+
+function TTabView.NewTab: PTab;
+begin
+  NewTab := New(PTab, CreateParent('', @self));
 end;
 
 procedure TTabView.Paint;
@@ -100,7 +123,6 @@ end;
 
 destructor TTabView.Free;
 begin
-  FreeAndNil(Tabs);
   inherited Free;
 end;
 

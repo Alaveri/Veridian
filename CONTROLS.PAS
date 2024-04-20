@@ -83,16 +83,16 @@ type
   PScrollEventProc = ^TScrollEventProc;
 
   TKeyEvent = object(TEvent)
-  {$IFDEF VER70}private{$ENDIF}
-  {$IFDEF VER70}public{$ENDIF}
+  private
+  public
     Key: word;
     procedure Init; virtual;
     procedure Clear; virtual;
   end;
 
   TMouseEvent = object(TEvent)
-  {$IFDEF VER70}private{$ENDIF}
-  {$IFDEF VER70}public{$ENDIF}
+  private
+  public
     X: integer;
     Y: integer;
     NewMouseState: TMouseState;
@@ -102,14 +102,14 @@ type
   end;
 
   TScrollEvent = object(TEvent)
-  {$IFDEF VER70}private{$ENDIF}
-  {$IFDEF VER70}public{$ENDIF}
+  private
+  public
     CurrentPos: longint;
   end;
 
   TDragEvent = object(TMouseEvent)
-  {$IFDEF VER70}private{$ENDIF}
-  {$IFDEF VER70}public{$ENDIF}
+  private
+  public
   end;
 
   TEventProc = procedure(ASender: PObject; var AEvent: TEvent);
@@ -119,8 +119,8 @@ type
   TScrollEventProc = procedure(ASender: PObject; var AEvent: TScrollEvent);
 
   TControl = object(TIdentifiable)
-  {$IFDEF VER70}private{$ENDIF}
-  {$IFDEF VER70}public{$ENDIF}
+  private
+  public
     X, Y: integer;
     Width, Height: word;
     Visible: boolean;
@@ -227,8 +227,8 @@ type
   end;
 
   TControlList = Object(TIdentifiableList)
-  {$IFDEF VER70}private{$ENDIF}
-  {$IFDEF VER70}public{$ENDIF}
+  private
+  public
     Parent: PControl;
     constructor CreateParent(AParent: PControl);
     function ToString: string; virtual;
@@ -242,7 +242,7 @@ type
   end;
 
   TButtonList = Object(TIdentifiableList)
-  {$IFDEF VER70}public{$ENDIF}
+  public
     function ToString: string; virtual;
     function GetItem(AIndex: integer): PButton;
     function GetItemById(AId: string): PButton;
@@ -253,16 +253,16 @@ type
   end;
 
   THorzSeparator = object(TControl)
-  {$IFDEF VER70}private{$ENDIF}
-  {$IFDEF VER70}public{$ENDIF}
+  private
+  public
     procedure Init; virtual;
     procedure Paint; virtual;
   end;
 
   TPanel = object(TControl)
-  {$IFDEF VER70}private{$ENDIF}
+  private
     procedure SetForeColorEnabled(AColor: byte);
-  {$IFDEF VER70}public{$ENDIF}
+  public
     DrawBackground: boolean;
     DisabledColor: byte;
     procedure Init; virtual;
@@ -271,9 +271,8 @@ type
   end;
 
   TTextControl = object(TPanel)
-  {$IFDEF VER70}private{$ENDIF}
-    procedure GetTextAlign(const ARect: TRect;var AXPos, AYPos: integer);
-  {$IFDEF VER70}public{$ENDIF}
+  private
+  public
     Text: PChar;
     TextAlign: TTextAlign;
     VertAlign: TVertAlign;
@@ -287,11 +286,12 @@ type
     procedure Init; virtual;
     procedure SetText(const AText: string); virtual;
     procedure Paint; virtual;
+    procedure GetTextAlign(const ARect: TRect;var AXPos, AYPos: integer);
   end;
 
   TActionControl = object(TTextControl)
-  {$IFDEF VER70}private{$ENDIF}
-  {$IFDEF VER70}public{$ENDIF}
+  private
+  public
     ActionId: integer;
     Action: PAction;
     ShowShortcut: boolean;
@@ -315,8 +315,8 @@ type
   end;
 
   TLabel = Object(TTextControl)
-  {$IFDEF VER70}private{$ENDIF}
-  {$IFDEF VER70}public{$ENDIF}
+  private
+  public
     Autosize: boolean;
     constructor CreateText(const AId, AText: string; AParent: PControl);
     procedure Init; virtual;
@@ -345,8 +345,8 @@ type
   end;
 
   TPopUp = object(TPanel)
-  {$IFDEF VER70}private{$ENDIF}
-  {$IFDEF VER70}public{$ENDIF}
+  private
+  public
     BackRect: TRect;
     destructor Free; virtual;
     procedure Init; virtual;
@@ -595,9 +595,8 @@ begin
     if ARedraw then
       Draw;
     if UsesCursor then begin
-      VeridianApp^.CursorBlinkTime.SetNow;
       VeridianApp^.CursorOn;
-    end
+    end;
   end
   else begin
     Desktop^.ActiveControl := nil;

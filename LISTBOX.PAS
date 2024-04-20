@@ -19,8 +19,8 @@ type
   PIndexChangedProc = ^TIndexChangedProc;
 
   TIndexChangedEvent = object(TEvent)
-  {$IFDEF VER70}private{$ENDIF}
-  {$IFDEF VER70}public{$ENDIF}
+  private
+  public
     OldIndex: integer;
     NewIndex: integer;
   end;
@@ -28,8 +28,8 @@ type
   TIndexChangedProc = procedure(ASender: PObject; var AEvent: TIndexChangedEvent);
 
   TListItem = object(TObject)
-  {$IFDEF VER70}private{$ENDIF}
-  {$IFDEF VER70}public{$ENDIF}
+  private
+  public
     Text: PChar;
     Value: pointer;
     ImageIndex: integer;
@@ -42,8 +42,8 @@ type
   end;
 
   TListItems = object(TObjectList)
-  {$IFDEF VER70}private{$ENDIF}
-  {$IFDEF VER70}public{$ENDIF}
+  private
+  public
     Owner: PListBox;
     constructor Create(AOwner: PListBox);
     function GetItem(AIndex: integer): PListItem;
@@ -53,10 +53,10 @@ type
   end;
 
   TListBox = object(TView)
-  {$IFDEF VER70}private{$ENDIF}
+  private
     procedure DrawItem(AIndex: integer);
     procedure PaintItem(AIndex: integer);
-  {$IFDEF VER70}public{$ENDIF}
+  public
     Items: PListItems;
     ImageList: PImageList;
     Margin: integer;
@@ -220,7 +220,7 @@ begin
     end;
   end;
   Graph^.FillRect(itemRect);
-  Graph^.DrawTextLarge(itemRect.X + Margin, itemRect.Y, item^.Text);
+  Graph^.DrawTextLarge(itemRect.X + Margin, itemRect.Y + 1, item^.Text);
 end;
 
 function TListBox.GetAutoWidth: longint;

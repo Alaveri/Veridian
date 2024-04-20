@@ -33,10 +33,10 @@ type
   TTableGetDataFunc = function(var AData: PObject; AColumn: PTableColumn): string;
 
   TTableColumn = object(TIdentifiable)
-  {$IFDEF VER70}private{$ENDIF}
+  private
     FHeader: PChar;
     FBinding: PChar;
-  {$IFDEF VER70}public{$ENDIF}
+  public
     Width: integer;
     Align: TTextAlign;
     VertAlign: TVertAlign;
@@ -51,11 +51,11 @@ type
   end;
 
   TTable = object(TView)
-  {$IFDEF VER70}private{$ENDIF}
+  private
     FColumns: PTableColumnList;
     procedure DrawRow(var ARowInfo: TTableRowInfo);
     procedure RowDataBind(var ARowInfo: TTableRowInfo); virtual;
-  {$IFDEF VER70}public{$ENDIF}
+  public
     DataSource: PObjectList;
     OnRowDataBind: PRowDataBindProc;
     OnGetData: PTableGetDataFunc;
@@ -67,8 +67,8 @@ type
   end;
 
   TTableColumnList = object(TObjectList)
-  {$IFDEF VER70}private{$ENDIF}
-  {$IFDEF VER70}public{$ENDIF}
+  private
+  public
     procedure Init; virtual;
     destructor Free; virtual;
     function Add(AItem: PTableColumn): integer;

@@ -31,8 +31,8 @@ type
   PStatusBar = ^TStatusBar;
 
   TMenuItem = object(TActionControl)
-  {$IFDEF VER70}private{$ENDIF}
-  {$IFDEF VER70}public{$ENDIF}
+  private
+  public
     Separator: boolean;
     ParentMenu: PMenu;
     Menu: PMenu;
@@ -58,15 +58,15 @@ type
   end;
 
   TMainMenuItem = object(TMenuItem)
-  {$IFDEF VER70}private{$ENDIF}
-  {$IFDEF VER70}public{$ENDIF}
+  private
+  public
     procedure MouseEnter(var AEvent: TMouseEvent); virtual;
     procedure MouseLeave(var AEvent: TMouseEvent); virtual;
   end;
 
   TMenu = object(TPopUp)
-  {$IFDEF VER70}private{$ENDIF}
-  {$IFDEF VER70}public{$ENDIF}
+  private
+  public
     ActiveItem: PMenuItem;
     function NewMenuItem(AId: string; AActionId: integer): PMenuItem;
     function AddMenuItem(AItem: PMenuItem): PMenuItem; virtual;
@@ -82,8 +82,8 @@ type
   end;
 
   TMenuBar = object(TTextControl)
-  {$IFDEF VER70}private{$ENDIF}
-  {$IFDEF VER70}public{$ENDIF}
+  private
+  public
     procedure Init; virtual;
     procedure Paint; virtual;
     procedure SetupControls; virtual;
@@ -95,8 +95,8 @@ type
   end;
 
   TDesktop = object(TPanel)
-  {$IFDEF VER70}private{$ENDIF}
-  {$IFDEF VER70}public{$ENDIF}
+  private
+  public
     MenuBar: PMenuBar;
     StatusBar: PStatusBar;
     ActiveControl: PControl;
@@ -117,8 +117,8 @@ type
   end;
 
   TStatusBar = object(TPanel)
-  {$IFDEF VER70}private{$ENDIF}
-  {$IFDEF VER70}public{$ENDIF}
+  private
+  public
     CurrentAction: PAction;
     procedure Init; virtual;
     destructor Free; virtual;

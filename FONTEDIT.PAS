@@ -15,8 +15,8 @@ type
   PFontEditor = ^TFontEditor;
 
   TCharacterMap = object(TPanel)
-  {$IFDEF VER70}private{$ENDIF}
-  {$IFDEF VER70}public{$ENDIF}
+  private
+  public
     CharsPerRow: integer;
     procedure PaintChar(AChar: byte);
     procedure DrawChar(AChar: byte);
@@ -26,10 +26,10 @@ type
   end;
 
   TFontEditor = object(TPanel)
-  {$IFDEF VER70}private{$ENDIF}
+  private
     FPixelOn: boolean;
     procedure SetPixel(var AEvent: TEvent; AToggle: boolean);
-  {$IFDEF VER70}public{$ENDIF}
+  public
     CurrentChar: byte;
     procedure Init; virtual;
     procedure Paint; virtual;

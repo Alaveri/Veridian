@@ -41,12 +41,12 @@ type
   TDialogActionExecuteProc = procedure(ASender: PObject; var AModalResult: TModalResult);
 
   TDialog = object(TView)
-  {$IFDEF VER70}private{$ENDIF}
+  private
     FDialogButtons: PButtonList;
     FModalResult: TModalResult;
     procedure CreateButtons;
     procedure CreateButton(AButton: TDialogButton);
-  {$IFDEF VER70}public{$ENDIF}
+  public
     ActionList: PActionList;
     Buttons: TDialogButtons;
     ButtonAlign: TTextAlign;
@@ -65,8 +65,8 @@ type
   end;
 
   TModalDialogButton = object(TButton)
-  {$IFDEF VER70}private{$ENDIF}
-  {$IFDEF VER70}public{$ENDIF}
+  private
+  public
     Owner: PDialog;
     Default: boolean;
     Cancel: boolean;
@@ -82,14 +82,14 @@ type
   TFileDialogOptions = set of TFileDialogOption;
 
   TFileDialog = object(TDialog)
-  {$IFDEF VER70}private{$ENDIF}
+  private
     CurrentDir: PDirectoryContents;
     LastDir: string;
     procedure PopulateFileBox(const APath: string);
     procedure ReadPath(const APath: string);
     procedure Ok;
     procedure Cancel;
-  {$IFDEF VER70}public{$ENDIF}
+  public
     FileBox: PListBox;
     FilenameEntry: PEdit;
     DirectoryLabel: PLabel;
@@ -415,12 +415,18 @@ var
   control: PControl;
   button: PModalDialogButton;
   totalWidth: integer;
+  lowRes: boolean;
+  fontHeight: integer;
 begin
   inherited SetupControls;
+  lowRes := Graph^.Mode^.Height < 640;
+  fontHeight := Font^.Height + 6;
+  if lowRes then
+    fontHeight := Font^.Height + 4;
   Content^.GetBounds(rect);
   totalWidth := 0;
   bWidth := Font^.TextWidth('Cancel') + 12 * Font^.Spacing;
-  bHeight := Font^.Height + 6;
+  bHeight := fontHeight;
   by := rect.Height - bHeight - Font^.Height div 2;
   for index := 0 to FDialogButtons^.Count - 1 do begin
     button := PModalDialogButton(FDialogButtons^.GetItem(index));
@@ -651,10 +657,19 @@ begin
 end;
 
 procedure TFileDialog.Init;
+var
+  lowRes: boolean;
 begin
   inherited Init;
-  Width := VeridianApp^.ScaleX(60);
-  Height := VeridianApp^.ScaleY(23);
+  lowRes := Graph^.Mode^.Width < 640;
+  if lowRes then begin
+    Width := VeridianApp^.ScaleX(50);
+    Height := VeridianApp^.ScaleY(20);
+  end
+  else begin
+    Width := VeridianApp^.ScaleX(60);
+    Height := VeridianApp^.ScaleY(23);
+  end;
   LastDir := GetCurrentDirectory;
   Options := [];
   Title := nil;
@@ -680,12 +695,44 @@ end;
 procedure TFileDialog.SetupControls;
 var
   items: integer;
+  lowRes: boolean;
+  dirHeight: integer;
+  entryHeight, entryWidth: integer;
+  margin: integer;
 begin
   inherited SetupControls;
-  items := 15;
-  FileBox^.SetBounds(-1, 28, self.Width, items * FileBox^.Font^.Height + 2 * FileBox^.BorderWidth);
-  FilenameEntry^.SetBounds(4, FileBox^.Y + FileBox^.Height + Font^.Height div 2, self.Width - 10, 22);
-  DirectoryLabel^.SetBounds(4, 2, self.Width - 10, 25);
+  lowRes := Graph^.Mode^.Width < 640;
+  if lowRes then begin
+    items := 12;
+    dirHeight := Font^.Height + 3;
+    entryHeight := Font^.Height + 4;
+    margin := 2;
+  end
+  else begin
+    items := 16;
+    dirHeight := Font^.Height + 4;
+    entryHeight := Font^.Height + 6;
+    margin := 4;
+  end;
+  entryWidth := self.Width - 2 * Margin - 2 * BorderWidth;
+  DirectoryLabel^.SetBounds(
+    margin,
+    0,
+    entryWidth,
+    dirHeight);
+  DirectoryLabel^.VertAlign := vaCenter;
+  FileBox^.SetBounds(
+    margin,
+    DirectoryLabel^.Height,
+    entryWidth,
+    items * FileBox^.Font^.Height + 2 * FileBox^.BorderWidth
+  );
+  FilenameEntry^.SetBounds(
+    Margin,
+    FileBox^.Y + FileBox^.Height + Font^.Height div 2,
+    entryWidth,
+    entryHeight
+  );
 end;
 
 destructor TFileDialog.Free;

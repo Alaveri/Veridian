@@ -41,8 +41,8 @@ type
   );
 
   TTitlebar = object(TTextControl)
-  {$IFDEF VER70}private{$ENDIF}
-  {$IFDEF VER70}public{$ENDIF}
+  private
+  public
     ParentView: PView;
     ActiveForeColor: byte;
     ActiveBackColor: byte;
@@ -51,8 +51,8 @@ type
   end;
 
   TViewContent = object(TPanel)
-  {$IFDEF VER70}private{$ENDIF}
-  {$IFDEF VER70}public{$ENDIF}
+  private
+  public
     procedure Init; virtual;
     procedure Paint; virtual;
     procedure MouseDown(var AEvent: TMouseEvent); virtual;
@@ -61,9 +61,9 @@ type
   end;
 
   TScrollSlider = object(TButton)
-  {$IFDEF VER70}private{$ENDIF}
+  private
     DownX, DownY: integer;
-  {$IFDEF VER70}public{$ENDIF}
+  public
     procedure Init; virtual;
     procedure MouseDown(var AEvent: TMouseEvent); virtual;
     procedure MouseUp(var AEvent: TMouseEvent); virtual;
@@ -72,12 +72,12 @@ type
   end;
 
   TScrollbar = object(TPanel)
-  {$IFDEF VER70}private{$ENDIF}
+  private
     procedure GetSliderRect(var ARect: TRect);
     procedure DrawSlider;
     procedure ScrollBySlider(ADelta: integer);
     procedure ScrollByPixels(ADelta: integer);
-  {$IFDEF VER70}public{$ENDIF}
+  public
     Size: integer;
     IncButton: PButton;
     DecButton: PButton;
@@ -97,8 +97,8 @@ type
   end;
 
   TView = object(TPanel)
-  {$IFDEF VER70}private{$ENDIF}
-  {$IFDEF VER70}public{$ENDIF}
+  private
+  public
     Title: PChar;
     Active: boolean;
     Titlebar: PTitlebar;
@@ -125,8 +125,8 @@ type
   end;
 
   TWindow = object(TView)
-  {$IFDEF VER70}private{$ENDIF}
-  {$IFDEF VER70}public{$ENDIF}
+  private
+  public
     procedure Init; virtual;
     destructor Free; virtual;
   end;
@@ -411,13 +411,13 @@ procedure TView.Maximize;
 var
   viewRect: TRect;
 begin
-  viewRect.CreateDims(-1, -1, Desktop^.Width + 2, Desktop^.Height + 3);
+  viewRect.CreateDims(0, 0, Desktop^.Width, Desktop^.Height);
   if Desktop^.MenuBar^.GetVisible then begin
     Dec(viewRect.Height, Desktop^.Menubar^.Height);
     Inc(viewRect.Y, Desktop^.Menubar^.Height);
   end;
   if Desktop^.StatusBar^.GetVisible then
-    Dec(viewRect.Height, Desktop^.Statusbar^.Height);
+    Dec(viewRect.Height, Desktop^.Statusbar^.Height - 3);
   SetBoundsRect(viewRect);
   Draw;
 end;

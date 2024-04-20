@@ -7,8 +7,8 @@ uses
 
 type
   TEvent = object(TObject)
-  {$IFDEF VER70}private{$ENDIF}
-  {$IFDEF VER70}public{$ENDIF}
+  private
+  public
     Handled: boolean;
     procedure Init; virtual;
     procedure Clear; virtual;

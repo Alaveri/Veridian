@@ -24,13 +24,13 @@ type
   PEditable = ^TEditable;
 
   TEditable = object(TTextControl)
-  {$IFDEF VER70}private{$ENDIF}
-  {$IFDEF VER70}public{$ENDIF}
+  private
+  public
     procedure Delete; virtual;
   end;
 
   TEdit = object(TEditable)
-  {$IFDEF VER70}private{$ENDIF}
+  private
     FBuffer: TBuffer;
     FCursorPos: word;
     FCursorX: longint;
@@ -41,7 +41,7 @@ type
     procedure SetTextData(AText: PChar; ALength: word);
     procedure ChangeSelect(APosition: word);
     procedure ResetCursor;
-  {$IFDEF VER70}public{$ENDIF}
+  public
     DisabledForeColor: byte;
     SelectForeColor: byte;
     SelectBackColor: byte;
@@ -176,11 +176,9 @@ procedure TEdit.Focus;
 begin
   if not SelectAllOnFocus then
     exit;
-  SetFocus(true, false);
   SelectAll;
-  Draw;
+  SetFocus(true, true);
 end;
-
 
 function TEdit.CheckSize(ALength: word): word;
 var
@@ -298,11 +296,7 @@ begin
   if DrawBackground then
     Graph^.FillRect(drawRect);
   xPos := drawRect.X + Margin - ScrollPos + BorderWidth;
-  case VertAlign of
-    vaTop: yPos := drawRect.Y + BorderWidth;
-    vaBottom: yPos := drawRect.Y + drawRect.Height - Font^.Height - BorderWidth;
-    vaCenter: yPos := drawRect.Y + (drawRect.Height - Font^.Height) div 2;
-  end;
+  GetTextAlign(drawRect, xPos, yPos);
   charRect.Create;
 
   index := 0;

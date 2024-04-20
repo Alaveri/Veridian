@@ -39,8 +39,8 @@ type
   PMessage = ^TMessage;
 
   TAppState = object(TObject)
-  {$IFDEF VER70}private{$ENDIF}
-  {$IFDEF VER70}public{$ENDIF}
+  private
+  public
     MouseCursor: PMouseCursor;
     CursorOn: boolean;
     procedure Init; virtual;
@@ -48,8 +48,8 @@ type
   end;
 
   TMessage = object(TObject)
-  {$IFDEF VER70}private{$ENDIF}
-  {$IFDEF VER70}public{$ENDIF}
+  private
+  public
     Sender: PObject;
     Code: integer;
     Key: word;
@@ -61,8 +61,8 @@ type
   end;
 
   TVeridianAppSettings = object(TObject)
-  {$IFDEF VER70}private{$ENDIF}
-  {$IFDEF VER70}public{$ENDIF}
+  private
+  public
     CursorBlinkRate: double;
     UpdateScrollContents: boolean;
     DoubleClickDelay: TTimeSpan;
@@ -72,13 +72,13 @@ type
   end;
 
   TVeridianApp = object(TGraphApp)
-  {$IFDEF VER70}private{$ENDIF}
+  private
     FMouseEvent: TMouseEvent;
     FKeyEvent: TKeyEvent;
     FMouseState: TMouseState;
     FOldMouseState: TMouseState;
     FCursorBlinkVisible: boolean;
-    FCurrentTime: TDateTime;
+    FBlinkCurrentTime: TDateTime;
     FBlinkElapsed: TTimeSpan;
     FMouseOverControl: PControl;
     FDragControl: PControl;
@@ -106,7 +106,7 @@ type
     procedure CreateObjects;
     procedure SetMouseSensitivity(ASens: real);
     procedure ApplySettings;
-  {$IFDEF VER70}public{$ENDIF}
+  public
     Settings: TVeridianAppSettings;
     CursorBlinkTime: TDateTime;
     State: TAppState;
@@ -282,10 +282,9 @@ begin
   FMouseEvent.Create;
   FKeyEvent.Create;
   FDoubleClickStart.Create;
-  FCurrentTime.Create;
+  FBlinkCurrentTime.Create;
   FBlinkElapsed.Create;
   Settings.Create;
-
   State.Create;
   StateStack.Create;
   CursorBlinkTime.Create;
@@ -345,12 +344,12 @@ end;
 
 function TVeridianApp.ScaleX(AValue: real): integer;
 begin
-  ScaleX := Min(Graph^.Mode^.Width, Round(AValue * SystemFont^.AverageWidth));
+  ScaleX := Round(AValue * SystemFont^.AverageWidth);
 end;
 
 function TVeridianApp.ScaleY(AValue: real): integer;
 begin
-  ScaleY := Min(Graph^.Mode^.Height, Round(AValue * SystemFont^.Height));
+  ScaleY := Round(AValue * SystemFont^.Height);
 end;
 
 procedure TVeridianApp.ResetDoubleClick;
@@ -432,8 +431,8 @@ begin
     exit;
   if State.CursorOn and Desktop^.ActiveControl^.Focused
     and Desktop^.ActiveControl^.UsesCursor then begin
-    FCurrentTime.SetNow;
-    FBlinkElapsed.Ticks := FCurrentTime.Ticks - CursorBlinkTime.Ticks;
+    FBlinkCurrentTime.SetNow;
+    FBlinkElapsed.Ticks := FBlinkCurrentTime.Ticks - CursorBlinkTime.Ticks;
     seconds := FBlinkElapsed.TotalSeconds;
     if seconds > Settings.CursorBlinkRate then begin
       FCursorBlinkVisible := not FCursorBlinkVisible;
@@ -835,6 +834,8 @@ var
   txt: string;
   rect: TRect;
   max, mem: longint;
+  yPos: integer;
+  xPos: integer;
 begin
   max := MaxAvail;
   mem := MemAvail;
@@ -842,17 +843,20 @@ begin
   Graph^.SetForeColor(Desktop^.ForeColor);
   Graph^.SetBackColor(Desktop^.BackColor);
   Graph^.State.Font := SystemFont;
+  yPos := Desktop^.Height - Desktop^.StatusBar^.Height - Desktop^.Font^.Height + 3;
+  txt := 'MemAvail: ' + FormatLong(FMemAvail);
   if mem <> FMemAvail then begin
-    txt := 'MemAvail: ' + FormatLong(FMemAvail);
-    rect.SetDims(Graph^.Mode^.Width - 130, 20, SystemFont^.TextWidth(txt), SystemFont^.Height);
+    rect.SetDims(2, yPos,
+      SystemFont^.TextWidth(txt), SystemFont^.Height);
     Graph^.FillRect(rect);
     txt := 'MemAvail: ' + FormatLong(mem);
     FMemAvail := mem;
     Graph^.DrawText(rect.X, rect.Y, txt);
   end;
+  xPos := 20 * SystemFont^.AverageWidth;
   if max <> FMaxAvail then begin
     txt := 'MaxAvail: ' + FormatLong(FMaxAvail);
-    rect.SetDims(Graph^.Mode^.Width - 130, 38, SystemFont^.TextWidth(txt), SystemFont^.Height);
+    rect.SetDims(xPos, yPos, SystemFont^.TextWidth(txt), SystemFont^.Height);
     Graph^.FillRect(rect);
     txt := 'MaxAvail: ' + FormatLong(max);
     FMaxAvail := max;
@@ -959,14 +963,5 @@ begin
   MouseSensitivity := source^.MouseSensitivity;
 end;
 
-procedure Finalize; far;
 begin
-  ExitProc := PreviousExitProc;
-  TString.Free(PChar(NilPointer));
-end;
-
-begin
-  NilPointer := pointer(TString.New(MemoryCheckString));
-  PreviousExitProc := ExitProc;
-  ExitProc := @Finalize;
 end.

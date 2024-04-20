@@ -10,7 +10,7 @@ type
   PColors = ^TColors;
 
   TColors = object(TObject)
-  {$IFDEF VER70}public{$ENDIF}
+  public
     Desktop: byte;
     DesktopBack: byte;
     Window: byte;
@@ -30,6 +30,8 @@ type
     TabHover: byte;
     TabHoverBack: byte;
     TabDisabled: byte;
+    TabView: byte;
+    TabViewBack: byte;
     WindowTitle: byte;
     WindowTitleBack: byte;
     WindowActiveTitle: byte;
@@ -84,7 +86,7 @@ begin
   ButtonDownLight := Graph8^.GetColor8(scWhite, intensity - 2);
   ButtonDisabled := Graph8^.GetColor8(scWhite, Intensity50);
   ButtonHighlight := Graph8^.GetColor8(scBlue, Intensity75);
-  TabBack := Graph8^.GetColor8(scWhite, MaxIntensity);
+  TabBack := Graph8^.GetColor8(scWhite, Intensity75);
   TabDisabled := Graph8^.GetColor8(scWhite, Intensity75);
   TabHover := Graph8^.GetColor8(scCyan, MaxIntensity);
   TabHoverBack := Graph8^.GetColor8(scWhite, MaxIntensity);
