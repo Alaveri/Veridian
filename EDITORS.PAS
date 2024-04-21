@@ -143,16 +143,12 @@ end;
 procedure TEdit.GetCursorRect(var ARect: TRect);
 var
   clipRect: TRect;
-  yPos: integer;
+  xPos, yPos: integer;
 begin
   inherited GetCursorRect(ARect);
   GetScreenBounds(clipRect);
-  case VertAlign of
-    vaTop: yPos := clipRect.Y - 1;
-    vaBottom: yPos := clipRect.Y + clipRect.Height - Font^.Height;
-    vaCenter: yPos := clipRect.Y + (clipRect.Height - Font^.Height) div 2;
-  end;
-  ARect.SetDims(clipRect.X + FCursorX - ScrollPos + Margin, yPos, 1, Font^.Height + 1);
+  GetTextAlign(clipRect, xPos, yPos);
+  ARect.SetDims(xPos + FCursorX - ScrollPos - 1, yPos - 1, 1, Font^.Height + 1);
 end;
 
 function TEdit.GetIndexAt(AX, AY: integer): longint;
@@ -311,7 +307,7 @@ begin
     charWidth := Font^.TextWidth(ch);
     if xPos > drawRect.Right then
       break;
-    charRect.SetDims(xPos, yPos, charWidth, Font^.Height + 1);
+    charRect.SetDims(xPos, yPos - 1, charWidth, Font^.Height + 1);
     charRect.Intersect(Graph^.State.ViewPort);
     if selected and (index >= SelectStart) and (index < SelectEnd) then begin
       Graph^.SetForeColor(SelectForeColor);
@@ -466,14 +462,13 @@ end;
 
 procedure TEdit.BackSpace;
 begin
-  if (FCursorPos = 0) or (Length = 0) then
-    exit;
-
   if SelectStart <> SelectEnd then begin
     ClearText;
     SetCursorPos(FCursorPos);
   end
   else begin
+    if (FCursorPos = 0) or (Length = 0) then
+      exit;
     FBuffer.Move(FCursorPos, FCursorPos - 1, Length - FCursorPos);
     Dec(Length);
     FBuffer.SetChar(Length, #0);

@@ -73,7 +73,6 @@ type
     function NewSeparator: PMenuItem; virtual;
     procedure Activate; virtual;
     procedure Deactivate; virtual;
-    procedure PaintOccludingControls(AControl: PControl); virtual;
     procedure Init; virtual;
     procedure Show; virtual;
     procedure Hide; virtual;
@@ -194,8 +193,6 @@ end;
 procedure TDesktop.Paint;
 begin
   inherited Paint;
-{  Graph8^.SetBackColor(BackColor);
-  Graph8^.FillRect(Graph^.Mode^.Bounds);}
 end;
 
 procedure TDesktop.GetClientRect(var ARect: TRect);
@@ -249,10 +246,6 @@ end;
 procedure TMenu.Hide;
 begin
   inherited Hide;
-end;
-
-procedure TMenu.PaintOccludingControls(AControl: PControl);
-begin
 end;
 
 function TMenu.ParentItem: PMenuItem;
@@ -631,7 +624,6 @@ begin
   Active := false;
   if Assigned(Menu) then
    Menu^.Deactivate;
-  DrawSelf;
 end;
 
 procedure TMenuBar.KeyPress(var AEvent: TKeyEvent);

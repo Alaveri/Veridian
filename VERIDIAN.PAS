@@ -125,8 +125,9 @@ type
     function HandleActionExecute(ASender: PObject; AAction: PAction): boolean; virtual;
     function GetMouseControl(AControl: PControl; var AMouseState: TMouseState): PControl;
     function LoadFont(const AFilename: string): PFont; virtual;
-    function ScaleX(AValue: real): integer; virtual;
-    function ScaleY(AValue: real): integer; virtual;
+    function Scale(AValue: real): integer; virtual;
+    function MenuBar: PMenuBar;
+    function StatusBar: PStatusBar;
     procedure RedrawMouseCursor(AViewPort: TRect);
     procedure Init; virtual;
     procedure ProcessEvents; virtual;
@@ -342,14 +343,9 @@ begin
   Desktop^.SetupControls;
 end;
 
-function TVeridianApp.ScaleX(AValue: real): integer;
+function TVeridianApp.Scale(AValue: real): integer;
 begin
-  ScaleX := Round(AValue * SystemFont^.AverageWidth);
-end;
-
-function TVeridianApp.ScaleY(AValue: real): integer;
-begin
-  ScaleY := Round(AValue * SystemFont^.Height);
+  Scale := Round(AValue * SystemFont^.Height);
 end;
 
 procedure TVeridianApp.ResetDoubleClick;
@@ -828,6 +824,16 @@ begin
     found^.Focus;
 end;
 
+function TVeridianApp.MenuBar: PMenuBar;
+begin
+  MenuBar := Desktop^.MenuBar;
+end;
+
+function TVeridianApp.StatusBar: PStatusBar;
+begin
+  StatusBar := Desktop^.StatusBar;
+end;
+
 {$IFDEF debug}
 procedure TVeridianApp.DrawDebugInfo;
 var
@@ -879,6 +885,7 @@ procedure TVeridianApp.ProcessEvents;
 begin
   inherited ProcessEvents;
   Desktop^.MenuBar^.BringToFront;
+  Desktop^.StatusBar^.BringToFront;
   Mouse.UpdateState;
   FMouseState.Assign(Mouse.State);
   HandleCursor;

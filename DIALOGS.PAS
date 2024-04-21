@@ -471,8 +471,11 @@ end;
 
 destructor TDialog.Free;
 begin
+  Hide;
   FreeAndNil(ActionList);
   FreeAndNil(FDialogButtons);
+  if Assigned(Parent) then
+    PControl(Parent)^.Controls^.Remove(@self);
   inherited Free;
 end;
 
@@ -663,12 +666,12 @@ begin
   inherited Init;
   lowRes := Graph^.Mode^.Width < 640;
   if lowRes then begin
-    Width := VeridianApp^.ScaleX(50);
-    Height := VeridianApp^.ScaleY(20);
+    Width := VeridianApp^.Scale(25);
+    Height := VeridianApp^.Scale(20);
   end
   else begin
-    Width := VeridianApp^.ScaleX(60);
-    Height := VeridianApp^.ScaleY(23);
+    Width := VeridianApp^.Scale(30);
+    Height := VeridianApp^.Scale(23);
   end;
   LastDir := GetCurrentDirectory;
   Options := [];

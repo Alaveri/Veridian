@@ -198,6 +198,8 @@ var
   item: PListItem;
   rect: TRect;
 begin
+  if not GetVisible then
+    exit;
   if (AIndex < 0) or (AIndex > Items^.Count - 1) then
     exit;
   Graph^.State.Font := Font;
@@ -357,6 +359,8 @@ var
   rect: TRect;
   yPos: integer;
 begin
+  if not GetVisible then
+    exit;
   oldFocusedForeColor := FocusedForeColor;
   oldFocusedBackColor := FocusedBackColor;
   FocusedForeColor := ForeColor;

@@ -177,8 +177,7 @@ type
     procedure Draw; virtual;
     procedure DrawSelf; virtual;
     procedure Paint; virtual;
-    procedure PaintRegion(AScreenRect: TRect; AExclude: PControl); virtual;
-    procedure PaintOccludingControls(AControl: PControl); virtual;
+    procedure PaintRegion(AScreenRect: TRect); virtual;
     {Set bounds relative to parent client rect}
     procedure SetBounds(AX, AY, AWidth, AHeight: integer); virtual;
     {Set bounds rectangle relative to parent client rect}
@@ -351,7 +350,6 @@ type
     destructor Free; virtual;
     procedure Init; virtual;
     procedure Show; virtual;
-    procedure Hide; virtual;
   end;
 
 implementation
@@ -411,11 +409,15 @@ end;
 procedure TControlList.Remove(AControl: PControl);
 var
   index: integer;
+  oldDisposeObjects: boolean;
 begin
   index := IndexOf(AControl);
   if index < 0 then
     exit;
+  oldDisposeObjects := DisposeObjects;
+  DisposeObjects := false;
   Delete(index);
+  DisposeObjects := oldDisposeObjects;
 end;
 
 constructor TControl.Create(const AId: string);
@@ -660,29 +662,23 @@ begin
 end;
 
 procedure TControl.BringToFront;
-var
-  index: integer;
-  last: integer;
 begin
   if (Parent = nil) or (Parent^.Controls^.Count < 2) then
     exit;
-  last := Parent^.Controls^.Count - 1;
-  index := Parent^.Controls^.IndexOf(@self);
-  if index = last then
+  if Parent^.Controls^.IndexOf(@self) = 0 then
     exit;
-  Parent^.Controls^.Swap(index, last);
+  Parent^.Controls^.Remove(@self);
+  Parent^.Controls^.Insert(0, @self);
 end;
 
 procedure TControl.SendToBack;
-var
-  index: integer;
 begin
   if (Parent = nil) or (Parent^.Controls^.Count < 2) then
     exit;
-  index := Parent^.Controls^.IndexOf(@self);
-  if index = 0 then
+  if Parent^.Controls^.IndexOf(@self) = Parent^.Controls^.Count - 1 then
     exit;
-  Parent^.Controls^.Swap(0, index);
+  Parent^.Controls^.Remove(@self);
+  Parent^.Controls^.Add(@self);
 end;
 
 procedure TControl.SetupControls;
@@ -700,10 +696,12 @@ var
   par: PControl;
 begin
   GetVisible := false;
-  if (not Visible) then exit;
+  if not Visible then
+    exit;
   par := Parent;
   while Assigned(par) do begin
-    if (not par^.Visible) then exit;
+    if not par^.Visible then
+      exit;
     par := par^.Parent;
   end;
   GetVisible := true;
@@ -721,10 +719,12 @@ var
   par: PControl;
 begin
   GetEnabled := false;
-  if (not Enabled) then exit;
+  if not Enabled then
+    exit;
   par := Parent;
   while Assigned(par) do begin
-    if (not par^.Enabled) then exit;
+    if not par^.Enabled then
+      exit;
     par := par^.Parent;
   end;
   GetEnabled := true;
@@ -751,6 +751,7 @@ var
   control: PControl;
   rect: TRect;
 begin
+  StartDrawing;
   for index := 0 to Controls^.Count - 1 do begin
     control := Controls^.GetItem(index);
     control^.IsMouseOver := false;
@@ -761,7 +762,8 @@ begin
   end;
   Visible := false;
   GetScreenBounds(rect);
-  Desktop^.PaintRegion(rect, @self);
+  Desktop^.PaintRegion(rect);
+  EndDrawing;
 end;
 
 procedure TControl.Show;
@@ -770,41 +772,12 @@ begin
   Draw;
 end;
 
-procedure TControl.PaintOccludingControls(AControl: PControl);
-var
-  rect, drawRect, controlRect: TRect;
-  controlParent: PControl;
-  control: PControl;
-  index, controlIndex: integer;
-begin
-  if not Assigned(AControl) then
-    exit;
-  controlParent := AControl^.Parent;
-  if Assigned(controlParent) then begin
-    controlIndex := controlParent^.Controls^.IndexOf(AControl);
-    if controlIndex >= controlParent^.Controls^.Count - 1 then begin
-      PaintOccludingControls(controlParent^.Parent);
-      exit;
-    end;
-    for index := controlIndex + 1 to controlParent^.Controls^.Count - 1 do begin
-      control := controlParent^.Controls^.GetItem(index);
-      AControl^.GetScreenBounds(rect);
-      control^.GetScreenBounds(controlRect);
-      rect.GetIntersection(controlRect, drawRect);
-      if drawRect.IsEmpty then
-        continue;
-      control^.PaintRegion(drawRect, control);
-    end;
-    PaintOccludingControls(controlParent^.Controls^.GetItem(controlIndex + 1));
-  end;
-end;
-
 procedure TControl.Paint;
 begin
   Graph^.State.Font := Font;
 end;
 
-procedure TControl.PaintRegion(AScreenRect: TRect; AExclude: PControl);
+procedure TControl.PaintRegion(AScreenRect: TRect);
 var
   index: integer;
   control: PControl;
@@ -822,11 +795,8 @@ begin
       control := Controls^.GetItem(index);
       control^.GetScreenBounds(controlRect);
       controlRect.Intersect(AScreenRect);
-      if (control = AExclude)
-        or controlRect.IsEmpty
-        or (not control^.GetVisible) then
-        continue;
-      control^.PaintRegion(controlRect, control);
+      if not controlRect.IsEmpty then
+        control^.PaintRegion(controlRect);
     end;
   end;
   Graph^.PopState;
@@ -1100,13 +1070,13 @@ begin
     if not Action^.Enabled then
       exit;
   end;
-  GetEnabled := Enabled;
   par := Parent;
   while Assigned(par) do begin
     if not par^.GetEnabled then
       exit;
     par := par^.Parent;
   end;
+  GetEnabled := Enabled;
 end;
 
 function TActionControl.GetShortcut: word;
@@ -1143,6 +1113,8 @@ var
   rect: TRect;
 begin
   inherited Paint;
+  if not GetVisible then
+    exit;
   GetScreenBounds(rect);
   Graph^.SetForeColor(ForeColor);
   Graph^.HLine(rect.X, rect.Y, rect.Width);
@@ -1428,18 +1400,6 @@ var
 begin
   Visible := true;
   Draw;
-end;
-
-procedure TPopUp.Hide;
-var
-  rect: TRect;
-begin
-  StartDrawing;
-  GetScreenBounds(rect);
-  Desktop^.PaintRegion(rect, @self);
-  Visible := false;
-  EndDrawing;
-  inherited Hide;
 end;
 
 procedure TButton.MouseDown(var AEvent: TMouseEvent);

@@ -5,6 +5,7 @@ interface
 
 uses
   Objects,
+  Drawing,
   Controls,
   Errors,
   Lists,
@@ -14,17 +15,28 @@ type
   PTab = ^TTab;
   PTabView = ^TTabView;
   PTabList = ^TTabList;
+  PTabButton = ^TTabButton;
 
   TTab = object(TTextControl)
   private
   public
-    TabButton: PTextControl;
+    TabButton: PTabButton;
     Contents: PPanel;
+    LeftScrollButton: PButton;
+    RightScrollButton: PButton;
     Data: pointer;
     procedure Init; virtual;
     procedure SetupControls; virtual;
     procedure Paint; virtual;
+    function TabHeight: integer; virtual;
     destructor Free; virtual;
+  end;
+
+  TTabButton = object(TTextControl)
+  private
+  public
+    procedure Init; virtual;
+    procedure Paint; virtual;
   end;
 
   TTabView = object(TPanel)
@@ -33,7 +45,7 @@ type
     TabIndex: integer;
     function CurrentTab: PTab;
     function GetTabIndex(ATab: PTab): integer;
-    function NewTab: PTab;
+    function NewTab(const AName: string): PTab;
     procedure Init; virtual;
     procedure SetupControls; virtual;
     procedure Paint; virtual;
@@ -54,41 +66,111 @@ type
 implementation
 
 uses
+  GraphDrv,
+  Veridian,
   Desk;
+
+procedure TTabButton.Init;
+begin
+  inherited Init;
+end;
+
+procedure TTabButton.Paint;
+var
+  rect: TRect;
+  oldBorderStyle: TBorderStyle;
+begin
+  Graph^.SetForeColor(ForeColor);
+  Graph^.SetBackColor(BackColor);
+  oldBorderStyle := BorderStyle;
+  BorderStyle := bsNone;
+  inherited Paint;
+  BorderStyle := oldBorderStyle;
+  if not GetVisible then
+    exit;
+  GetScreenBounds(rect);
+  if BorderStyle <> bsNone then begin
+    Graph^.SetForeColor(ForeColor);
+    Graph^.HLine(rect.X, rect.Y, rect.Width);
+    Graph^.VLine(rect.X, rect.Y, rect.Height);
+    Graph^.VLine(rect.Right, rect.Y, rect.Height);
+  end;
+end;
 
 procedure TTab.Init;
 begin
   inherited Init;
   Data := nil;
-  TabButton := New(PTextControl, CreateParent('TabButton', @self));
+  TabButton := New(PTabButton, CreateParent('TabButton', @self));
   with TabButton^ do begin
-    BorderStyle := bsNone;
-    Margin := 4;
+    ForeColor := Desktop^.Colors^.Tab;
+    BackColor := Desktop^.Colors^.TabBack;
   end;
-  BorderStyle := bsNone;
   ForeColor := Desktop^.Colors^.Tab;
   BackColor := Desktop^.Colors^.TabBack;
   Contents := New(PPanel, CreateParent('Contents', @self));
-  Contents^.ForeColor := ForeColor;
-  Contents^.BackColor := BackColor;
   with Contents^ do begin
+    ForeColor := ForeColor;
+    BackColor := BackColor;
     BorderStyle := bsNone;
+    DrawBackground := false;
   end;
+
+  LeftScrollButton := New(PButton, CreateParent('LeftScroll', 0, @self));
+  with LeftScrollButton^ do begin
+    SetText(#16);
+  end;
+  RightScrollButton := New(PButton, CreateParent('RightScroll', 0, @self));
+  with LeftScrollButton^ do begin
+    SetText(#17);
+  end;
+
 end;
 
 procedure TTab.SetupControls;
 var
-  tabHeight: integer;
+  tabWidth: integer;
 begin
   inherited SetupControls;
-  tabHeight := Font^.Height + 2 * Margin;
-  TabButton^.SetBounds(0, 0, Parent^.Width, tabHeight);
-  Contents^.SetBounds(0, tabHeight, Parent^.Width, Parent^.Height - tabHeight);
+  BorderStyle := Parent^.BorderStyle;
+  with TabButton^ do begin
+    Margin := VeridianApp^.Scale(0.20);
+    TextAlign := taCenter;
+    BorderStyle := self.BorderStyle;
+    tabWidth := Font^.TextWidth(GetText) + 4 * Margin;
+    SetBounds(0, 0, tabWidth, TabHeight);
+    Contents^.SetBounds(
+      0,
+      TabHeight,
+      Self.Parent^.Width,
+      Self.Parent^.Height - TabHeight
+    );
+  end;
 end;
 
 procedure TTab.Paint;
+var
+  rect: TRect;
 begin
-  inherited Paint;
+  if not GetVisible then
+    exit;
+  GetScreenBounds(rect);
+  Graph^.SetForeColor(ForeColor);
+  Graph^.SetBackColor(BackColor);
+  rect.Translate(0, TabHeight);
+  rect.Grow(0, -TabHeight);
+  if DrawBackground then
+    Graph^.FillRect(rect);
+  GetScreenBounds(rect);
+  if BorderStyle <> bsNone then begin
+    Graph^.SetForeColor(BorderColor);
+    Graph^.Rectangle(rect);
+  end;
+end;
+
+function TTab.TabHeight: integer;
+begin
+  TabHeight := Font^.Height + 2 * VeridianApp^.Scale(0.20);
 end;
 
 destructor TTab.Free;
@@ -99,6 +181,9 @@ end;
 procedure TTabView.Init;
 begin
   inherited Init;
+  DrawBackground := true;
+  ForeColor := Desktop^.Colors^.TabView;
+  BackColor := Desktop^.Colors^.TabViewBack;
 end;
 
 function TTabView.CurrentTab: PTab;
@@ -111,14 +196,32 @@ begin
   GetTabIndex := Controls^.IndexOf(ATab);
 end;
 
-function TTabView.NewTab: PTab;
+function TTabView.NewTab(const AName: string): PTab;
+var
+  rect: TRect;
 begin
-  NewTab := New(PTab, CreateParent('', @self));
+  NewTab := New(PTab, CreateParent('Tab', @self));
+  NewTab^.TabButton^.SetText(AName);
+  NewTab^.SetBounds(0, 0, Width, Height);
 end;
 
 procedure TTabView.Paint;
+var
+  tab: PTab;
+  rect: TRect;
 begin
   inherited Paint;
+  if not GetVisible then
+    exit;
+  GetScreenBounds(rect);
+  if Controls^.Count = 0 then
+    exit;
+  tab := PTab(Controls^.GetItem(0));
+  if BorderStyle <> bsNone then begin
+    Graph^.SetForeColor(BorderColor);
+    Graph^.Rectangle(rect);
+    Graph^.HLine(rect.X, rect.Y + Tab^.TabHeight - 1, Width - 1);
+  end;
 end;
 
 destructor TTabView.Free;

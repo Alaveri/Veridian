@@ -168,7 +168,7 @@ begin
     par^.ScrollY := AEvent.CurrentPos;
     par^.StartDrawing;
     par^.Content^.GetScreenBounds(rect);
-    par^.PaintRegion(rect, PControl(ASender));
+    par^.PaintRegion(rect);
     par^.EndDrawing;
   end;
 end;
@@ -308,6 +308,8 @@ var
 begin
   if ParentView = nil then
     exit;
+  if not GetVisible then
+    exit;
   fore := ForeColor;
   back := BackColor;
   if ParentView^.Active then begin
@@ -360,9 +362,6 @@ var
   rect: TRect;
 begin
   GetScreenBounds(rect);
-  StartDrawing;
-  Desktop^.PaintRegion(rect, @self);
-  EndDrawing;
   VeridianApp^.DeactivateActiveControl;
   if Desktop^.ActiveView = @self then
     Desktop^.ActiveView^.Deactivate;
@@ -580,7 +579,7 @@ begin
   parentView^.ScrollY := APos;
   parentView^.StartDrawing;
   parentView^.Content^.GetScreenBounds(rect);
-  parentView^.PaintRegion(rect, nil);
+  parentView^.PaintRegion(rect);
   parentView^.EndDrawing;
 
   sizeAdjust := 3 * Size - 3 * BorderWidth;
