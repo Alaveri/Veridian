@@ -166,6 +166,7 @@ uses
   {$ENDIF}
   Common,
   MemDrv,
+  Streams,
   StrUtils,
   Views;
 
@@ -849,20 +850,20 @@ begin
   Graph^.SetForeColor(Desktop^.ForeColor);
   Graph^.SetBackColor(Desktop^.BackColor);
   Graph^.State.Font := SystemFont;
-  yPos := Desktop^.Height - Desktop^.StatusBar^.Height - Desktop^.Font^.Height + 3;
+  yPos := Desktop^.Height - Desktop^.StatusBar^.Height - 2 * Desktop^.Font^.Height + 3;
+  xPos := 2;
   txt := 'MemAvail: ' + FormatLong(FMemAvail);
   if mem <> FMemAvail then begin
-    rect.SetDims(2, yPos,
-      SystemFont^.TextWidth(txt), SystemFont^.Height);
+    rect.SetDims(xPos, yPos, 150, SystemFont^.Height);
     Graph^.FillRect(rect);
     txt := 'MemAvail: ' + FormatLong(mem);
     FMemAvail := mem;
     Graph^.DrawText(rect.X, rect.Y, txt);
   end;
-  xPos := 20 * SystemFont^.AverageWidth;
+  Inc(yPos, SystemFont^.Height);
   if max <> FMaxAvail then begin
     txt := 'MaxAvail: ' + FormatLong(FMaxAvail);
-    rect.SetDims(xPos, yPos, SystemFont^.TextWidth(txt), SystemFont^.Height);
+    rect.SetDims(xPos, yPos, 150, SystemFont^.Height);
     Graph^.FillRect(rect);
     txt := 'MaxAvail: ' + FormatLong(max);
     FMaxAvail := max;

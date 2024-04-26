@@ -346,6 +346,7 @@ begin
   CancelButton := mbNone;
   DefaultButton := mbNone;
   CreateButtons;
+  Visible := false;
 end;
 
 procedure TDialog.Close;
@@ -371,6 +372,11 @@ begin
   Modal := true;
   Activate;
   VeridianApp^.DrawEnabled := false;
+  if (not found) and (FDialogButtons^.Count > 0) then
+    FDialogButtons^.GetItem(0)^.Focus;
+  BeforeShow;
+  desktopActions := Desktop^.ActionList;
+  Visible := true;
   for index := 0 to FDialogButtons^.Count - 1 do begin
     button := PModalDialogButton(FDialogButtons^.GetItem(index));
     if button^.Default then begin
@@ -379,12 +385,8 @@ begin
       break;
     end;
   end;
-  if (not found) and (FDialogButtons^.Count > 0) then
-    FDialogButtons^.GetItem(0)^.Focus;
-  BeforeShow;
-  desktopActions := Desktop^.ActionList;
   VeridianApp^.DrawEnabled := true;
-  Draw;
+  Show;
   AfterShow;
   Desktop^.ActionList := ActionList;
   repeat
@@ -564,9 +566,9 @@ begin
     or (txt = '..')
     or (txt = '.')
     or ((Length(txt) = 2) and (txt[2] = ':'));
-  txt := FExpand(txt);
+  txt := ExcludeBackSlash(FExpand(txt));
   if isDir and DirectoryExists(txt) then begin
-    if not ChangeDirectory(ExtractDirectory(txt)) then
+    if not ChangeDirectory(txt) then
       exit;
     ReadPath(IncludeBackslash(txt) + CurrentDir^.Filter);
     FilenameEntry^.SetText('');
@@ -594,16 +596,19 @@ var
   tempFile: File;
   dir: string;
 begin
-  dir := IncludeBackSlash(StrPas(CurrentDir^.Name));
-  txt := dir + StrPas(AFile^.Name);
+  dir := StrPas(CurrentDir^.Name);
+  if StrPas(AFile^.Name) = '..' then
+    txt := '..'
+  else
+    txt := dir + StrPas(AFile^.Name);
   System.Assign(tempFile, txt);
   GetFAttr(tempFile, attributes);
   error := DosError;
   if error = 0 then begin
     if faDirectory in TFileAttributes(byte(attributes)) then begin
-      if not ChangeDirectory(IncludeBackslash(txt)) then
+      if not ChangeDirectory(txt) then
         exit;
-      txt := FExpand(txt);
+      txt := GetCurrentDirectory;
       ReadPath(IncludeBackslash(txt) + CurrentDir^.Filter);
       FilenameEntry^.SetText('');
     end else begin

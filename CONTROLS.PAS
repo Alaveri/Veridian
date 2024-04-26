@@ -346,10 +346,10 @@ type
   TPopUp = object(TPanel)
   private
   public
-    BackRect: TRect;
     destructor Free; virtual;
     procedure Init; virtual;
     procedure Show; virtual;
+    procedure Hide; virtual;
   end;
 
 implementation
@@ -661,7 +661,7 @@ begin
   ARect.Translate(parentRect.X, parentRect.Y);
 end;
 
-procedure TControl.BringToFront;
+procedure TControl.SendToBack;
 begin
   if (Parent = nil) or (Parent^.Controls^.Count < 2) then
     exit;
@@ -671,7 +671,7 @@ begin
   Parent^.Controls^.Insert(0, @self);
 end;
 
-procedure TControl.SendToBack;
+procedure TControl.BringToFront;
 begin
   if (Parent = nil) or (Parent^.Controls^.Count < 2) then
     exit;
@@ -781,18 +781,26 @@ procedure TControl.PaintRegion(AScreenRect: TRect);
 var
   index: integer;
   control: PControl;
-  rect, controlRect: TRect;
+  rect: TRect;
+  controlRect: TRect;
 begin
+  if not GetVisible then
+    exit;
+  GetScreenBounds(rect);
+  if rect.IsEmpty then
+    exit;
   VeridianApp^.PushState;
   VeridianApp^.CursorOff;
   Graph^.PushState;
-  GetScreenBounds(rect);
   rect.Intersect(AScreenRect);
   Graph^.State.ViewPort := rect;
+  { TODO: replace this with full region inversion point handling }
   Paint;
   if Controls^.Count > 0 then begin
-    for index := 0 to Controls^.Count - 1 do begin
+    for index := Controls^.Count - 1 downto 0 do begin
       control := Controls^.GetItem(index);
+      if not control^.GetVisible then
+        continue;
       control^.GetScreenBounds(controlRect);
       controlRect.Intersect(AScreenRect);
       if not controlRect.IsEmpty then
@@ -1400,6 +1408,11 @@ var
 begin
   Visible := true;
   Draw;
+end;
+
+procedure TPopUp.Hide;
+begin
+  inherited Hide;
 end;
 
 procedure TButton.MouseDown(var AEvent: TMouseEvent);

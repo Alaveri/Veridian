@@ -30,6 +30,7 @@ type
     TabDisabled: byte;
     TabView: byte;
     TabViewBack: byte;
+    TabInactive: byte;
     WindowTitle: byte;
     WindowTitleBack: byte;
     WindowActiveTitle: byte;
@@ -88,6 +89,7 @@ begin
     Tab := 0;
     TabBack := GetColor8(scWhite, MaxIntensity);
     TabDisabled := GetColor8(scWhite, Intensity75);
+    TabInactive := GetColor8(scWhite, Intensity75);
     TabView := 0;
     TabViewBack := GetColor8(scWhite, Intensity75);
     WindowTitle := 0;

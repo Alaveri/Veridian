@@ -283,7 +283,7 @@ begin
   drawRect.CreateRect(bounds);
 
   Graph^.PushState;
-  buffer := Graph^.BeginDrawBuffer(drawRect, buffer);
+  buffer := Graph^.BeginDrawBuffer(drawRect);
   Graph^.State.Font := Font;
   Graph^.SetForeColor(ForeColor);
   Graph^.SetBackColor(BackColor);
