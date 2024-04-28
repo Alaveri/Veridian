@@ -283,7 +283,12 @@ begin
   drawRect.CreateRect(bounds);
 
   Graph^.PushState;
-  buffer := Graph^.BeginDrawBuffer(drawRect);
+  Graph^.BeginDrawBuffer(buffer, drawRect);
+  if Graph^.HasException then begin
+    Graph^.ClearException;
+    VeridianApp^.Error(@self, ecNotEnoughMemory);
+    exit;
+  end;
   Graph^.State.Font := Font;
   Graph^.SetForeColor(ForeColor);
   Graph^.SetBackColor(BackColor);
@@ -321,10 +326,10 @@ begin
   end;
   Graph^.SetForeColor(BorderColor);
   Graph^.Rectangle(drawRect);
-  Graph^.PopState;
-
-  Graph^.DrawImageRect(bounds, buffer);
   Graph^.EndDrawBuffer;
+  Graph^.PopState;
+  Graph^.DrawImageRect(bounds, buffer);
+  FreeMem(buffer, drawRect.Width * drawRect.Height);
 end;
 
 function TEdit.SetCursorPos(APos: word): boolean;

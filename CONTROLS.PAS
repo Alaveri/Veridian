@@ -1213,8 +1213,8 @@ begin
   txt := GetText;
   textWidth := TrueTextWidth(txt);
   case TextAlign of
-    taLeft: AXPos := ARect.X + Margin;
-    taRight: AXPos := ARect.X + ARect.Width - textWidth - Margin;
+    taLeft: AXPos := ARect.X + Margin + BorderWidth;
+    taRight: AXPos := ARect.X + ARect.Width - textWidth - Margin - BorderWidth;
     taCenter: AXPos := ARect.X + (ARect.Width - textWidth) div 2 + 1;
   end;
   case VertAlign of
