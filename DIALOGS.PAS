@@ -26,6 +26,7 @@ type
   PModalDialogButton = ^TModalDialogButton;
   PFileDialog = ^TFileDialog;
   PDialogActionExecuteProc = ^TDialogActionExecuteProc;
+  PShowMessageDialog = ^TShowMessageDialog;
 
   TDialogButton =
   (
@@ -76,7 +77,8 @@ type
 
   TFileDialogOption =
   (
-    foFileMustExist
+    doFileMustExist,
+    doOverwritePrompt
   );
 
   TFileDialogOptions = set of TFileDialogOption;
@@ -94,6 +96,7 @@ type
     FilenameEntry: PEdit;
     DirectoryLabel: PLabel;
     InitialPath: string;
+    DefaultExt: string;
     Filename: string;
     Options: TFileDialogOptions;
     constructor Create(const ATitle, AInitialPath: string);
@@ -106,6 +109,18 @@ type
     procedure Init; virtual;
     destructor Free; virtual;
   end;
+
+  TShowMessageDialog = object(TDialog)
+  private
+    FLabel: PLabel;
+  public
+    Message: string;
+    constructor Create(const ATitle, AMessage: string);
+    procedure Init; virtual;
+    procedure SetupControls; virtual;
+  end;
+
+procedure ShowMessage(const ATitle, AMessage: string); far;
 
 implementation
 
@@ -262,6 +277,15 @@ begin
   end;
 end;
 
+procedure ShowMessage(const ATitle, AMessage: string);
+var
+  dialog: PShowMessageDialog;
+begin
+  dialog := New(PShowMessageDialog, Create(ATitle, AMessage));
+  dialog^.ShowModal;
+  FreeAndNil(dialog);
+end;
+
 procedure TDialog.CreateButton(AButton: TDialogButton);
 var
   action: PAction;
@@ -362,15 +386,19 @@ var
   found: boolean;
   oldActiveControl: PControl;
   oldActiveView: PView;
+  oldMenuEnabled, oldDrawEnabled: boolean;
+  rect: TRect;
 begin
   oldActiveControl := Desktop^.ActiveControl;
   oldActiveView := Desktop^.ActiveView;
   if Assigned(oldActiveControl) then
     oldActiveControl^.Unfocus;
+  oldMenuEnabled := Desktop^.MenuBar^.Enabled;
   Desktop^.MenuBar^.Enabled := false;
   Desktop^.MenuBar^.Draw;
   Modal := true;
   Activate;
+  oldDrawEnabled := VeridianApp^.DrawEnabled;
   VeridianApp^.DrawEnabled := false;
   if (not found) and (FDialogButtons^.Count > 0) then
     FDialogButtons^.GetItem(0)^.Focus;
@@ -385,7 +413,7 @@ begin
       break;
     end;
   end;
-  VeridianApp^.DrawEnabled := true;
+  VeridianApp^.DrawEnabled := oldDrawEnabled;
   Show;
   AfterShow;
   Desktop^.ActionList := ActionList;
@@ -399,13 +427,16 @@ begin
     Desktop^.ActiveView := nil;
   VeridianApp^.DeactivateActiveControl;
   Deactivate;
-  Desktop^.MenuBar^.Enabled := true;
+  Desktop^.MenuBar^.Enabled := oldMenuEnabled;
   Desktop^.MenuBar^.Draw;
   if Assigned(oldActiveView) then
     oldActiveView^.Activate;
   if Assigned(oldActiveControl) then
     oldActiveControl^.Focus;
   Desktop^.ActionList := desktopActions;
+  GetScreenBounds(rect);
+  Desktop^.Controls^.Remove(@self);
+  Desktop^.PaintRegion(rect);
   ShowModal := FModalResult;
 end;
 
@@ -545,8 +576,6 @@ begin
       ReadPath(txt);
       FilenameEntry^.SetText('');
     end;
-    if not (foFileMustExist in Options) then begin
-    end;
   end;
 end;
 
@@ -579,10 +608,15 @@ begin
     FilenameEntry^.SetText('');
     exit;
   end;
-  if not FileExists(txt) and (foFileMustExist in Options) then
-    exit;
   if EndsWith(txt, '\') then
     exit;
+  if ExtractExtension(txt) = '' then
+    txt := txt + DefaultExt;
+  if not FileExists(txt) and (doFileMustExist in Options) then begin
+    ShowMessage('File not Found', 'File ' + ExtractFullName(txt) + ' does not exist.');
+    FileBox^.Draw;
+    exit;
+  end;
   Filename := txt;
   FModalResult := mrOk;
   Close;
@@ -612,6 +646,8 @@ begin
       ReadPath(IncludeBackslash(txt) + CurrentDir^.Filter);
       FilenameEntry^.SetText('');
     end else begin
+      if (doFileMustExist in Options) and not FileExists(txt) then
+        exit;
       Filename := txt;
       FModalResult := mrOk;
       Close;
@@ -685,6 +721,7 @@ begin
   ButtonAlign := taRight;
   CurrentDir := nil;
   Filename := '';
+  DefaultExt := '';
   FileBox := New(PListBox, CreateParent('FileListBox', Content));
   OnActionExecute := @FileDialogActionExecute;
   FileBox^.OnMouseDblClick := @FileDialogDblClick;
@@ -748,6 +785,40 @@ begin
   FreeAndNil(CurrentDir);
   ChangeDirectory(LastDir);
   inherited Free;
+end;
+
+constructor TShowMessageDialog.Create(const ATitle, AMessage: string);
+begin
+  Message := AMessage;
+  inherited Create('ShowMessageDialog', [mbOk]);
+  X := CenterX;
+  Y := CenterY;
+  SetTitle(ATitle);
+end;
+
+procedure TShowMessageDialog.Init;
+var
+  labelWidth: integer;
+begin
+  inherited Init;
+  DefaultButton := mbOk;
+  CancelButton := mbOk;
+  ScrollType := scNone;
+  ButtonAlign := taCenter;
+  FLabel := New(PLabel, CreateParent(Message, @self));
+  FLabel^.Text := TString.New(Message);
+  labelWidth := Font^.TextWidth(Message);
+  Width := labelWidth + VeridianApp^.Scale(4);
+  Height := VeridianApp^.Scale(6);
+end;
+
+procedure TShowMessageDialog.SetupControls;
+var
+  labelWidth: integer;
+begin
+  inherited SetupControls;
+  labelWidth := Font^.TextWidthLarge(FLabel^.Text);
+  FLabel^.SetBounds((Width - labelWidth) div 2, Titlebar^.Height + Font^.Height, labelWidth, Font^.Height);
 end;
 
 end.

@@ -142,6 +142,7 @@ type
     procedure DeactivateActiveControl;
     procedure UpdateActionControl(AControl: PActionControl); virtual;
     procedure ResetDoubleClick; virtual;
+    procedure ClearMouseOver;
     procedure Run; virtual;
     {$IFDEF debug}
     procedure DrawDebugInfo;
@@ -880,6 +881,14 @@ var
 begin
   aspectRatio := Graph^.Mode^.Height / Graph^.Mode^.Width;
   Mouse.SetSensitivity(ASens, aspectRatio *ASens);
+end;
+
+procedure TVeridianApp.ClearMouseOver;
+begin
+  if not Assigned(FMouseOverControl) then
+    exit;
+  FMouseOverControl^.IsMouseOver := false;
+  FMouseOverControl := nil;
 end;
 
 procedure TVeridianApp.ProcessEvents;

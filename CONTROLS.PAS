@@ -277,8 +277,8 @@ type
     VertAlign: TVertAlign;
     Margin: integer;
     HighlightColor: byte;
-    TextOffsetX: byte;
-    TextOffsetY: byte;
+    TextOffsetX: shortint;
+    TextOffsetY: shortint;
     constructor CreateText(const AId, AText: string; AParent: PControl);
     destructor Free; virtual;
     function GetText: string; virtual;
@@ -854,13 +854,24 @@ end;
 
 procedure TControl.StartDrawingEx(ASetupControls: boolean);
 var
-  rect, mouseRect: TRect;
+  parentRect, rect, mouseRect: TRect;
+  par: PControl;
 begin
   Mouse.PushState;
   Graph^.PushState;
   if ASetupControls then
     SetupControls;
   GetScreenBounds(rect);
+  if Position <> spAbsolute then begin
+    par := Parent;
+    while Assigned(par) do begin
+      if par^.Position = spAbsolute then
+        break;
+      par^.GetScreenBounds(parentRect);
+      rect.Intersect(parentRect);
+      par := par^.Parent;
+    end;
+  end;
   mouseRect.CreateDims(Graph8^.MouseCursor^.X, Graph8^.MouseCursor^.Y,
     Graph8^.MouseCursor^.Width, Graph8^.MouseCursor^.Height);
   if rect.IntersectsRect(mouseRect) then
@@ -1045,6 +1056,7 @@ begin
   if Assigned(Action) then
     VeridianApp^.UpdateActionControl(@self);
   GetScreenBounds(rect);
+  rect.Intersect(Graph^.State.ViewPort);
   TPanel.Paint;
   txt := GetText;
   GetTextAlign(rect, textXPos, textYPos);
@@ -1321,8 +1333,8 @@ end;
 procedure TButton.Paint;
 var
   rect: TRect;
-  oldOffsetX: byte;
-  oldOffsetY: byte;
+  oldOffsetX: shortint;
+  oldOffsetY: shortint;
   oldFocusedColor: byte;
 begin
   if not GetVisible then

@@ -7,6 +7,7 @@ uses
   Objects,
   Drawing,
   Controls,
+  VeriType,
   Errors,
   Lists,
   Views;
@@ -17,6 +18,8 @@ type
   PTabList = ^TTabList;
   PTabButton = ^TTabButton;
   PTabButtonContainer = ^TTabButtonContainer;
+  PTabClosingEventProc = ^TTabClosingEventProc;
+  PTabClosedEventProc = ^TTabClosedEventProc;
 
   TTab = object(TPanel)
   private
@@ -42,6 +45,7 @@ type
   TTabButton = object(TTextControl)
   private
   public
+    CloseButton: PTextControl;
     InactiveColor: byte;
     Tab: PTab;
     View: PTabView;
@@ -61,6 +65,24 @@ type
     procedure Insert(AIndex: integer; AItem: PTab);
   end;
 
+  TTabClosedEvent = object(TEvent)
+  private
+  public
+    TabIndex: integer;
+    procedure Init; virtual;
+  end;
+
+  TTabClosingEvent = object(TTabClosedEvent)
+  private
+  public
+    Tab: PTab;
+    CanClose: boolean;
+    procedure Init; virtual;
+  end;
+
+  TTabClosingEventProc = procedure(ASender: PObject; var AEvent: TTabClosingEvent);
+  TTabClosedEventProc = procedure(ASender: PObject; var AEvent: TTabClosedEvent);
+
   TTabView = object(TPanel)
   private
     FTabs: TTabList;
@@ -72,6 +94,8 @@ type
     ScrollPos: integer;
     LeftButton: PButton;
     RightButton: PButton;
+    OnTabClosing: PTabClosingEventProc;
+    OnTabClosed: PTabClosedEventProc;
     function Count: integer; virtual;
     function GetTab(AIndex: integer): PTab; virtual;
     function IndexOf(ATab: PTab): integer; virtual;
@@ -96,17 +120,130 @@ uses
   StrUtils,
   Desk;
 
+procedure CloseClick(ASender: PObject; var AEvent: TMouseEvent); far;
+var
+  button: PButton;
+  view: PTabView;
+  tabIndex, index: integer;
+  tabButton: PTabButton;
+  event: TTabClosingEvent;
+  closedevent: TTabClosedEvent;
+  tab: PTab;
+begin
+  button := PButton(ASender);
+  tabButton := PTabButton(button^.Parent);
+  tab := tabButton^.Tab;
+  view := PTabView(tabButton^.View);
+
+  event.Create;
+  event.Tab := tab;
+  event.CanClose := true;
+  event.TabIndex := tab^.TabIndex;
+  if Assigned(view^.OnTabClosing) then
+    TTabClosingEventProc(view^.OnTabClosing)(view, event);
+  if not event.CanClose then
+    exit;
+  index := view^.ButtonContainer^.Controls^.IndexOf(tabButton);
+  view^.ButtonContainer^.Controls^.Delete(index);
+  tabIndex := tab^.TabIndex;
+  view^.FTabs.Delete(tabIndex);
+  closedEvent.Create;
+  closedEvent.TabIndex := tabIndex;
+  index := view^.Controls^.IndexOf(tab);
+  VeridianApp^.ClearMouseOver;
+  view^.Controls^.Delete(index);
+  if view^.FTabs.Count = 0 then begin
+    view^.TabIndex := -1;
+  end
+  else if tabIndex = view^.TabIndex then begin
+    if tabIndex > view^.FTabs.Count - 1 then
+      tabIndex := view^.FTabs.Count - 1;
+    view^.ActivateTab(tabIndex);
+  end
+  else
+    Dec(view^.TabIndex);
+  view^.Draw;
+  if Assigned(view^.OnTabClosed) then
+    TTabClosedEventProc(view^.OnTabClosed)(view, closedEvent);
+end;
+
+procedure LeftScrollClick(ASender: PObject; var AEvent: TMouseEvent); far;
+var
+  button: PButton;
+  view: PTabView;
+  tabButton: PTabButton;
+begin
+  button := PButton(ASender);
+  view := PTabView(button^.Parent);
+  if view^.FTabs.Count = 0 then
+    exit;
+  tabButton := view^.FTabs.GetItem(view^.FTabs.Count - 1)^.Button;
+  Dec(view^.ScrollPos, tabButton^.Width);
+  if view^.ScrollPos < 0 then
+    view^.ScrollPos := 0;
+  view^.SetupControls;
+  view^.ButtonContainer^.Draw;
+  if view^.LeftButton^.Visible then
+    view^.LeftButton^.Draw;
+  if view^.RightButton^.Visible then
+    view^.RightButton^.Draw;
+end;
+
+procedure RightScrollClick(ASender: PObject; var AEvent: TMouseEvent); far;
+var
+  button: PButton;
+  view: PTabView;
+  tabButton: PTabButton;
+  max, last: integer;
+begin
+  button := PButton(ASender);
+  view := PTabView(button^.Parent);
+  if view^.FTabs.Count = 0 then
+    exit;
+  tabButton := view^.FTabs.GetItem(0)^.Button;
+  Inc(view^.ScrollPos, tabButton^.Width);
+  last := view^.FTabs.Count - 1;
+  max := view^.TotalButtonWidth(last)
+   - view^.ButtonContainer^.Width + view^.FTabs.GetItem(last)^.Width;
+  if view^.ScrollPos > max then
+    view^.ScrollPos := max;
+  view^.SetupControls;
+  view^.ButtonContainer^.Draw;
+  if view^.LeftButton^.Visible then
+    view^.LeftButton^.Draw;
+  if view^.RightButton^.Visible then
+    view^.RightButton^.Draw;
+end;
+
 procedure TTabButtonContainer.Paint;
+var
+  tab: PTab;
+  button: PTabButton;
+  rect: TRect;
 begin
   inherited Paint;
   if View^.FTabs.Count = 0 then
     exit;
-
+  tab := View^.FTabs.GetItem(View^.FTabs.Count - 1);
+  button := tab^.Button;
+  GetScreenBounds(rect);
+  Graph^.SetForeColor(BorderColor);
+  button^.GetScreenBounds(rect);
+  Graph^.HLine(rect.Right, rect.Bottom, Width);
 end;
 
 procedure TTabButton.Init;
 begin
   inherited Init;
+  CloseButton := New(PTextControl, CreateParent('CloseButton', @self));
+  CloseButton^.Text := TString.New('x');
+  CloseButton^.VertAlign := vaTop;
+  CloseButton^.TextAlign := taCenter;
+  CloseButton^.TextOffsetY := -1;
+  CloseButton^.CanFocus := false;
+  CloseButton^.OnMouseClick := @CloseClick;
+  CloseButton^.BorderStyle := bsNone;
+  CloseButton^.DrawBackground := false;
   InactiveColor := Desktop^.Colors^.TabInactive;
   ForeColor := Desktop^.Colors^.Tab;
   BackColor := Desktop^.Colors^.TabBack;
@@ -125,8 +262,7 @@ begin
   Graph^.SetForeColor(ForeColor);
   Graph^.SetBackColor(BackColor);
   if View^.CurrentTab <> Tab then
-    BackColor := InactiveColor;
-  Graph^.SetForeColor(BorderColor);
+    Graph^.SetBackColor(InactiveColor);
 
   GetScreenBounds(rect);
   Parent^.GetScreenBounds(parentRect);
@@ -135,9 +271,11 @@ begin
 
   Graph^.FillRect(rect);
   GetTextAlign(rect, textXPos, textYPos);
+  Graph^.State.Font := Font;
   Graph^.DrawTextLarge(textXPos, textYPos, Text);
 
   if BorderStyle <> bsNone then begin
+    Graph^.SetForeColor(BorderColor);
     Graph^.HLine(rect.X, rect.Y, rect.Width);
     Graph^.VLine(rect.X, rect.Y, rect.Height);
     Graph^.VLine(rect.Right, rect.Y, rect.Height);
@@ -155,9 +293,11 @@ begin
   SetupControls;
   if TabIndex >= 0 then begin
     oldTab := CurrentTab;
-    oldTab^.Content^.Visible := false;
-    TabIndex := -1;
-    oldTab^.Button^.Draw;
+    if Assigned(oldTab) then begin
+      oldTab^.Content^.Visible := false;
+      TabIndex := -1;
+      oldTab^.Button^.Draw;
+    end;
   end;
   TabIndex := AIndex;
   aTab := CurrentTab;
@@ -243,6 +383,8 @@ begin
   FTabs.DisposeObjects := false;
   ScrollPos := 0;
   TabIndex := -1;
+  OnTabClosing := nil;
+  OnTabClosed := nil;
 
   LeftButton := New(PButton, CreateParent('LeftScroll', 0, @self));
   with LeftButton^ do begin
@@ -250,6 +392,7 @@ begin
     Margin := 0;
     CanFocus := false;
     Visible := false;
+    OnMouseClick := @LeftScrollClick;
   end;
 
   RightButton := New(PButton, CreateParent('RightScroll', 0, @self));
@@ -258,6 +401,7 @@ begin
     Margin := 0;
     CanFocus := false;
     Visible := false;
+    OnMouseClick := @RightScrollClick;
   end;
 end;
 
@@ -402,7 +546,8 @@ var
   index: integer;
   tab: PTab;
   button: PTabButton;
-  rect: TRect;
+  closeRect, rect: TRect;
+  closeWidth, closeHeight: integer;
   scrollButtonWidth: integer;
   offset: integer;
   buttonMargin: integer;
@@ -411,10 +556,15 @@ var
 begin
   inherited SetupControls;
   DrawBackground := FTabs.Count = 0;
-
-  scrollButtonWidth := VeridianApp^.Scale(0.85);
+  closeWidth := VeridianApp^.Scale(0.75);
+  closeHeight := Font^.Height - 2;
+  if Graph^.Mode^.Width < 640 then
+    scrollButtonWidth := VeridianApp^.Scale(1.5)
+  else
+    scrollButtonWidth := VeridianApp^.Scale(0.75);
   buttonMargin := VeridianApp^.Scale(0.3);
-  buttonAdjust := 2 * buttonMargin;
+  buttonAdjust := 3 * buttonMargin + closeWidth;
+  ButtonContainer^.Visible := FTabs.Count > 0;
 
   for index := 0 to FTabs.Count - 1 do begin
     tab := FTabs.GetItem(index);
@@ -422,7 +572,7 @@ begin
       -tab^.BorderWidth,
       TabHeight - tab^.BorderWidth - 1,
       Width,
-      Height - TabHeight + 2 * tab^.BorderWidth
+      Height - TabHeight + 2 * tab^.BorderWidth + 1
     );
     button := tab^.Button;
     button^.Margin := buttonMargin;
@@ -430,13 +580,18 @@ begin
       Font^.TextWidthLarge(button^.Text) + buttonAdjust,
       TabHeight
     );
+    button^.CloseButton^.SetBounds(
+      button^.Width - closeWidth - buttonMargin,
+      (button^.Height - closeHeight) div 2,
+      closeWidth,
+      closeHeight);
   end;
 
   total := TotalButtonWidth(FTabs.Count);
   LeftButton^.Visible := (FTabs.Count > 0) and (ScrollPos > 0);
   offset := 0;
   if LeftButton^.Visible then
-    Inc(offset, scrollButtonWidth);
+    Inc(offset, scrollButtonWidth - 1);
   LeftButton^.SetBounds(-1, -1, scrollButtonWidth, TabHeight);
   RightButton^.SetBounds(Width - scrollButtonWidth - 2, -1, scrollButtonWidth, TabHeight);
   RightButton^.Visible := (total > Width - offset) and
@@ -487,6 +642,19 @@ end;
 procedure TTabList.Insert(AIndex: integer; AItem: PTab);
 begin
   inherited Insert(AIndex, AItem);
+end;
+
+procedure TTabClosingEvent.Init;
+begin
+  inherited Init;
+  CanClose := true;
+  Tab := nil;
+end;
+
+procedure TTabClosedEvent.Init;
+begin
+  inherited Init;
+  TabIndex := 0;
 end;
 
 end.
