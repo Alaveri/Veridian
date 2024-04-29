@@ -77,6 +77,7 @@ type
     procedure Show; virtual;
     procedure Hide; virtual;
     procedure SetupControls; virtual;
+    procedure Paint; virtual;
     function ParentItem: PMenuItem; virtual;
   end;
 
@@ -245,7 +246,13 @@ end;
 
 procedure TMenu.Hide;
 begin
+  Graph^.PushState;
+  if typeof(Parent^) = typeof(TMainMenuItem) then begin
+    Graph^.State.ViewPort.Translate(0, 1);
+    Graph^.State.ViewPort.Grow(0, -1);
+  end;
   inherited Hide;
+  Graph^.PopState;
 end;
 
 function TMenu.ParentItem: PMenuItem;
@@ -335,6 +342,17 @@ begin
   BackColor := Desktop^.Colors^.MenuBack;
   BorderStyle := bsSingle;
   ActiveItem := nil;
+end;
+
+procedure TMenu.Paint;
+begin
+  Graph^.PushState;
+  if typeof(Parent^) = typeof(TMainMenuItem) then begin
+    Graph^.State.ViewPort.Translate(0, 1);
+    Graph^.State.ViewPort.Grow(0, -1);
+  end;
+  inherited Paint;
+  Graph^.PopState;
 end;
 
 function TMenu.NewMenuItem(AId: string; AActionId: integer): PMenuItem;
@@ -479,7 +497,8 @@ var
 begin
   if not (GetEnabled and GetVisible) then
     exit;
-  ActivateMenu;
+  if Assigned(Menu) then
+    ActivateMenu;
 end;
 
 procedure TMenuItem.MouseClick(var AEvent: TMouseEvent);
@@ -611,9 +630,10 @@ end;
 procedure TMenuItem.ActivateMenu;
 begin
   Active := true;
-  if Assigned(Menu) then
+  if Assigned(Menu) then begin
     Menu^.Activate;
-  DrawSelf;
+    DrawSelf;
+  end;
 end;
 
 procedure TMenuItem.DeactivateMenu;

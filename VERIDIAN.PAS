@@ -118,6 +118,7 @@ type
     LeftMouseDownControl: PControl;
     RightMouseDownControl: PControl;
     SystemFont: PFont;
+    SymbolFont: PFont;
     EditorFont: PFont;
     Parameters: PStringList;
     CurrentScrollSlider: PControl;
@@ -261,12 +262,17 @@ begin
     font := LoadFont('syssmall.fnt');
     font^.SetId('editor');
     EditorFont := font;
+    font := LoadFont('symbolsmall.fnt');
+    font^.SetId('symbol');
+    EditorFont := font;
   end
   else begin
     font := LoadFont('system.fnt');
     SystemFont := font;
     font := LoadFont('editor.fnt');
     EditorFont := font;
+    font := LoadFont('symbol.fnt');
+    SymbolFont := font;
   end;
 end;
 
@@ -974,7 +980,6 @@ begin
   inherited Assign(ASource);
   source := PVeridianAppSettings(@source);
   CursorBlinkRate := source^.CursorBlinkRate;
-  DoubleClickDelay := source^.DoubleClickDelay;
   UpdateScrollContents := source^.UpdateScrollContents;
   DoubleClickDelay.Assign(source^.DoubleClickDelay);
   MouseSensitivity := source^.MouseSensitivity;

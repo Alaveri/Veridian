@@ -783,6 +783,7 @@ var
   control: PControl;
   rect: TRect;
   controlRect: TRect;
+  parentRect: TRect;
 begin
   if not GetVisible then
     exit;
@@ -791,7 +792,7 @@ begin
     exit;
   VeridianApp^.PushState;
   VeridianApp^.CursorOff;
-  Graph^.PushState;
+  Graph8^.HideMouseCursor;
   rect.Intersect(AScreenRect);
   Graph^.State.ViewPort := rect;
   { TODO: replace this with full region inversion point handling }
@@ -803,11 +804,20 @@ begin
         continue;
       control^.GetScreenBounds(controlRect);
       controlRect.Intersect(AScreenRect);
-      if not controlRect.IsEmpty then
+      if not controlRect.IsEmpty then begin
         control^.PaintRegion(controlRect);
+        continue;
+      end;
+      if not Assigned(Parent) then
+        continue;
+      Parent^.GetScreenBounds(parentRect);
+      parentRect.Intersect(AScreenRect);
+      if parentRect.IsEmpty then
+        continue;
+      control^.GetScreenBounds(controlRect);
+      control^.PaintRegion(controlRect);
     end;
   end;
-  Graph^.PopState;
   VeridianApp^.PopState;
 end;
 

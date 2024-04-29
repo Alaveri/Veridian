@@ -253,7 +253,7 @@ end;
 
 procedure TTabButton.Paint;
 var
-  rect: TRect;
+  fillRect, rect: TRect;
   textXPos, textYPos: integer;
   parentRect: TRect;
 begin
@@ -269,7 +269,11 @@ begin
   Graph^.State.ViewPort.Assign(rect);
   Graph^.State.ViewPort.Intersect(parentRect);
 
-  Graph^.FillRect(rect);
+  fillRect.CreateRect(rect);
+  fillRect.Translate(1, 1);
+  fillRect.Grow(-2, -1);
+  Graph^.FillRect(fillRect);
+
   GetTextAlign(rect, textXPos, textYPos);
   Graph^.State.Font := Font;
   Graph^.DrawTextLarge(textXPos, textYPos, Text);

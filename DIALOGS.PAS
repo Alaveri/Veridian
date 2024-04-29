@@ -44,7 +44,6 @@ type
   TDialog = object(TView)
   private
     FDialogButtons: PButtonList;
-    FModalResult: TModalResult;
     procedure CreateButtons;
     procedure CreateButton(AButton: TDialogButton);
   public
@@ -54,6 +53,7 @@ type
     DefaultButton: TDialogButton;
     CancelButton: TDialogButton;
     OnActionExecute: PDialogActionExecuteProc;
+    ModalResult: TModalResult;
     constructor Create(AId: string; AButtons: TDialogButtons);
     function ShowModal: TModalResult;
     procedure Init; virtual;
@@ -186,7 +186,7 @@ begin
     TDialogActionExecuteProc(dialog^.OnActionExecute)(dialog, result);
   if result = mrNone then
     exit;
-  dialog^.FModalResult := result;
+  dialog^.ModalResult := result;
   dialog^.Close;
 end;
 
@@ -366,7 +366,7 @@ begin
   FDialogButtons := New(PButtonList, Create);
   FDialogButtons^.DisposeObjects := false;
   OnActionExecute := nil;
-  FModalResult := mrNone;
+  ModalResult := mrNone;
   CancelButton := mbNone;
   DefaultButton := mbNone;
   CreateButtons;
@@ -436,8 +436,10 @@ begin
   Desktop^.ActionList := desktopActions;
   GetScreenBounds(rect);
   Desktop^.Controls^.Remove(@self);
+  Desktop^.StartDrawing;
   Desktop^.PaintRegion(rect);
-  ShowModal := FModalResult;
+  Desktop^.EndDrawing;
+  ShowModal := ModalResult;
 end;
 
 procedure TDialog.SetupControls;
@@ -566,7 +568,7 @@ begin
       FilenameEntry^.SetText('');
     end else begin
       Filename := txt;
-      FModalResult := mrOk;
+      ModalResult := mrOk;
       Close;
     end;
   end else begin
@@ -618,7 +620,7 @@ begin
     exit;
   end;
   Filename := txt;
-  FModalResult := mrOk;
+  ModalResult := mrOk;
   Close;
 end;
 
@@ -649,7 +651,7 @@ begin
       if (doFileMustExist in Options) and not FileExists(txt) then
         exit;
       Filename := txt;
-      FModalResult := mrOk;
+      ModalResult := mrOk;
       Close;
     end;
   end;
