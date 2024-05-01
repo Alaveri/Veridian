@@ -166,10 +166,10 @@ begin
   with PScrollBar(ASender)^ do begin
     par := PView(Parent);
     par^.ScrollY := AEvent.CurrentPos;
-    par^.StartDrawing;
+    par^.Content^.StartDrawing;
     par^.Content^.GetScreenBounds(rect);
     par^.PaintRegion(rect);
-    par^.EndDrawing;
+    par^.Content^.EndDrawing;
   end;
 end;
 
@@ -320,7 +320,6 @@ begin
   ForeColor := fore;
   BackColor := back;
   GetScreenBounds(rect);
-  Graph^.State.ViewPort := rect;
   Graph^.SetForeColor(BorderColor);
   Graph^.HLine(rect.X, rect.Bottom, rect.Width);
 end;
@@ -577,10 +576,10 @@ begin
   parentView := PView(Parent);
   CurrentPos := APos;
   parentView^.ScrollY := APos;
-  parentView^.StartDrawing;
+  parentView^.Content^.StartDrawing;
   parentView^.Content^.GetScreenBounds(rect);
   parentView^.PaintRegion(rect);
-  parentView^.EndDrawing;
+  parentView^.Content^.EndDrawing;
 
   sizeAdjust := 3 * Size - 3 * BorderWidth;
   if Orientation = soHorizontal then begin
@@ -595,7 +594,6 @@ begin
     Slider^.Y := newCoord;
     DrawSlider;
   end;
-  Slider^.DrawSelf;
 end;
 
 procedure TScrollBar.DrawSlider;
@@ -603,7 +601,7 @@ var
   mouseRect,rect: TRect;
   value: integer;
 begin
-  StartDrawingEx(false);
+  StartDrawing;
   Graph^.SetBackColor(BackColor);
   GetScreenBounds(rect);
   if Orientation = soHorizontal then begin

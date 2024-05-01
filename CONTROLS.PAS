@@ -782,42 +782,46 @@ var
   index: integer;
   control: PControl;
   rect: TRect;
-  controlRect: TRect;
+  controlRect: PRect;
   parentRect: TRect;
+  region: PRegion;
 begin
   if not GetVisible then
     exit;
   GetScreenBounds(rect);
   if rect.IsEmpty then
     exit;
+  region := New(PRegion, Create);
   VeridianApp^.PushState;
   VeridianApp^.CursorOff;
   Graph8^.HideMouseCursor;
   rect.Intersect(AScreenRect);
   Graph^.State.ViewPort := rect;
-  { TODO: replace this with full region inversion point handling }
-  Paint;
   if Controls^.Count > 0 then begin
-    for index := Controls^.Count - 1 downto 0 do begin
+    for index := 0 to Controls^.Count - 1 do begin
       control := Controls^.GetItem(index);
       if not control^.GetVisible then
         continue;
-      control^.GetScreenBounds(controlRect);
-      controlRect.Intersect(AScreenRect);
-      if not controlRect.IsEmpty then begin
-        control^.PaintRegion(controlRect);
+      controlRect := new(PRect, Create);
+      control^.GetScreenBounds(controlRect^);
+      controlRect^.Intersect(AScreenRect);
+      if not controlRect^.IsEmpty then begin
+        control^.PaintRegion(controlRect^);
+        region^.Add(controlRect);
         continue;
       end;
-      if not Assigned(Parent) then
-        continue;
-      Parent^.GetScreenBounds(parentRect);
-      parentRect.Intersect(AScreenRect);
-      if parentRect.IsEmpty then
-        continue;
-      control^.GetScreenBounds(controlRect);
-      control^.PaintRegion(controlRect);
     end;
   end;
+  GetScreenBounds(rect);
+  rect.Intersect(AScreenRect);
+  Graph^.State.ViewPort := rect;
+  if region^.Count > 0 then begin
+    Graph^.State.RegionMode := rmExclude;
+    Graph^.State.Region := region;
+  end;
+  Paint;
+  FreeAndNil(region);
+  Graph^.State.Region := nil;
   VeridianApp^.PopState;
 end;
 
@@ -1451,6 +1455,7 @@ begin
   IsRightMouseDown := bsRight in AEvent.NewMouseState.ButtonState;
   Down := true;
   Draw;
+  inherited MouseDown(AEvent);
 end;
 
 procedure TButton.MouseClick(var AEvent: TMouseEvent);

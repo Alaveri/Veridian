@@ -675,8 +675,7 @@ begin
     afilename := StrPas(afile^.Name);
     if faDirectory in aFile^.Attr then
       afilename := '<' + afilename + '>';
-    item := New(PListItem, CreateTextValue(afilename, aFile));
-    FileBox^.Items^.Add(item);
+    FileBox^.Items^.Add(afilename, aFile);
   end;
 end;
 
@@ -709,12 +708,12 @@ begin
   inherited Init;
   lowRes := Graph^.Mode^.Width < 640;
   if lowRes then begin
-    Width := VeridianApp^.Scale(25);
+    Width := VeridianApp^.Scale(15);
     Height := VeridianApp^.Scale(20);
   end
   else begin
-    Width := VeridianApp^.Scale(30);
-    Height := VeridianApp^.Scale(23);
+    Width := VeridianApp^.Scale(20);
+    Height := VeridianApp^.Scale(20);
   end;
   LastDir := GetCurrentDirectory;
   Options := [];
@@ -756,7 +755,7 @@ begin
     margin := 2;
   end
   else begin
-    items := 16;
+    items := 13;
     dirHeight := Font^.Height + 4;
     entryHeight := Font^.Height + 6;
     margin := 4;

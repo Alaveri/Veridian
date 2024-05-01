@@ -265,10 +265,6 @@ begin
     Graph^.SetBackColor(InactiveColor);
 
   GetScreenBounds(rect);
-  Parent^.GetScreenBounds(parentRect);
-  Graph^.State.ViewPort.Assign(rect);
-  Graph^.State.ViewPort.Intersect(parentRect);
-
   fillRect.CreateRect(rect);
   fillRect.Translate(1, 1);
   fillRect.Grow(-2, -1);

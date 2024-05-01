@@ -48,7 +48,8 @@ type
     constructor Create(AOwner: PListBox);
     function GetItem(AIndex: integer): PListItem;
     function IndexOf(AItem: PListItem): integer;
-    function Add(AItem: PListItem): integer;
+    function AddItem(AItem: PListItem): integer;
+    function Add(const AText: string; AValue: pointer): integer;
     procedure Insert(AIndex: integer; AItem: PListItem);
   end;
 
@@ -204,7 +205,6 @@ begin
     exit;
   Graph^.State.Font := Font;
   Content^.GetScreenBounds(rect);
-  Graph^.State.ViewPort := rect;
   item := Items^.GetItem(AIndex);
   GetItemRect(AIndex, itemRect);
   if not itemRect.IntersectsRect(rect) then
@@ -395,9 +395,19 @@ begin
   IndexOf := inherited IndexOf(AItem);
 end;
 
-function TListItems.Add(AItem: PListItem): integer;
+function TListItems.Add(const AText: string; AValue: pointer): integer;
+var
+  item: PListItem;
 begin
-  Add := inherited Add(AItem);
+  item := New(PListItem, Create);
+  item^.Text := TString.New(AText);
+  item^.Value := AValue;
+  Add := inherited Add(item);
+end;
+
+function TListItems.AddItem(AItem: PListItem): integer;
+begin
+  AddItem := inherited Add(AItem);
 end;
 
 procedure TListItems.Insert(AIndex: integer; AItem: PListItem);
