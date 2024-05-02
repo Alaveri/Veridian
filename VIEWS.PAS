@@ -23,7 +23,6 @@ type
   PWindow = ^TWindow;
   PScrollBar = ^TScrollbar;
   PTitlebar = ^TTitlebar;
-  PViewContent = ^TViewContent;
   PScrollSlider = ^TScrollSlider;
 
   TViewScrollType = (
@@ -48,16 +47,6 @@ type
     ActiveBackColor: byte;
     procedure Init; virtual;
     procedure Paint; virtual;
-  end;
-
-  TViewContent = object(TPanel)
-  private
-  public
-    procedure Init; virtual;
-    procedure Paint; virtual;
-    procedure MouseDown(var AEvent: TMouseEvent); virtual;
-    procedure MouseDblClick(var AEvent: TMouseEvent); virtual;
-    procedure MouseWheelChanged(var AEvent: TMouseEvent); virtual;
   end;
 
   TScrollSlider = object(TButton)
@@ -102,7 +91,6 @@ type
     Title: PChar;
     Active: boolean;
     Titlebar: PTitlebar;
-    Content: PViewContent;
     Closed: boolean;
     ScrollType: TViewScrollType;
     HorzScrollBar: PScrollbar;
@@ -117,6 +105,8 @@ type
     procedure Maximize; virtual;
     procedure SetupControls; virtual;
     procedure SetTitle(const ATitle: string);
+    procedure GetContentScreenBounds(var ARect: TRect);
+    procedure GetContentBounds(var ARect: TRect);
     function GetAutoWidth: longint; virtual;
     function GetAutoHeight: longint; virtual;
     procedure ScrollVert(ADelta: integer); virtual;
@@ -166,10 +156,10 @@ begin
   with PScrollBar(ASender)^ do begin
     par := PView(Parent);
     par^.ScrollY := AEvent.CurrentPos;
-    par^.Content^.StartDrawing;
-    par^.Content^.GetScreenBounds(rect);
+    par^.StartDrawing;
+    par^.GetScreenBounds(rect);
     par^.PaintRegion(rect);
-    par^.Content^.EndDrawing;
+    par^.EndDrawing;
   end;
 end;
 
@@ -337,9 +327,7 @@ begin
   BackColor := Desktop^.Colors^.WindowBack;
   BorderStyle := bsSingle;
   Grouped := false;
-  Content := New(PViewContent, CreateParent('Content', @self));
   Font := Desktop^.Font;
-  Content^.Font := Font;
   Title := nil;
   Titlebar := New(PTitlebar, CreateParent('Titlebar', @self));
   Titlebar^.ParentView := @self;
@@ -420,6 +408,54 @@ begin
   Draw;
 end;
 
+procedure TView.GetContentScreenBounds(var ARect: TRect);
+var
+  rect: TRect;
+  titleHeight: integer;
+begin
+  GetScreenBounds(rect);
+  rect.Translate(BorderWidth, BorderWidth);
+  rect.Grow(-2 * BorderWidth, -2 * BorderWidth);
+  titleHeight := Font^.Height + 2 * Titlebar^.Margin + 1;
+  if not Titlebar^.Visible then
+    titleHeight := 0;
+  case ScrollType of
+    scNone:
+      ARect.CreateDims(rect.X, rect.Y + titleHeight, rect.Width, rect.Height - titleHeight);
+    scVertical:
+      ARect.CreateDims(rect.X, rect.Y + titleHeight, rect.Width - VertScrollbar^.Size + 1,
+        rect.Height - titleHeight);
+    scHorizontal:
+      ARect.CreateDims(rect.X, rect.Y + titleHeight, rect.Width, rect.Height - titleHeight - HorzScrollbar^.Size + 1);
+    scBoth:
+      ARect.CreateDims(rect.X, rect.Y + titleHeight, rect.Width - VertScrollbar^.Size + 1,
+        rect.Height - titleHeight - HorzScrollbar^.Size + 1);
+  end;
+end;
+
+procedure TView.GetContentBounds(var ARect: TRect);
+var
+  rect: TRect;
+  titleHeight: integer;
+begin
+  GetClientRect(rect);
+  titleHeight := Font^.Height + 2 * Titlebar^.Margin + 1;
+  if not Titlebar^.Visible then
+    titleHeight := 0;
+  case ScrollType of
+    scNone:
+      ARect.CreateDims(rect.X, rect.Y + titleHeight, rect.Width, rect.Height - titleHeight);
+    scVertical:
+      ARect.CreateDims(rect.X, rect.Y + titleHeight, rect.Width - VertScrollbar^.Size + 1,
+        rect.Height - titleHeight);
+    scHorizontal:
+      ARect.CreateDims(rect.X, rect.Y + titleHeight, rect.Width, rect.Height - titleHeight - HorzScrollbar^.Size + 1);
+    scBoth:
+      ARect.CreateDims(rect.X, rect.Y + titleHeight, rect.Width - VertScrollbar^.Size + 1,
+        rect.Height - titleHeight - HorzScrollbar^.Size + 1);
+  end;
+end;
+
 procedure TView.SetupControls;
 var
   rect: TRect;
@@ -429,36 +465,29 @@ var
 begin
   inherited SetupControls;
   GetClientRect(rect);
-  if not Assigned(Titlebar^.Text) then
-    Titlebar^.Text := TString.Copy(Title);
-  Titlebar^.VertAlign := vaCenter;
   titleHeight := Font^.Height + 2 * Titlebar^.Margin + 1;
   if not Titlebar^.Visible then
     titleHeight := 0;
   Titlebar^.SetBounds(rect.X, rect.Y, rect.Width, titleHeight);
+  if not Assigned(Titlebar^.Text) then
+    Titlebar^.Text := TString.Copy(Title);
+  Titlebar^.VertAlign := vaCenter;
   case ScrollType of
     scNone: begin
       VertScrollBar^.Visible := false;
       HorzScrollBar^.Visible := false;
-      Content^.SetBounds(rect.X, rect.Y + titleHeight, rect.Width, rect.Height - titleHeight);
     end;
     scVertical: begin
       VertScrollBar^.Visible := true;
       HorzScrollBar^.Visible := false;
-      Content^.SetBounds(rect.X, rect.Y + titleHeight, rect.Width - VertScrollbar^.Size + 1,
-        rect.Height - titleHeight);
     end;
     scHorizontal: begin
       VertScrollBar^.Visible := false;
       HorzScrollBar^.Visible := true;
-      Content^.SetBounds(rect.X, rect.Y + titleHeight, rect.Width, rect.Height - titleHeight
-        - HorzScrollbar^.Size + 1);
     end;
     scBoth: begin
       VertScrollBar^.Visible := true;
       HorzScrollBar^.Visible := true;
-      Content^.SetBounds(rect.X, rect.Y + titleHeight, rect.Width - VertScrollbar^.Size + 1,
-        rect.Height - titleHeight - HorzScrollbar^.Size + 1);
     end;
     scAsNeeded: begin
     end;
@@ -477,36 +506,6 @@ begin
   if VertScrollbar^.Visible then
     Dec(barWidth, VertScrollbar^.Size);
   HorzScrollBar^.SetBounds(1, Height - barHeight, barWidth, barHeight);
-end;
-
-procedure TViewContent.Init;
-begin
-  inherited Init;
-  BorderStyle := bsNone;
-  DrawBackground := false;
-end;
-
-procedure TViewContent.MouseDown(var AEvent: TMouseEvent);
-begin
-  AEvent.Handled := false;
-  PControl(Parent)^.MouseDown(AEvent);
-end;
-
-procedure TViewContent.MouseDblClick(var AEvent: TMouseEvent);
-begin
-  AEvent.Handled := false;
-  PControl(Parent)^.MouseDblClick(AEvent);
-end;
-
-procedure TViewContent.MouseWheelChanged(var AEvent: TMouseEvent);
-begin
-  AEvent.Handled := false;
-  PControl(Parent)^.MouseWheelChanged(AEvent);
-end;
-
-procedure TViewContent.Paint;
-begin
-  inherited Paint;
 end;
 
 procedure TWindow.Init;
@@ -576,10 +575,10 @@ begin
   parentView := PView(Parent);
   CurrentPos := APos;
   parentView^.ScrollY := APos;
-  parentView^.Content^.StartDrawing;
-  parentView^.Content^.GetScreenBounds(rect);
+  parentView^.StartDrawing;
+  parentView^.GetContentScreenBounds(rect);
   parentView^.PaintRegion(rect);
-  parentView^.Content^.EndDrawing;
+  parentView^.EndDrawing;
 
   sizeAdjust := 3 * Size - 3 * BorderWidth;
   if Orientation = soHorizontal then begin
@@ -601,9 +600,9 @@ var
   mouseRect,rect: TRect;
   value: integer;
 begin
-  StartDrawing;
-  Graph^.SetBackColor(BackColor);
   GetScreenBounds(rect);
+  StartDrawingEx(false);
+  Graph^.SetBackColor(BackColor);
   if Orientation = soHorizontal then begin
     value := slider^.X;
     rect.Height := Slider^.X - Size + 1;
@@ -629,8 +628,8 @@ begin
     rect.Height := rect.Height - value - 2 * Size;
     Graph^.FillRect(rect);
   end;
-  EndDrawing;
   Slider^.DrawSelf;
+  EndDrawing;
 end;
 
 procedure TScrollbar.ScrollByPixels(ADelta: integer);

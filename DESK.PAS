@@ -20,6 +20,7 @@ uses
   Actions,
   Controls,
   Colors,
+  Combos,
   Views;
 
 type
@@ -102,6 +103,7 @@ type
     ActiveControl: PControl;
     ActiveMenu: PMenu;
     ActiveView: PView;
+    ActiveDropDown: PDropDownList;
     ActionList: PActionList;
     Colors: PColors;
     destructor Free; virtual;
@@ -180,6 +182,7 @@ begin
   ActiveControl := nil;
   ActiveMenu := nil;
   ActiveView := nil;
+  ActiveDropDown := nil;
   ForeColor := Colors^.Desktop;
   BackColor := Colors^.DesktopBack;
 end;

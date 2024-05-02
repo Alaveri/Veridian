@@ -260,10 +260,10 @@ type
 
   TPanel = object(TControl)
   private
-    procedure SetForeColorEnabled(AColor: byte);
   public
     DrawBackground: boolean;
     DisabledColor: byte;
+    procedure SetForeColorEnabled(AColor: byte);
     procedure Init; virtual;
     procedure Paint; virtual;
     destructor Free; virtual;
@@ -782,7 +782,8 @@ var
   index: integer;
   control: PControl;
   rect: TRect;
-  controlRect: PRect;
+  controlRect: TRect;
+  regionRect: PRect;
   parentRect: TRect;
   region: PRegion;
 begin
@@ -798,16 +799,16 @@ begin
   rect.Intersect(AScreenRect);
   Graph^.State.ViewPort := rect;
   if Controls^.Count > 0 then begin
-    for index := 0 to Controls^.Count - 1 do begin
+    for index := Controls^.Count - 1 downto 0 do begin
       control := Controls^.GetItem(index);
       if not control^.GetVisible then
         continue;
-      controlRect := new(PRect, Create);
-      control^.GetScreenBounds(controlRect^);
-      controlRect^.Intersect(AScreenRect);
-      if not controlRect^.IsEmpty then begin
-        control^.PaintRegion(controlRect^);
-        region^.Add(controlRect);
+      control^.GetScreenBounds(controlRect);
+      controlRect.Intersect(AScreenRect);
+      if not controlRect.IsEmpty then begin
+        control^.PaintRegion(controlRect);
+        regionRect := New(PRect, CreateRect(controlRect));
+        region^.Add(regionRect);
         continue;
       end;
     end;
@@ -853,8 +854,6 @@ var
   index: integer;
   control: PControl;
 begin
-  if Controls^.Count = 0 then
-    exit;
   for index := Controls^.Count - 1 downto 0 do begin
     control := Controls^.GetItem(index);
     control^.Draw;
@@ -892,6 +891,7 @@ begin
     Graph8^.HideMouseCursor;
   Graph^.SetForeColor(ForeColor);
   Graph^.SetBackColor(BackColor);
+  Graph^.State.Font := font;
   Graph^.State.ViewPort := rect;
 end;
 
@@ -920,6 +920,8 @@ var
   index: integer;
   control: PControl;
 begin
+  if Assigned(OnKeyPress) then
+    TKeyEventProc(OnKeyPress)(@self, AEvent);
   if AEvent.Handled then
     exit;
   for index := Controls^.Count - 1 downto 0 do begin
@@ -934,8 +936,6 @@ begin
   end;
   if AEvent.Handled then
     exit;
-  if Assigned(OnKeyPress) then
-    TKeyEventProc(OnKeyPress)(@self, AEvent);
 end;
 
 function TControl.TrueTextWidth(AText: string): integer;

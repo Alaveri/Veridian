@@ -198,7 +198,7 @@ var
   aFile: PFile;
 begin
   list := PListBox(ASender);
-  dialog := PFileDialog(list^.Parent^.Parent);
+  dialog := PFileDialog(list^.Parent);
   item := PListItem(list^.Items^.GetItem(list^.SelectedIndex));
   aFile := PFile(item^.Value);
   dialog^.SelectFile(aFile);
@@ -230,7 +230,7 @@ var
   name: string;
 begin
   list := PListBox(ASender);
-  dialog := PFileDialog(list^.Parent^.Parent);
+  dialog := PFileDialog(list^.Parent);
   aFile := dialog^.CurrentDir^.Files^.GetItem(AEvent.NewIndex);
   name := StrPas(aFile^.Name);
   if faDirectory in aFile^.Attr then
@@ -246,7 +246,7 @@ var
   aFile: PFile;
 begin
   list := PListBox(ASender);
-  dialog := PFileDialog(list^.Parent^.Parent);
+  dialog := PFileDialog(list^.Parent);
   case AEvent.Key of
     kyEnter: begin
       item := PListItem(list^.Items^.GetItem(list^.SelectedIndex));
@@ -265,7 +265,7 @@ var
   result: integer;
 begin
   entry := PEdit(ASender);
-  dialog := PFileDialog(entry^.Parent^.Parent);
+  dialog := PFileDialog(entry^.Parent);
   case AEvent.Key of
     kyEnter: begin
       dialog^.SelectText(dialog^.FileNameEntry^.GetText);
@@ -458,7 +458,7 @@ begin
   fontHeight := Font^.Height + 6;
   if lowRes then
     fontHeight := Font^.Height + 4;
-  Content^.GetBounds(rect);
+  GetClientRect(rect);
   totalWidth := 0;
   bWidth := Font^.TextWidth('Cancel') + 12 * Font^.Spacing;
   bHeight := fontHeight;
@@ -516,14 +516,13 @@ end;
 
 constructor TModalDialogButton.CreateParent(const AId: string; AActionId: integer; AParent: PDialog);
 begin
-  inherited CreateParent(AId, AActionId, AParent^.Content);
+  inherited CreateParent(AId, AActionId, AParent);
   Owner := PDialog(AParent);
   Action := Owner^.ActionList^.GetActionById(AActionId);
 end;
 
 procedure TModalDialogButton.Init;
 begin
-
   inherited Init;
   Font := Desktop^.Font;
   Default := false;
@@ -535,8 +534,6 @@ constructor TFileDialog.Create(const ATitle, AInitialPath: string);
 begin
   InitialPath := FExpand(AInitialPath);
   inherited Create('FileDialog', [mbOk, mbCancel]);
-  X := CenterX;
-  Y := CenterY;
   SetTitle(ATitle);
 end;
 
@@ -723,17 +720,17 @@ begin
   CurrentDir := nil;
   Filename := '';
   DefaultExt := '';
-  FileBox := New(PListBox, CreateParent('FileListBox', Content));
+  FileBox := New(PListBox, CreateParent('FileListBox', @self));
   OnActionExecute := @FileDialogActionExecute;
   FileBox^.OnMouseDblClick := @FileDialogDblClick;
   FileBox^.OnSelectedIndexChanged := @FileDialogIndexChanged;
   FileBox^.OnKeyPress := @FileDialogListKeyPress;
-  FilenameEntry := New(PEdit, CreateParent('FilenameEntry', Content));
+  FilenameEntry := New(PEdit, CreateParent('FilenameEntry', @self));
   FilenameEntry^.ValidChars := ValidDosChars + ['\', ':', #9];
   FilenameEntry^.MaxLength := 255;
   FilenameEntry^.OnKeyPress := @FilenameKeyPress;
   FilenameEntry^.Font := VeridianApp^.Fonts^.GetItemById('System');
-  DirectoryLabel := New(PLabel, CreateText('', InitialPath, Content));
+  DirectoryLabel := New(PLabel, CreateText('', InitialPath, @self));
   DirectoryLabel^.AutoSize := false;
   ReadPath(InitialPath);
 end;
@@ -745,8 +742,14 @@ var
   dirHeight: integer;
   entryHeight, entryWidth: integer;
   margin: integer;
+  xPos: integer;
+  rect: TRect;
 begin
   inherited SetupControls;
+  X := CenterX;
+  Y := CenterY;
+  GetContentBounds(rect);
+
   lowRes := Graph^.Mode^.Width < 640;
   if lowRes then begin
     items := 12;
@@ -760,21 +763,26 @@ begin
     entryHeight := Font^.Height + 6;
     margin := 4;
   end;
+
+  xPos := rect.X + Margin;
   entryWidth := self.Width - 2 * Margin - 2 * BorderWidth;
+
   DirectoryLabel^.SetBounds(
-    margin,
-    0,
+    xPos,
+    rect.Y,
     entryWidth,
     dirHeight);
   DirectoryLabel^.VertAlign := vaCenter;
+
   FileBox^.SetBounds(
-    margin,
-    DirectoryLabel^.Height,
+    xPos,
+    rect.Y + DirectoryLabel^.Height,
     entryWidth,
     items * FileBox^.Font^.Height + 2 * FileBox^.BorderWidth
   );
+
   FilenameEntry^.SetBounds(
-    Margin,
+    xPos,
     FileBox^.Y + FileBox^.Height + Font^.Height div 2,
     entryWidth,
     entryHeight

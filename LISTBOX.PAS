@@ -143,7 +143,7 @@ begin
   ImageList := new(PImageList, Create);
   OnSelectedIndexChanged := nil;
   SelectedIndex := -1;
-  Margin := 3;
+  Margin := VeridianApp^.Scale(0.25);
   UnfocusedSelectForeColor := Desktop^.Colors^.ListUnfocusedSelect;
   UnfocusedSelectBackColor := Desktop^.Colors^.ListUnfocusedSelectBack;
 end;
@@ -188,7 +188,7 @@ var
   cy: integer;
   rect: TRect;
 begin
-  Content^.GetScreenBounds(rect);
+  GetContentScreenBounds(rect);
   cy := rect.Y + AIndex * Font^.Height - ScrollY;
   ARect.CreateDims(rect.X, cy, rect.Width, Font^.Height);
 end;
@@ -204,7 +204,7 @@ begin
   if (AIndex < 0) or (AIndex > Items^.Count - 1) then
     exit;
   Graph^.State.Font := Font;
-  Content^.GetScreenBounds(rect);
+  GetContentScreenBounds(rect);
   item := Items^.GetItem(AIndex);
   GetItemRect(AIndex, itemRect);
   if not itemRect.IntersectsRect(rect) then
@@ -299,7 +299,7 @@ begin
     exit;
   previousindex := SelectedIndex;
   SelectedIndex := index;
-  Content^.GetScreenBounds(rect);
+  GetContentScreenBounds(rect);
   GetItemRect(SelectedIndex, itemRect);
   if itemRect.Y > rect.Bottom then
     ScrollVert(itemRect.Y - rect.Bottom + Font^.Height - 1);
@@ -314,33 +314,39 @@ begin
 end;
 
 procedure TListBox.KeyPress(var AEvent: TKeyEvent);
+var
+  rect: TRect;
 begin
+  inherited KeyPress(AEvent);
+  if AEvent.Handled then
+      exit;
   if not Focused then
     exit;
   AEvent.Handled := true;
+  GetContentScreenBounds(rect);
   case AEvent.Key of
     kyDown: ChangeSelect(1);
     kyUp: ChangeSelect(-1);
-    kyPageDown: ChangeSelect(Content^.Height div Font^.Height - 1);
-    kyPageUp: ChangeSelect(-Content^.Height div Font^.Height + 1);
+    kyPageDown: ChangeSelect(rect.Height div Font^.Height - 1);
+    kyPageUp: ChangeSelect(-rect.Height div Font^.Height + 1);
     kyEnd: ChangeSelect(Items^.Count - 1);
     kyHome: ChangeSelect(-Items^.Count - 1);
     else AEvent.Handled := false;
   end;
-  if not AEvent.Handled then
-    inherited KeyPress(AEvent);
 end;
 
 procedure TListBox.SetupControls;
 var
   max: longint;
+  rect: TRect;
 begin
   inherited SetupControls;
+  GetContentBounds(rect);
   VertScrollbar^.Increment := Font^.Height;
-  VertScrollbar^.PageIncrement := Round(Content^.Height / Font^.Height) * Font^.Height;
+  VertScrollbar^.PageIncrement := Round(rect.Height / Font^.Height) * Font^.Height;
   max := GetAutoHeight;
-  Dec(max, Content^.Height);
-  VertScrollBar^.Max := max;
+  Dec(max, rect.Height);
+  VertScrollBar^.Max := Common.Max(0, max);
 end;
 
 procedure TListBox.Clear;
@@ -371,8 +377,8 @@ begin
   for index := 0 to Items^.Count - 1 do
     PaintItem(index);
   Graph^.SetBackColor(BackColor);
-  Content^.GetScreenBounds(rect);
-  if Items^.Count * Font^.Height < Content^.Height then begin
+  GetContentScreenBounds(rect);
+  if Items^.Count * Font^.Height < rect.Height then begin
     yPos := rect.Y + Items^.Count * Font^.Height;
     rect.CreateDims(rect.X, yPos, rect.Width, rect.Bottom - yPos);
     Graph^.FillRect(rect);

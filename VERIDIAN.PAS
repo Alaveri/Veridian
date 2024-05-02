@@ -585,7 +585,7 @@ end;
 procedure TVeridianApp.HandleMouseDown(AControl: PControl; var AEvent: TMouseEvent; AButton: TButtonState);
 var
   rect: TRect;
-  intersectsMenu: boolean;
+  intersects: boolean;
   parentItem: PMenuItem;
 begin
   if not (AButton in AEvent.NewMouseState.ButtonState) then
@@ -593,15 +593,23 @@ begin
   if AButton in AEvent.OldMouseState.ButtonState then
     exit;
 
+  if Assigned(Desktop^.ActiveDropDown) then begin
+    Desktop^.ActiveDropDown^.GetScreenBounds(rect);
+    intersects := rect.IntersectsCoords(AEvent.NewMouseState.X, AEvent.NewMouseState.Y);
+    if not intersects then begin
+      Desktop^.ActiveDropDown^.HideList;
+      Desktop^.ActiveDropDown := nil;
+    end;
+  end;
   if Assigned(Desktop^.ActiveMenu) then begin
     Desktop^.ActiveMenu^.GetScreenBounds(rect);
-    intersectsMenu := rect.IntersectsCoords(AEvent.NewMouseState.X, AEvent.NewMouseState.Y);
+    intersects := rect.IntersectsCoords(AEvent.NewMouseState.X, AEvent.NewMouseState.Y);
     parentItem := Desktop^.ActiveMenu^.ParentItem;
     if Assigned(parentItem) then begin
       parentItem^.GetScreenBounds(rect);
-      intersectsMenu := intersectsMenu or rect.IntersectsCoords(AEvent.NewMouseState.X, AEvent.NewMouseState.Y)
+      intersects := intersects or rect.IntersectsCoords(AEvent.NewMouseState.X, AEvent.NewMouseState.Y)
     end;
-    if not intersectsMenu then begin
+    if not intersects then begin
       Desktop^.DeactivateCurrentMenu;
       PopState;
       if State.CursorOn then
@@ -676,19 +684,19 @@ var
   index: integer;
   action: PAction;
 begin
-  if Desktop^.ActionList^.Count = 0 then
-    exit;
   if AEvent.Handled then
     exit;
   if AEvent.Key = kyTab then begin
     if (not Assigned(Desktop^.ActiveControl)) or (not Desktop^.ActiveControl^.AcceptTab) then begin
       FocusNext;
+      AControl^.KeyPress(AEvent);
       exit;
     end;
   end;
   if AEvent.Key = kyShiftTab then begin
     if (not Assigned(Desktop^.ActiveControl)) or (not Desktop^.ActiveControl^.AcceptTab) then begin
       FocusPrevious;
+      AControl^.KeyPress(AEvent);
       exit;
     end;
   end;
