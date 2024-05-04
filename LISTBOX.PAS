@@ -18,11 +18,14 @@ type
   PListItems = ^TListItems;
   PIndexChangedProc = ^TIndexChangedProc;
 
+  TIndexChangeTrigger = (ctMouse, ctKeyboard);
+
   TIndexChangedEvent = object(TEvent)
   private
   public
     OldIndex: integer;
     NewIndex: integer;
+    Trigger: TIndexChangeTrigger;
   end;
 
   TIndexChangedProc = procedure(ASender: PObject; var AEvent: TIndexChangedEvent);
@@ -282,6 +285,7 @@ begin
     event.Create;
     event.NewIndex := SelectedIndex;
     event.OldIndex := previousIndex;
+    event.Trigger := ctMouse;
     SelectedIndexChanged(event);
   end;
   inherited MouseDown(AEvent);
@@ -310,6 +314,7 @@ begin
   event.Create;
   event.NewIndex := SelectedIndex;
   event.OldIndex := previousIndex;
+  event.Trigger := ctKeyboard;
   SelectedIndexChanged(event);
 end;
 
@@ -317,9 +322,8 @@ procedure TListBox.KeyPress(var AEvent: TKeyEvent);
 var
   rect: TRect;
 begin
-  inherited KeyPress(AEvent);
-  if AEvent.Handled then
-      exit;
+  if not GetEnabled or not GetVisible then
+    exit;
   if not Focused then
     exit;
   AEvent.Handled := true;
@@ -333,6 +337,8 @@ begin
     kyHome: ChangeSelect(-Items^.Count - 1);
     else AEvent.Handled := false;
   end;
+  if not AEvent.Handled then
+    inherited KeyPress(AEvent);
 end;
 
 procedure TListBox.SetupControls;

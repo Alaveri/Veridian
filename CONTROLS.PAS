@@ -920,8 +920,6 @@ var
   index: integer;
   control: PControl;
 begin
-  if Assigned(OnKeyPress) then
-    TKeyEventProc(OnKeyPress)(@self, AEvent);
   if AEvent.Handled then
     exit;
   for index := Controls^.Count - 1 downto 0 do begin
@@ -934,8 +932,8 @@ begin
       continue;
     control^.KeyPress(AEvent);
   end;
-  if AEvent.Handled then
-    exit;
+  if Assigned(OnKeyPress) then
+    TKeyEventProc(OnKeyPress)(@self, AEvent);
 end;
 
 function TControl.TrueTextWidth(AText: string): integer;

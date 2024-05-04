@@ -501,7 +501,6 @@ begin
         VeridianApp^.HandleActionExecute(button, button^.Action);
     end;
   end;
-  AEvent.Handled := true;
 end;
 
 destructor TDialog.Free;
@@ -644,6 +643,7 @@ begin
       txt := GetCurrentDirectory;
       ReadPath(IncludeBackslash(txt) + CurrentDir^.Filter);
       FilenameEntry^.SetText('');
+      FilenameEntry^.Draw;
     end else begin
       if (doFileMustExist in Options) and not FileExists(txt) then
         exit;

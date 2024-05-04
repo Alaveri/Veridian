@@ -669,6 +669,7 @@ begin
   if ALength = 0 then begin
     FBuffer.FreeData;
     Length := 0;
+    MoveEnd;
     exit;
   end;
   if CheckSize(ALength + 1) = 0 then

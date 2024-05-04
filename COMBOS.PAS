@@ -44,6 +44,7 @@ uses
   MouseDrv,
   Desk,
   Strings,
+  StrUtils,
   GraphDrv;
 
 procedure SelectedIndexChanged(ASender: PObject; var AEvent: TIndexChangedEvent); far;
@@ -52,11 +53,15 @@ var
   dropDown: PDropDownList;
   item: PListItem;
 begin
+  if AEvent.Trigger = ctKeyboard then
+    exit;
   list := PListBox(ASender);
   item := list^.Items^.GetItem(AEvent.NewIndex);
   dropDown := PDropDownList(list^.Parent);
+  Graph8^.HideMouseCursor;
   dropDown^.HideList;
   dropDown^.SetText(StrPas(item^.Text));
+  Graph8^.ShowMouseCursor;
 end;
 
 procedure ButtonMouseDown(ASender: PObject; var AEvent: TMouseEvent); far;
@@ -81,40 +86,42 @@ var
 begin
   self := PListBox(ASender);
   dropDown := PDropDownList(self^.Parent);
-  if not self^.GetVisible then begin
-    case AEvent.Key of
-      kyEsc: begin
-        AEvent.Handled := true;
-        dropDown^.HideList;
-      end;
-      kyTab: begin
-        AEvent.Handled := true;
-        dropDown^.HideList;
-        VeridianApp^.FocusNext;
-      end;
-      kyShiftTab: begin
-        AEvent.Handled := true;
-        dropDown^.HideList;
-        VeridianApp^.FocusPrevious;
-      end;
+  case AEvent.Key of
+    kyEnter: begin
+      Graph8^.HideMouseCursor;
+      dropDown^.HideList;
+      dropDown^.SetText(StrPas(self^.Items^.GetItem(self^.SelectedIndex)^.Text));
+      Graph8^.ShowMouseCursor;
     end;
-  end
-  else begin
+    kyTab: begin
+      AEvent.Handled := true;
+      dropDown^.HideList;
+      VeridianApp^.FocusNext;
+    end;
+    kyShiftTab: begin
+      AEvent.Handled := true;
+      dropDown^.HideList;
+      VeridianApp^.FocusPrevious;
+      end;
   end;
 end;
 
 procedure TDropDownList.KeyPress(var AEvent: TKeyEvent);
 begin
-  case AEvent.Key of
-    kyDown: begin
-      if FList^.GetVisible then begin
-        AEvent.Handled := true;
-        ShowList;
-        exit;
+  if CanFocus and Focused then begin
+    case AEvent.Key of
+      kyDown, kyEnter: begin
+        if not FList^.GetVisible then begin
+          AEvent.Handled := true;
+          UnFocus;
+          ShowList;
+          exit;
+        end;
       end;
     end;
   end;
-  inherited KeyPress(AEvent);
+ if not AEvent.Handled then
+    inherited KeyPress(AEvent);
 end;
 
 procedure TDropDownList.Paint;
@@ -155,6 +162,7 @@ begin
     exit;
   Inc(Height, FList^.Height);
   Desktop^.ActiveDropDown := @self;
+  Desktop^.ActiveControl := nil;
   FList^.Visible := true;
   FList^.SetFocus(true, true);
 end;

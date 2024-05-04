@@ -683,6 +683,8 @@ procedure TVeridianApp.ProcessKeyEvents(AControl: PControl; var AEvent: TKeyEven
 var
   index: integer;
   action: PAction;
+  intersects: boolean;
+  rect: TRect;
 begin
   if AEvent.Handled then
     exit;
@@ -690,6 +692,7 @@ begin
     if (not Assigned(Desktop^.ActiveControl)) or (not Desktop^.ActiveControl^.AcceptTab) then begin
       FocusNext;
       AControl^.KeyPress(AEvent);
+      AEvent.Handled := true;
       exit;
     end;
   end;
@@ -697,8 +700,18 @@ begin
     if (not Assigned(Desktop^.ActiveControl)) or (not Desktop^.ActiveControl^.AcceptTab) then begin
       FocusPrevious;
       AControl^.KeyPress(AEvent);
+      AEvent.Handled := true;
       exit;
     end;
+  end;
+  if (AEvent.Key = kyEsc) and Assigned(Desktop^.ActiveDropDown) then begin
+    Desktop^.ActiveDropDown^.GetScreenBounds(rect);
+    Graph8^.HideMouseCursor;
+    Desktop^.ActiveDropDown^.HideList;
+    Graph8^.ShowMouseCursor;
+    Desktop^.ActiveDropDown := nil;
+    AEvent.Handled := true;
+    exit;
   end;
   for index := 0 to Desktop^.ActionList^.Count - 1 do begin
     action := Desktop^.ActionList^.GetItem(index);
