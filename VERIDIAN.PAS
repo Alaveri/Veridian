@@ -9,14 +9,12 @@ uses
   Lists,
   DateTime,
   Drawing,
-  Objects,
-
+  AplObj,
   GrDrv8,
   GraphDrv,
   GraphIni,
   MouseDrv,
   KeyDrv,
-
   Controls,
   Actions,
   Desk;

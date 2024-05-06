@@ -4,15 +4,14 @@ unit Views;
 interface
 
 uses
-  Objects,
+  AplObj,
+  AplTypes,
   Lists,
   Errors,
   GraphApp,
   Drawing,
   Common,
-
   MouseDrv,
-
   Controls;
 
 const

@@ -4,7 +4,8 @@ unit Editors;
 interface
 
 uses
-  Objects,
+  AplObj,
+  AplTypes,
   Lists,
   Drawing,
   Common,

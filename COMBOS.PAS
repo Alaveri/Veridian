@@ -4,7 +4,8 @@ unit Combos;
 interface
 
 uses
-  Objects,
+  AplTypes,
+  AplObj,
   Lists,
   ListBox,
   Drawing,

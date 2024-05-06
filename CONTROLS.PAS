@@ -7,7 +7,8 @@ uses
   {$IFDEF DOS}
   Strings,
   {$ENDIF}
-  Objects,
+  AplObj,
+  AplTypes,
   Lists,
   AplConst,
   Drawing,

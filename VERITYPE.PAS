@@ -3,7 +3,7 @@ unit VeriType;
 interface
 
 uses
-  Objects;
+  AplObj;
 
 type
   TEvent = object(TObject)

@@ -4,7 +4,8 @@ unit Tables;
 interface
 
 uses
-  Objects,
+  AplObj,
+  AplTypes,
   Lists,
   {$IFDEF DOS}
   Strings,

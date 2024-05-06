@@ -4,7 +4,8 @@ interface
 
 uses
   Drawing,
-  Objects,
+  AplObj,
+  AplTypes,
   Lists;
 
 type

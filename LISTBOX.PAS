@@ -4,7 +4,8 @@ unit ListBox;
 interface
 
 uses
-  Objects,
+  AplTypes,
+  AplObj,
   Drawing,
   Images,
   Lists,

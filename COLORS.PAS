@@ -4,7 +4,7 @@ unit Colors;
 interface
 
 uses
-  Objects;
+  AplObj;
 
 type
   PColors = ^TColors;

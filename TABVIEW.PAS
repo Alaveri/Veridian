@@ -4,7 +4,8 @@ unit TabView;
 interface
 
 uses
-  Objects,
+  AplObj,
+  AplTypes,
   Drawing,
   Controls,
   VeriType,

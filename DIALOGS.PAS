@@ -7,7 +7,7 @@ uses
   {$IFDEF DOS}
   Dos,
   {$ENDIF}
-  Objects,
+  AplObj,
   AplTypes,
   Lists,
   Files,
