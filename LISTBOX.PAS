@@ -51,10 +51,7 @@ type
     Owner: PListBox;
     constructor Create(AOwner: PListBox);
     function GetItem(AIndex: integer): PListItem;
-    function IndexOf(AItem: PListItem): integer;
-    function AddItem(AItem: PListItem): integer;
-    function Add(const AText: string; AValue: pointer): integer;
-    procedure Insert(AIndex: integer; AItem: PListItem);
+    function AddItem(const AText: string; AValue: pointer): integer;
   end;
 
   TListBox = object(TView)
@@ -403,29 +400,14 @@ begin
   GetItem := PListItem(inherited GetItem(AIndex));
 end;
 
-function TListItems.IndexOf(AItem: PListItem): integer;
-begin
-  IndexOf := inherited IndexOf(AItem);
-end;
-
-function TListItems.Add(const AText: string; AValue: pointer): integer;
+function TListItems.AddItem(const AText: string; AValue: pointer): integer;
 var
   item: PListItem;
 begin
   item := New(PListItem, Create);
   item^.Text := TString.New(AText);
   item^.Value := AValue;
-  Add := inherited Add(item);
-end;
-
-function TListItems.AddItem(AItem: PListItem): integer;
-begin
-  AddItem := inherited Add(AItem);
-end;
-
-procedure TListItems.Insert(AIndex: integer; AItem: PListItem);
-begin
-  inherited Insert(AIndex, AItem);
+  AddItem := inherited Add(item);
 end;
 
 end.

@@ -672,7 +672,7 @@ begin
     afilename := StrPas(afile^.Name);
     if faDirectory in aFile^.Attr then
       afilename := '<' + afilename + '>';
-    FileBox^.Items^.Add(afilename, aFile);
+    FileBox^.Items^.AddItem(afilename, aFile);
   end;
 end;
 

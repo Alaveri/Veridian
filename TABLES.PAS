@@ -72,11 +72,7 @@ type
   public
     procedure Init; virtual;
     destructor Free; virtual;
-    function Add(AItem: PTableColumn): integer;
     function GetItem(AIndex: integer): PTableColumn;
-    function SetItem(AIndex: integer; AItem: PTableColumn): boolean;
-    function IndexOf(AItem: PTableColumn): integer;
-    procedure Insert(AIndex: integer; AItem: PTableColumn);
   end;
 
 implementation
@@ -243,29 +239,9 @@ begin
   inherited Free;
 end;
 
-function TTableColumnList.Add(AItem: PTableColumn): integer;
-begin
-  Add := inherited Add(AItem);
-end;
-
 function TTableColumnList.GetItem(AIndex: integer): PTableColumn;
 begin
   GetItem := PTableColumn(inherited GetItem(AIndex));
-end;
-
-function TTableColumnList.SetItem(AIndex: integer; AItem: PTableColumn): boolean;
-begin
-  SetItem := inherited SetItem(AIndex, AItem);
-end;
-
-function TTableColumnList.IndexOf(AItem: PTableColumn): integer;
-begin
-  IndexOf := inherited IndexOf(AItem);
-end;
-
-procedure TTableColumnList.Insert(AIndex: integer; AItem: PTableColumn);
-begin
-  inherited Insert(AIndex, AItem);
 end;
 
 end.

@@ -59,11 +59,7 @@ type
   TTabList = object(TObjectList)
   private
   public
-    function IndexOf(AItem: PTab): integer;
-    function Add(AItem: PTab): integer;
     function GetItem(AIndex: integer): PTab;
-    function SetItem(AIndex: integer; AItem: PTab): boolean;
-    procedure Insert(AIndex: integer; AItem: PTab);
   end;
 
   TTabClosedEvent = object(TEvent)
@@ -323,10 +319,6 @@ procedure TTab.Init;
 begin
   inherited Init;
   Data := nil;
-  with Button^ do begin
-    ForeColor := Desktop^.Colors^.Tab;
-    BackColor := Desktop^.Colors^.TabBack;
-  end;
   ForeColor := Desktop^.Colors^.Tab;
   BackColor := Desktop^.Colors^.TabBack;
   Content := New(PPanel, CreateParent('Content', @self));
@@ -620,29 +612,9 @@ begin
   end;
 end;
 
-function TTabList.IndexOf(AItem: PTab): integer;
-begin
-  IndexOf := inherited IndexOf(AItem);
-end;
-
-function TTabList.Add(AItem: PTab): integer;
-begin
-  Add := inherited Add(AItem);
-end;
-
 function TTabList.GetItem(AIndex: integer): PTab;
 begin
   GetItem := PTab(inherited GetItem(AIndex));
-end;
-
-function TTabList.SetItem(AIndex: integer; AItem: PTab): boolean;
-begin
-  SetItem := inherited SetItem(AIndex, AItem);
-end;
-
-procedure TTabList.Insert(AIndex: integer; AItem: PTab);
-begin
-  inherited Insert(AIndex, AItem);
 end;
 
 procedure TTabClosingEvent.Init;

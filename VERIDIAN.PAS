@@ -271,6 +271,7 @@ begin
     EditorFont := font;
     font := LoadFont('symbol.fnt');
     SymbolFont := font;
+    LoadFont('seattle.fnt');
   end;
 end;
 

@@ -221,7 +221,6 @@ type
     function GetVisible: boolean; virtual;
     function GetEnabled: boolean; virtual;
     function GetModal: boolean; virtual;
-    function AddControl(AControl: PControl): PControl; virtual;
     function GetCursorForeColor: byte; virtual;
     function GetCursorBackColor: byte; virtual;
   end;
@@ -231,13 +230,11 @@ type
   public
     Parent: PControl;
     constructor CreateParent(AParent: PControl);
-    function ToString: string; virtual;
     function GetItemById(AId: string): PControl;
     function GetItem(AIndex: integer): PControl;
-    function IndexOf(AItem: PControl): integer;
-    function Add(AItem: PControl): integer;
+    function Add(AItem: pointer): integer; virtual;
+    procedure Insert(AIndex: integer; AItem: pointer); virtual;
     procedure Init; virtual;
-    procedure Insert(AIndex: integer; AItem: PControl);
     procedure Remove(AControl: PControl);
   end;
 
@@ -246,10 +243,7 @@ type
     function ToString: string; virtual;
     function GetItem(AIndex: integer): PButton;
     function GetItemById(AId: string): PButton;
-    function IndexOf(AItem: PButton): integer;
-    function Add(AItem: PButton): integer;
     procedure Init; virtual;
-    procedure Insert(AIndex: integer; AItem: PButton);
   end;
 
   THorzSeparator = object(TControl)
@@ -373,33 +367,21 @@ begin
   Parent := nil;
 end;
 
-function TControlList.ToString: string;
-begin
-  ToString := 'TControlList';
-end;
-
 function TControlList.GetItem(AIndex: integer): PControl;
 begin
   GetItem := PControl(inherited GetItem(AIndex));
 end;
 
-function TControlList.IndexOf(AItem: PControl): integer;
+procedure TControlList.Insert(AIndex: integer; AItem: pointer);
 begin
-  IndexOf := inherited IndexOf(AItem);
-end;
-
-function TControlList.Add(AItem: PControl): integer;
-begin
-  Add := inherited Add(AItem);
-  AItem^.Parent := Parent;
-end;
-
-procedure TControlList.Insert(AIndex: integer; AItem: PControl);
-begin
-  if not Assigned(AItem) then
-    exit;
   inherited Insert(AIndex, AItem);
-  AItem^.Parent := Parent;
+  PControl(AItem)^.Parent := Parent;
+end;
+
+function TControlList.Add(AItem: pointer): integer;
+begin
+  inherited Add(AItem);
+  PControl(AItem)^.Parent := Parent;
 end;
 
 function TControlList.GetItemById(AId: string): PControl;
@@ -512,11 +494,6 @@ end;
 procedure TControl.GetCursorRect(var ARect: TRect);
 begin
   ARect.Create;
-end;
-
-function TControl.AddControl(AControl: PControl): PControl;
-begin
-  Controls^.Add(AControl);
 end;
 
 procedure TControl.MouseWheelChanged(var AEvent: TMouseEvent);
@@ -1323,24 +1300,9 @@ begin
   GetItemById := PButton(inherited GetItemById(AId));
 end;
 
-function TButtonList.IndexOf(AItem: PButton): integer;
-begin
-  IndexOf := inherited IndexOf(AItem);
-end;
-
-function TButtonList.Add(AItem: PButton): integer;
-begin
-  Add := inherited Add(AItem);
-end;
-
 procedure TButtonList.Init;
 begin
   inherited Init;
-end;
-
-procedure TButtonList.Insert(AIndex: integer; AItem: PButton);
-begin
-  inherited Insert(AIndex, AItem);
 end;
 
 procedure TButton.Paint;
