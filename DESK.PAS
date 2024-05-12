@@ -7,7 +7,8 @@ uses
   {$IFDEF DOS}
   Strings,
   {$ENDIF}
-  Objects,
+  AplObj,
+  AplTypes,
   Lists,
   Drawing,
   Common,
@@ -20,6 +21,7 @@ uses
   Actions,
   Controls,
   Colors,
+  Combos,
   Views;
 
 type
@@ -73,11 +75,11 @@ type
     function NewSeparator: PMenuItem; virtual;
     procedure Activate; virtual;
     procedure Deactivate; virtual;
-    procedure PaintOccludingControls(AControl: PControl); virtual;
     procedure Init; virtual;
     procedure Show; virtual;
     procedure Hide; virtual;
     procedure SetupControls; virtual;
+    procedure Paint; virtual;
     function ParentItem: PMenuItem; virtual;
   end;
 
@@ -102,6 +104,7 @@ type
     ActiveControl: PControl;
     ActiveMenu: PMenu;
     ActiveView: PView;
+    ActiveDropDown: PDropDownList;
     ActionList: PActionList;
     Colors: PColors;
     destructor Free; virtual;
@@ -136,9 +139,9 @@ var
 implementation
 
 uses
+  Veridian,
   GraphApp,
-  GrDrv8,
-  Veridian;
+  GrDrv8;
 
 procedure TDesktop.DeactivateCurrentMenu;
 var
@@ -180,6 +183,7 @@ begin
   ActiveControl := nil;
   ActiveMenu := nil;
   ActiveView := nil;
+  ActiveDropDown := nil;
   ForeColor := Colors^.Desktop;
   BackColor := Colors^.DesktopBack;
 end;
@@ -194,8 +198,6 @@ end;
 procedure TDesktop.Paint;
 begin
   inherited Paint;
-{  Graph8^.SetBackColor(BackColor);
-  Graph8^.FillRect(Graph^.Mode^.Bounds);}
 end;
 
 procedure TDesktop.GetClientRect(var ARect: TRect);
@@ -248,11 +250,13 @@ end;
 
 procedure TMenu.Hide;
 begin
+  Graph^.PushState;
+  if typeof(Parent^) = typeof(TMainMenuItem) then begin
+    Graph^.State.ViewPort.Translate(0, 1);
+     Graph^.State.ViewPort.Grow(0, -1);
+  end;
   inherited Hide;
-end;
-
-procedure TMenu.PaintOccludingControls(AControl: PControl);
-begin
+  Graph^.PopState;
 end;
 
 function TMenu.ParentItem: PMenuItem;
@@ -342,6 +346,17 @@ begin
   BackColor := Desktop^.Colors^.MenuBack;
   BorderStyle := bsSingle;
   ActiveItem := nil;
+end;
+
+procedure TMenu.Paint;
+begin
+  Graph^.PushState;
+  if typeof(Parent^) = typeof(TMainMenuItem) then begin
+    Graph^.State.ViewPort.Translate(0, 1);
+    Graph^.State.ViewPort.Grow(0, -1);
+  end;
+  inherited Paint;
+  Graph^.PopState;
 end;
 
 function TMenu.NewMenuItem(AId: string; AActionId: integer): PMenuItem;
@@ -486,7 +501,8 @@ var
 begin
   if not (GetEnabled and GetVisible) then
     exit;
-  ActivateMenu;
+  if Assigned(Menu) then
+    ActivateMenu;
 end;
 
 procedure TMenuItem.MouseClick(var AEvent: TMouseEvent);
@@ -618,9 +634,10 @@ end;
 procedure TMenuItem.ActivateMenu;
 begin
   Active := true;
-  if Assigned(Menu) then
+  if Assigned(Menu) then begin
     Menu^.Activate;
-  DrawSelf;
+    DrawSelf;
+  end;
 end;
 
 procedure TMenuItem.DeactivateMenu;
@@ -631,7 +648,6 @@ begin
   Active := false;
   if Assigned(Menu) then
    Menu^.Deactivate;
-  DrawSelf;
 end;
 
 procedure TMenuBar.KeyPress(var AEvent: TKeyEvent);

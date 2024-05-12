@@ -4,11 +4,9 @@ unit FontEdit;
 interface
 
 uses
-  Objects,
-  Collects,
-  Controls,
+  Lists,
   Common,
-  VeriApp;
+  Veridian;
 
 type
   PCharacterMap = ^TCharacterMap;
@@ -46,7 +44,7 @@ uses
   GraphDrv,
   Drawing,
   Desk,
-  Graph8;
+  GrDrv8;
 
 procedure TFontEditor.Init;
 begin

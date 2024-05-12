@@ -7,7 +7,8 @@ uses
   {$IFDEF DOS}
   Strings,
   {$ENDIF}
-  Objects,
+  AplObj,
+  AplTypes,
   Lists,
   AplConst,
   Drawing,
@@ -120,6 +121,7 @@ type
 
   TControl = object(TIdentifiable)
   private
+    procedure InternalPaintRegion(ARegion: PRegion; AScreenRect: TRect; AExclude: PControl);
   public
     X, Y: integer;
     Width, Height: word;
@@ -178,7 +180,6 @@ type
     procedure DrawSelf; virtual;
     procedure Paint; virtual;
     procedure PaintRegion(AScreenRect: TRect; AExclude: PControl); virtual;
-    procedure PaintOccludingControls(AControl: PControl); virtual;
     {Set bounds relative to parent client rect}
     procedure SetBounds(AX, AY, AWidth, AHeight: integer); virtual;
     {Set bounds rectangle relative to parent client rect}
@@ -221,7 +222,6 @@ type
     function GetVisible: boolean; virtual;
     function GetEnabled: boolean; virtual;
     function GetModal: boolean; virtual;
-    function AddControl(AControl: PControl): PControl; virtual;
     function GetCursorForeColor: byte; virtual;
     function GetCursorBackColor: byte; virtual;
   end;
@@ -231,13 +231,11 @@ type
   public
     Parent: PControl;
     constructor CreateParent(AParent: PControl);
-    function ToString: string; virtual;
     function GetItemById(AId: string): PControl;
     function GetItem(AIndex: integer): PControl;
-    function IndexOf(AItem: PControl): integer;
-    function Add(AItem: PControl): integer;
+    function Add(AItem: pointer): integer; virtual;
+    procedure Insert(AIndex: integer; AItem: pointer); virtual;
     procedure Init; virtual;
-    procedure Insert(AIndex: integer; AItem: PControl);
     procedure Remove(AControl: PControl);
   end;
 
@@ -246,10 +244,7 @@ type
     function ToString: string; virtual;
     function GetItem(AIndex: integer): PButton;
     function GetItemById(AId: string): PButton;
-    function IndexOf(AItem: PButton): integer;
-    function Add(AItem: PButton): integer;
     procedure Init; virtual;
-    procedure Insert(AIndex: integer; AItem: PButton);
   end;
 
   THorzSeparator = object(TControl)
@@ -261,10 +256,10 @@ type
 
   TPanel = object(TControl)
   private
-    procedure SetForeColorEnabled(AColor: byte);
   public
     DrawBackground: boolean;
     DisabledColor: byte;
+    procedure SetForeColorEnabled(AColor: byte);
     procedure Init; virtual;
     procedure Paint; virtual;
     destructor Free; virtual;
@@ -278,8 +273,8 @@ type
     VertAlign: TVertAlign;
     Margin: integer;
     HighlightColor: byte;
-    TextOffsetX: byte;
-    TextOffsetY: byte;
+    TextOffsetX: shortint;
+    TextOffsetY: shortint;
     constructor CreateText(const AId, AText: string; AParent: PControl);
     destructor Free; virtual;
     function GetText: string; virtual;
@@ -347,7 +342,6 @@ type
   TPopUp = object(TPanel)
   private
   public
-    BackRect: TRect;
     destructor Free; virtual;
     procedure Init; virtual;
     procedure Show; virtual;
@@ -374,33 +368,21 @@ begin
   Parent := nil;
 end;
 
-function TControlList.ToString: string;
-begin
-  ToString := 'TControlList';
-end;
-
 function TControlList.GetItem(AIndex: integer): PControl;
 begin
   GetItem := PControl(inherited GetItem(AIndex));
 end;
 
-function TControlList.IndexOf(AItem: PControl): integer;
+procedure TControlList.Insert(AIndex: integer; AItem: pointer);
 begin
-  IndexOf := inherited IndexOf(AItem);
-end;
-
-function TControlList.Add(AItem: PControl): integer;
-begin
-  Add := inherited Add(AItem);
-  AItem^.Parent := Parent;
-end;
-
-procedure TControlList.Insert(AIndex: integer; AItem: PControl);
-begin
-  if not Assigned(AItem) then
-    exit;
   inherited Insert(AIndex, AItem);
-  AItem^.Parent := Parent;
+  PControl(AItem)^.Parent := Parent;
+end;
+
+function TControlList.Add(AItem: pointer): integer;
+begin
+  inherited Add(AItem);
+  PControl(AItem)^.Parent := Parent;
 end;
 
 function TControlList.GetItemById(AId: string): PControl;
@@ -411,11 +393,15 @@ end;
 procedure TControlList.Remove(AControl: PControl);
 var
   index: integer;
+  oldDisposeObjects: boolean;
 begin
   index := IndexOf(AControl);
   if index < 0 then
     exit;
+  oldDisposeObjects := DisposeObjects;
+  DisposeObjects := false;
   Delete(index);
+  DisposeObjects := oldDisposeObjects;
 end;
 
 constructor TControl.Create(const AId: string);
@@ -509,11 +495,6 @@ end;
 procedure TControl.GetCursorRect(var ARect: TRect);
 begin
   ARect.Create;
-end;
-
-function TControl.AddControl(AControl: PControl): PControl;
-begin
-  Controls^.Add(AControl);
 end;
 
 procedure TControl.MouseWheelChanged(var AEvent: TMouseEvent);
@@ -659,30 +640,24 @@ begin
   ARect.Translate(parentRect.X, parentRect.Y);
 end;
 
-procedure TControl.BringToFront;
-var
-  index: integer;
-  last: integer;
+procedure TControl.SendToBack;
 begin
   if (Parent = nil) or (Parent^.Controls^.Count < 2) then
     exit;
-  last := Parent^.Controls^.Count - 1;
-  index := Parent^.Controls^.IndexOf(@self);
-  if index = last then
+  if Parent^.Controls^.IndexOf(@self) = 0 then
     exit;
-  Parent^.Controls^.Swap(index, last);
+  Parent^.Controls^.Remove(@self);
+  Parent^.Controls^.Insert(0, @self);
 end;
 
-procedure TControl.SendToBack;
-var
-  index: integer;
+procedure TControl.BringToFront;
 begin
   if (Parent = nil) or (Parent^.Controls^.Count < 2) then
     exit;
-  index := Parent^.Controls^.IndexOf(@self);
-  if index = 0 then
+  if Parent^.Controls^.IndexOf(@self) = Parent^.Controls^.Count - 1 then
     exit;
-  Parent^.Controls^.Swap(0, index);
+  Parent^.Controls^.Remove(@self);
+  Parent^.Controls^.Add(@self);
 end;
 
 procedure TControl.SetupControls;
@@ -700,10 +675,12 @@ var
   par: PControl;
 begin
   GetVisible := false;
-  if (not Visible) then exit;
+  if not Visible then
+    exit;
   par := Parent;
   while Assigned(par) do begin
-    if (not par^.Visible) then exit;
+    if not par^.Visible then
+      exit;
     par := par^.Parent;
   end;
   GetVisible := true;
@@ -721,10 +698,12 @@ var
   par: PControl;
 begin
   GetEnabled := false;
-  if (not Enabled) then exit;
+  if not Enabled then
+    exit;
   par := Parent;
   while Assigned(par) do begin
-    if (not par^.Enabled) then exit;
+    if not par^.Enabled then
+      exit;
     par := par^.Parent;
   end;
   GetEnabled := true;
@@ -751,6 +730,7 @@ var
   control: PControl;
   rect: TRect;
 begin
+  StartDrawing;
   for index := 0 to Controls^.Count - 1 do begin
     control := Controls^.GetItem(index);
     control^.IsMouseOver := false;
@@ -762,41 +742,13 @@ begin
   Visible := false;
   GetScreenBounds(rect);
   Desktop^.PaintRegion(rect, @self);
+  EndDrawing;
 end;
 
 procedure TControl.Show;
 begin
   Visible := true;
   Draw;
-end;
-
-procedure TControl.PaintOccludingControls(AControl: PControl);
-var
-  rect, drawRect, controlRect: TRect;
-  controlParent: PControl;
-  control: PControl;
-  index, controlIndex: integer;
-begin
-  if not Assigned(AControl) then
-    exit;
-  controlParent := AControl^.Parent;
-  if Assigned(controlParent) then begin
-    controlIndex := controlParent^.Controls^.IndexOf(AControl);
-    if controlIndex >= controlParent^.Controls^.Count - 1 then begin
-      PaintOccludingControls(controlParent^.Parent);
-      exit;
-    end;
-    for index := controlIndex + 1 to controlParent^.Controls^.Count - 1 do begin
-      control := controlParent^.Controls^.GetItem(index);
-      AControl^.GetScreenBounds(rect);
-      control^.GetScreenBounds(controlRect);
-      rect.GetIntersection(controlRect, drawRect);
-      if drawRect.IsEmpty then
-        continue;
-      control^.PaintRegion(drawRect, control);
-    end;
-    PaintOccludingControls(controlParent^.Controls^.GetItem(controlIndex + 1));
-  end;
 end;
 
 procedure TControl.Paint;
@@ -806,30 +758,61 @@ end;
 
 procedure TControl.PaintRegion(AScreenRect: TRect; AExclude: PControl);
 var
+  region: PRegion;
+begin
+  region := New(PRegion, Create);
+  Graph^.State.ViewPort := AScreenRect;
+  InternalPaintRegion(region, AScreenRect, AExclude);
+  FreeAndNil(region);
+end;
+
+procedure TControl.InternalPaintRegion(ARegion: PRegion; AScreenRect: TRect; AExclude: PControl);
+var
   index: integer;
   control: PControl;
-  rect, controlRect: TRect;
+  rect: TRect;
+  controlRect: TRect;
+  regionRect: PRect;
 begin
+  if AExclude = @self then
+    exit;
+  if not GetVisible then
+    exit;
+  GetScreenBounds(rect);
+  if rect.IsEmpty then
+    exit;
   VeridianApp^.PushState;
   VeridianApp^.CursorOff;
-  Graph^.PushState;
-  GetScreenBounds(rect);
   rect.Intersect(AScreenRect);
   Graph^.State.ViewPort := rect;
-  Paint;
+
   if Controls^.Count > 0 then begin
-    for index := 0 to Controls^.Count - 1 do begin
+    for index := Controls^.Count - 1 downto 0 do begin
       control := Controls^.GetItem(index);
+      if control = AExclude then
+        continue;
+      if not control^.GetVisible then
+        continue;
       control^.GetScreenBounds(controlRect);
       controlRect.Intersect(AScreenRect);
-      if (control = AExclude)
-        or controlRect.IsEmpty
-        or (not control^.GetVisible) then
+      if not controlRect.IsEmpty then begin
+        control^.InternalPaintRegion(ARegion, controlRect, @self);
+        regionRect := New(PRect, CreateRect(controlRect));
+        ARegion^.Add(regionRect);
         continue;
-      control^.PaintRegion(controlRect, control);
+      end;
     end;
   end;
-  Graph^.PopState;
+
+  GetScreenBounds(rect);
+  rect.Intersect(AScreenRect);
+  if (ARegion^.Count > 0) and ARegion^.IntersectsRect(rect) then begin
+    Graph^.State.RegionMode := rmExclude;
+    Graph^.State.Region := ARegion;
+    Graph^.State.ViewPort := rect;
+  end;
+  Paint;
+  Graph^.State.Region := nil;
   VeridianApp^.PopState;
 end;
 
@@ -847,7 +830,7 @@ end;
 procedure TControl.Draw;
 begin
   if not VeridianApp^.DrawEnabled then
-    exit;
+   exit;
   if not GetVisible then
     exit;
   StartDrawing;
@@ -861,8 +844,6 @@ var
   index: integer;
   control: PControl;
 begin
-  if Controls^.Count = 0 then
-    exit;
   for index := Controls^.Count - 1 downto 0 do begin
     control := Controls^.GetItem(index);
     control^.Draw;
@@ -876,19 +857,31 @@ end;
 
 procedure TControl.StartDrawingEx(ASetupControls: boolean);
 var
-  rect, mouseRect: TRect;
+  parentRect, rect, mouseRect: TRect;
+  par: PControl;
 begin
   Mouse.PushState;
   Graph^.PushState;
   if ASetupControls then
     SetupControls;
   GetScreenBounds(rect);
+  if Position <> spAbsolute then begin
+    par := Parent;
+    while Assigned(par) do begin
+      if par^.Position = spAbsolute then
+        break;
+      par^.GetScreenBounds(parentRect);
+      rect.Intersect(parentRect);
+      par := par^.Parent;
+    end;
+  end;
   mouseRect.CreateDims(Graph8^.MouseCursor^.X, Graph8^.MouseCursor^.Y,
     Graph8^.MouseCursor^.Width, Graph8^.MouseCursor^.Height);
   if rect.IntersectsRect(mouseRect) then
     Graph8^.HideMouseCursor;
   Graph^.SetForeColor(ForeColor);
   Graph^.SetBackColor(BackColor);
+  Graph^.State.Font := font;
   Graph^.State.ViewPort := rect;
 end;
 
@@ -929,8 +922,6 @@ begin
       continue;
     control^.KeyPress(AEvent);
   end;
-  if AEvent.Handled then
-    exit;
   if Assigned(OnKeyPress) then
     TKeyEventProc(OnKeyPress)(@self, AEvent);
 end;
@@ -1067,6 +1058,7 @@ begin
   if Assigned(Action) then
     VeridianApp^.UpdateActionControl(@self);
   GetScreenBounds(rect);
+  rect.Intersect(Graph^.State.ViewPort);
   TPanel.Paint;
   txt := GetText;
   GetTextAlign(rect, textXPos, textYPos);
@@ -1100,13 +1092,13 @@ begin
     if not Action^.Enabled then
       exit;
   end;
-  GetEnabled := Enabled;
   par := Parent;
   while Assigned(par) do begin
     if not par^.GetEnabled then
       exit;
     par := par^.Parent;
   end;
+  GetEnabled := Enabled;
 end;
 
 function TActionControl.GetShortcut: word;
@@ -1143,6 +1135,8 @@ var
   rect: TRect;
 begin
   inherited Paint;
+  if not GetVisible then
+    exit;
   GetScreenBounds(rect);
   Graph^.SetForeColor(ForeColor);
   Graph^.HLine(rect.X, rect.Y, rect.Width);
@@ -1233,8 +1227,8 @@ begin
   txt := GetText;
   textWidth := TrueTextWidth(txt);
   case TextAlign of
-    taLeft: AXPos := ARect.X + Margin;
-    taRight: AXPos := ARect.X + ARect.Width - textWidth - Margin;
+    taLeft: AXPos := ARect.X + Margin + BorderWidth;
+    taRight: AXPos := ARect.X + ARect.Width - textWidth - Margin - BorderWidth;
     taCenter: AXPos := ARect.X + (ARect.Width - textWidth) div 2 + 1;
   end;
   case VertAlign of
@@ -1318,31 +1312,16 @@ begin
   GetItemById := PButton(inherited GetItemById(AId));
 end;
 
-function TButtonList.IndexOf(AItem: PButton): integer;
-begin
-  IndexOf := inherited IndexOf(AItem);
-end;
-
-function TButtonList.Add(AItem: PButton): integer;
-begin
-  Add := inherited Add(AItem);
-end;
-
 procedure TButtonList.Init;
 begin
   inherited Init;
 end;
 
-procedure TButtonList.Insert(AIndex: integer; AItem: PButton);
-begin
-  inherited Insert(AIndex, AItem);
-end;
-
 procedure TButton.Paint;
 var
   rect: TRect;
-  oldOffsetX: byte;
-  oldOffsetY: byte;
+  oldOffsetX: shortint;
+  oldOffsetY: shortint;
   oldFocusedColor: byte;
 begin
   if not GetVisible then
@@ -1431,14 +1410,7 @@ begin
 end;
 
 procedure TPopUp.Hide;
-var
-  rect: TRect;
 begin
-  StartDrawing;
-  GetScreenBounds(rect);
-  Desktop^.PaintRegion(rect, @self);
-  Visible := false;
-  EndDrawing;
   inherited Hide;
 end;
 
@@ -1456,6 +1428,7 @@ begin
   IsRightMouseDown := bsRight in AEvent.NewMouseState.ButtonState;
   Down := true;
   Draw;
+  inherited MouseDown(AEvent);
 end;
 
 procedure TButton.MouseClick(var AEvent: TMouseEvent);

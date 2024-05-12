@@ -3,7 +3,8 @@ unit Trees;
 interface
 
 uses
-  Objects,
+  AplObj,
+  AplTypes,
   Views,
   Controls;
 

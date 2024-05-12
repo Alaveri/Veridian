@@ -4,7 +4,8 @@ unit Editors;
 interface
 
 uses
-  Objects,
+  AplObj,
+  AplTypes,
   Lists,
   Drawing,
   Common,
@@ -143,16 +144,12 @@ end;
 procedure TEdit.GetCursorRect(var ARect: TRect);
 var
   clipRect: TRect;
-  yPos: integer;
+  xPos, yPos: integer;
 begin
   inherited GetCursorRect(ARect);
   GetScreenBounds(clipRect);
-  case VertAlign of
-    vaTop: yPos := clipRect.Y - 1;
-    vaBottom: yPos := clipRect.Y + clipRect.Height - Font^.Height;
-    vaCenter: yPos := clipRect.Y + (clipRect.Height - Font^.Height) div 2;
-  end;
-  ARect.SetDims(clipRect.X + FCursorX - ScrollPos + Margin, yPos, 1, Font^.Height + 1);
+  GetTextAlign(clipRect, xPos, yPos);
+  ARect.SetDims(xPos + FCursorX - ScrollPos - 1, yPos - 1, 1, Font^.Height + 1);
 end;
 
 function TEdit.GetIndexAt(AX, AY: integer): longint;
@@ -287,7 +284,12 @@ begin
   drawRect.CreateRect(bounds);
 
   Graph^.PushState;
-  buffer := Graph^.BeginDrawBuffer(drawRect, buffer);
+  Graph^.BeginDrawBuffer(buffer, drawRect);
+  if Graph^.HasException then begin
+    Graph^.ClearException;
+    VeridianApp^.Error(@self, ecNotEnoughMemory);
+    exit;
+  end;
   Graph^.State.Font := Font;
   Graph^.SetForeColor(ForeColor);
   Graph^.SetBackColor(BackColor);
@@ -311,7 +313,7 @@ begin
     charWidth := Font^.TextWidth(ch);
     if xPos > drawRect.Right then
       break;
-    charRect.SetDims(xPos, yPos, charWidth, Font^.Height + 1);
+    charRect.SetDims(xPos, yPos - 1, charWidth, Font^.Height + 1);
     charRect.Intersect(Graph^.State.ViewPort);
     if selected and (index >= SelectStart) and (index < SelectEnd) then begin
       Graph^.SetForeColor(SelectForeColor);
@@ -325,10 +327,10 @@ begin
   end;
   Graph^.SetForeColor(BorderColor);
   Graph^.Rectangle(drawRect);
-  Graph^.PopState;
-
-  Graph^.DrawImageRect(bounds, buffer);
   Graph^.EndDrawBuffer;
+  Graph^.PopState;
+  Graph^.DrawImageRect(bounds, buffer);
+  FreeMem(buffer, drawRect.Width * drawRect.Height);
 end;
 
 function TEdit.SetCursorPos(APos: word): boolean;
@@ -466,14 +468,13 @@ end;
 
 procedure TEdit.BackSpace;
 begin
-  if (FCursorPos = 0) or (Length = 0) then
-    exit;
-
   if SelectStart <> SelectEnd then begin
     ClearText;
     SetCursorPos(FCursorPos);
   end
   else begin
+    if (FCursorPos = 0) or (Length = 0) then
+      exit;
     FBuffer.Move(FCursorPos, FCursorPos - 1, Length - FCursorPos);
     Dec(Length);
     FBuffer.SetChar(Length, #0);
@@ -669,6 +670,7 @@ begin
   if ALength = 0 then begin
     FBuffer.FreeData;
     Length := 0;
+    MoveEnd;
     exit;
   end;
   if CheckSize(ALength + 1) = 0 then
