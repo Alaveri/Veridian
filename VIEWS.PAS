@@ -90,7 +90,6 @@ type
     Title: PChar;
     Active: boolean;
     Titlebar: PTitlebar;
-    Closed: boolean;
     ScrollType: TViewScrollType;
     HorzScrollBar: PScrollbar;
     VertScrollBar: PScrollbar;
@@ -100,7 +99,6 @@ type
     procedure Activate;
     procedure Deactivate;
     procedure Init; virtual;
-    procedure Close; virtual;
     procedure Maximize; virtual;
     procedure SetupControls; virtual;
     procedure SetTitle(const ATitle: string);
@@ -157,7 +155,7 @@ begin
     par^.ScrollY := AEvent.CurrentPos;
     par^.StartDrawing;
     par^.GetScreenBounds(rect);
-    par^.PaintRegion(rect);
+    par^.PaintRegion(rect, PScrollBar(ASender));
     par^.EndDrawing;
   end;
 end;
@@ -331,7 +329,6 @@ begin
   Titlebar := New(PTitlebar, CreateParent('Titlebar', @self));
   Titlebar^.ParentView := @self;
   Active := false;
-  Closed := false;
   HorzScrollbar := New(PScrollbar, CreateParent('HorzScrollBar', @self, soHorizontal));
   VertScrollbar := New(PScrollbar, CreateParent('VertScrollBar', @self, soVertical));
   VertScrollBar^.OnCurrentPosChanged := @ViewVertScrollbarChanged;
@@ -341,17 +338,6 @@ begin
   ScrollX := 0;
   ScrollY := 0;
   VeridianApp^.DrawEnabled := oldDrawEnabled;
-end;
-
-procedure TView.Close;
-var
-  rect: TRect;
-begin
-  GetScreenBounds(rect);
-  VeridianApp^.DeactivateActiveControl;
-  if Desktop^.ActiveView = @self then
-    Desktop^.ActiveView^.Deactivate;
-  Closed := true;
 end;
 
 function TView.GetAutoWidth: longint;
@@ -576,7 +562,7 @@ begin
   parentView^.ScrollY := APos;
   parentView^.StartDrawing;
   parentView^.GetContentScreenBounds(rect);
-  parentView^.PaintRegion(rect);
+  parentView^.PaintRegion(rect, @self);
   parentView^.EndDrawing;
 
   sizeAdjust := 3 * Size - 3 * BorderWidth;

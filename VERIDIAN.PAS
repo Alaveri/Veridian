@@ -9,6 +9,7 @@ uses
   Lists,
   DateTime,
   Drawing,
+  Streams,
   AplObj,
   GrDrv8,
   GraphDrv,
@@ -27,8 +28,6 @@ const
   DefaultDoubleClickDelay: double = 1;
   DefaultCursorBlinkRate = 0.4;
   DefaultMouseSensitivity = 2.0;
-
-  MemoryCheckString = 'Memory Check';
 
 type
   PVeridianApp = ^TVeridianApp;
@@ -67,6 +66,8 @@ type
     MouseSensitivity: real;
     procedure Init; virtual;
     procedure Assign(var ASource: TObject); virtual;
+    procedure SaveToStream(AStream: PStream);
+    procedure LoadFromStream(AStream: PStream);
   end;
 
   TVeridianApp = object(TGraphApp)
@@ -166,7 +167,6 @@ uses
   {$ENDIF}
   Common,
   MemDrv,
-  Streams,
   StrUtils,
   Views;
 
@@ -685,6 +685,10 @@ var
   intersects: boolean;
   rect: TRect;
 begin
+  if AEvent.Key = kyAlt0 then begin
+    Close;
+    exit;
+  end;
   if AEvent.Handled then
     exit;
   if AEvent.Key = kyTab then begin
@@ -1003,6 +1007,22 @@ begin
   UpdateScrollContents := source^.UpdateScrollContents;
   DoubleClickDelay.Assign(source^.DoubleClickDelay);
   MouseSensitivity := source^.MouseSensitivity;
+end;
+
+procedure TVeridianAppSettings.SaveToStream(AStream: PStream);
+begin
+  AStream^.WriteDouble(CursorBlinkRate);
+  AStream^.WriteBool(UpdateScrollContents);
+  AStream^.WriteDouble(DoubleClickDelay.Ticks);
+  AStream^.WriteDouble(MouseSensitivity);
+end;
+
+procedure TVeridianAppSettings.LoadFromStream(AStream: PStream);
+begin
+  CursorBlinkRate :=  AStream^.ReadDouble;
+  UpdateScrollContents := AStream^.ReadBool;
+  DoubleClickDelay.CreateTicks(AStream^.ReadDouble);
+  MouseSensitivity := AStream^.ReadReal;
 end;
 
 begin

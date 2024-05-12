@@ -52,8 +52,8 @@ type
     ButtonAlign: TTextAlign;
     DefaultButton: TDialogButton;
     CancelButton: TDialogButton;
-    OnActionExecute: PDialogActionExecuteProc;
     ModalResult: TModalResult;
+    Closed: boolean;
     constructor Create(AId: string; AButtons: TDialogButtons);
     function ShowModal: TModalResult;
     procedure Init; virtual;
@@ -61,6 +61,7 @@ type
     procedure AfterShow; virtual;
     procedure SetupControls; virtual;
     procedure KeyPress(var AEvent: TKeyEvent); virtual;
+    procedure HandleActionExecute(var AAction: PAction); virtual;
     procedure Close; virtual;
     destructor Free; virtual;
   end;
@@ -89,8 +90,8 @@ type
     LastDir: string;
     procedure PopulateFileBox(const APath: string);
     procedure ReadPath(const APath: string);
-    procedure Ok;
     procedure Cancel;
+    procedure CloseDialog(AModalResult: TModalResult; AFilename: string);
   public
     FileBox: PListBox;
     FilenameEntry: PEdit;
@@ -102,7 +103,8 @@ type
     constructor Create(const ATitle, AInitialPath: string);
     constructor CreateOptions(const ATitle, AInitialPath: string; AOptions: TFileDialogOptions);
     procedure SelectFile(AFile: PFile); virtual;
-    procedure SelectText(const AFilename: string); virtual;
+    procedure SelectText(AFilename: string); virtual;
+    procedure HandleActionExecute(var AAction: PAction); virtual;
     procedure SetupControls; virtual;
     procedure BeforeShow; virtual;
     procedure AfterShow; virtual;
@@ -115,12 +117,17 @@ type
     FLabel: PLabel;
   public
     Message: string;
-    constructor Create(const ATitle, AMessage: string);
+    constructor Create(const ATitle, AMessage: string; AButtons: TDialogButtons);
     procedure Init; virtual;
     procedure SetupControls; virtual;
   end;
 
 procedure ShowMessage(const ATitle, AMessage: string); far;
+function MessageBox(
+  const ATitle, AMessage: string;
+  AButtons: TDialogButtons;
+  ADefault: TDialogButton;
+  ACancel: TDialogButton): TModalResult; far;
 
 implementation
 
@@ -178,16 +185,9 @@ const
 procedure DialogButtonActionExecute(ASender: PObject; AAction: PAction); far;
 var
   dialog: PDialog;
-  result: TModalResult;
 begin
   dialog := PDialog(AAction^.Owner);
-  result := AAction^.ModalResult;
-  if Assigned(dialog^.OnActionExecute) then
-    TDialogActionExecuteProc(dialog^.OnActionExecute)(dialog, result);
-  if result = mrNone then
-    exit;
-  dialog^.ModalResult := result;
-  dialog^.Close;
+  dialog^.HandleActionExecute(AAction);
 end;
 
 procedure FileDialogDblClick(ASender: PObject; var AEvent: TMouseEvent); far;
@@ -204,23 +204,6 @@ begin
   dialog^.SelectFile(aFile);
 end;
 
-procedure FileDialogActionExecute(ASender: PObject; var AModalResult: TModalResult); far;
-var
-  dialog: PFileDialog;
-  item: PListItem;
-  list: PListBox;
-  aFile: PFile;
-begin
-  dialog := PFileDialog(ASender);
-  list := PListBox(dialog^.FileBox);
-  if AModalResult = mrOk then begin
-    item := PListItem(list^.Items^.GetItem(list^.SelectedIndex));
-    aFile := PFile(item^.Value);
-    dialog^.SelectText(dialog^.FileNameEntry^.GetText);
-    AModalResult := mrNone;
-  end;
-end;
-
 procedure FileDialogIndexChanged(ASender: PObject; var AEvent: TIndexChangedEvent); far;
 var
   list: PListBox;
@@ -235,7 +218,7 @@ begin
   name := StrPas(aFile^.Name);
   if faDirectory in aFile^.Attr then
     name := IncludeBackslash(name);
-  dialog^.FilenameEntry^.SetText(name);
+  dialog^.FilenameEntry^.SetText(FirstUpper(name));
 end;
 
 procedure FileDialogListKeyPress(ASender: PObject; var AEvent: TKeyEvent); far;
@@ -281,8 +264,23 @@ procedure ShowMessage(const ATitle, AMessage: string);
 var
   dialog: PShowMessageDialog;
 begin
-  dialog := New(PShowMessageDialog, Create(ATitle, AMessage));
+  dialog := New(PShowMessageDialog, Create(ATitle, AMessage, [mbOk]));
   dialog^.ShowModal;
+  FreeAndNil(dialog);
+end;
+
+function MessageBox(
+  const ATitle, AMessage: string;
+  AButtons: TDialogButtons;
+  ADefault: TDialogButton;
+  ACancel: TDialogButton): TModalResult;
+var
+  dialog: PShowMessageDialog;
+begin
+  dialog := New(PShowMessageDialog, Create(ATitle, AMessage, AButtons));
+  dialog^.DefaultButton := ADefault;
+  dialog^.CancelButton := ACancel;
+  MessageBox := dialog^.ShowModal;
   FreeAndNil(dialog);
 end;
 
@@ -313,6 +311,17 @@ end;
 
 procedure TDialog.AfterShow;
 begin
+end;
+
+procedure TDialog.HandleActionExecute(var AAction: PAction);
+var
+  result: TModalResult;
+begin
+  result := AAction^.ModalResult;
+  if result = mrNone then
+    exit;
+  ModalResult := result;
+  Close;
 end;
 
 procedure TDialog.CreateButtons;
@@ -352,6 +361,7 @@ end;
 procedure TDialog.Init;
 begin
   inherited Init;
+  Closed := false;
   ActionList := New(PActionList, Create);
   Font := Desktop^.Font;
   CanFocus := false;
@@ -361,11 +371,9 @@ begin
   BorderStyle := bsSingle;
   Modal := true;
   Closed := false;
-  Font := Desktop^.Font;
   ButtonAlign := taCenter;
   FDialogButtons := New(PButtonList, Create);
   FDialogButtons^.DisposeObjects := false;
-  OnActionExecute := nil;
   ModalResult := mrNone;
   CancelButton := mbNone;
   DefaultButton := mbNone;
@@ -375,7 +383,7 @@ end;
 
 procedure TDialog.Close;
 begin
-  inherited Close;
+  Closed := true;
 end;
 
 function TDialog.ShowModal: TModalResult;
@@ -435,10 +443,12 @@ begin
     oldActiveControl^.Focus;
   Desktop^.ActionList := desktopActions;
   GetScreenBounds(rect);
-  Desktop^.Controls^.Remove(@self);
   Desktop^.StartDrawing;
-  Desktop^.PaintRegion(rect);
+  GetScreenBounds(rect);
+  Graph^.State.ViewPort.Assign(rect);
+  Desktop^.PaintRegion(rect, @self);
   Desktop^.EndDrawing;
+  Desktop^.Controls^.Remove(@self);;
   ShowModal := ModalResult;
 end;
 
@@ -490,22 +500,26 @@ begin
   if AEvent.Handled then
     exit;
   for index := 0 to FDialogButtons^.Count - 1 do begin
+    if AEvent.Handled then
+      exit;
     button := PModalDialogButton(FDialogButtons^.GetItem(index));
     if not Assigned(button^.Action) then
       continue;
     if ((AEvent.Key = kyEsc) and button^.Cancel) then begin
+      AEvent.Handled := true;
       VeridianApp^.HandleActionExecute(button, button^.Action);
     end;
-    if AEvent.Key = kyEnter then begin
-      if Desktop^.ActiveControl = PControl(button) then
+    if AEvent.Key = kyEnter  then begin
+      if Desktop^.ActiveControl = PControl(button) then begin
+        AEvent.Handled := true;
         VeridianApp^.HandleActionExecute(button, button^.Action);
+      end;
     end;
   end;
 end;
 
 destructor TDialog.Free;
 begin
-  Hide;
   FreeAndNil(ActionList);
   FreeAndNil(FDialogButtons);
   if Assigned(Parent) then
@@ -542,37 +556,56 @@ begin
   Options := AOptions;
 end;
 
-procedure TFileDialog.Ok;
+procedure TFileDialog.CloseDialog(AModalResult: TModalResult; AFilename: string);
 var
-  txt: string;
-  aFile: File;
-  attributes: word;
-  error: integer;
+  result: TModalResult;
+  path: PathStr;
+  name: NameStr;
+  ext: NameStr;
+  exists: boolean;
 begin
-  txt := Trim(FilenameEntry^.GetText);
-  if txt = '' then
+  result := AModalResult;
+  exists := true;
+  if not FileExists(AFilename) then begin
+    exists := false;
+    FSplit(CurrentDir^.Filter, path, name, ext);
+    if not HasWildCard(ext) then begin
+      AFilename := AFilename + ext;
+      if FileExists(AFilename) then
+        exists := true;
+    end;
+  end;
+  if not exists and (doFileMustExist in Options) then begin
+    ShowMessage('Error', 'File ' + ExtractFullName(AFilename) + ' does not exist.');
     exit;
-  txt := FExpand(txt);
-  System.Assign(aFile, txt);
-  GetFAttr(aFile, attributes);
-  error := DosError;
-  if error = 0 then begin
-    if faDirectory in TFileAttributes(byte(attributes)) then begin
-      if not ChangeDirectory(ExtractDirectory(txt)) then
-        exit;
-      ReadPath(IncludeBackslash(txt) + CurrentDir^.Filter);
-      FilenameEntry^.SetText('');
-    end else begin
-      Filename := txt;
+  end
+  else if exists and (doOverwritePrompt in Options) then begin
+    result := MessageBox(
+      'Warning',
+      'File ' + ExtractFullName(AFilename) + ' already exists.  Overwrite?',
+      [mbYes, mbNo, mbCancel], mbYes, mbCancel);
+  end;
+  case result of
+    mrYes, mrOk: begin
       ModalResult := mrOk;
+      Filename := AFilename;
       Close;
     end;
-  end else begin
-    if HasWildCard(txt) then begin
-      if not ChangeDirectory(ExtractDirectory(txt)) then
-        exit;
-      ReadPath(txt);
-      FilenameEntry^.SetText('');
+    mrNo: begin
+      ModalResult := mrNo;
+      Close;
+    end;
+  end;
+end;
+
+procedure TFileDialog.HandleActionExecute(var AAction: PAction);
+var
+  aFile: PFile;
+begin
+  case AAction^.ModalResult of
+    mrCancel: Close;
+    mrOk: begin
+      SelectText(FileNameEntry^.GetText);
     end;
   end;
 end;
@@ -581,43 +614,31 @@ procedure TFileDialog.Cancel;
 begin
 end;
 
-procedure TFileDialog.SelectText(const AFilename: string);
+procedure TFileDialog.SelectText(AFilename: string);
 var
- txt: string;
  isDir: boolean;
+ name: string;
+ current: string;
 begin
-  txt := Trim(AFilename);
-  if txt = '' then
+  AFilename := Trim(AFilename);
+  current := GetCurrentDirectory;
+  if Length(AFilename) = 0 then
     exit;
-  isDir := EndsWith(txt, '\')
-    or (txt = '..')
-    or (txt = '.')
-    or ((Length(txt) = 2) and (txt[2] = ':'));
-  txt := ExcludeBackSlash(FExpand(txt));
-  if isDir and DirectoryExists(txt) then begin
-    if not ChangeDirectory(txt) then
+  AFilename := FExpand(AFilename);
+  if DirectoryExists(AFilename) then begin
+    AFilename := FExpand(AFilename);
+    if not ChangeDirectory(AFilename) then
       exit;
-    ReadPath(IncludeBackslash(txt) + CurrentDir^.Filter);
+    ReadPath(IncludeBackSlash(AFilename) + CurrentDir^.Filter);
     FilenameEntry^.SetText('');
     exit;
   end;
-  if HasWildcard(txt) then begin
-    ReadPath(txt);
+  if HasWildcard(AFilename) then begin
+    ReadPath(AFilename);
     FilenameEntry^.SetText('');
     exit;
   end;
-  if EndsWith(txt, '\') then
-    exit;
-  if ExtractExtension(txt) = '' then
-    txt := txt + DefaultExt;
-  if not FileExists(txt) and (doFileMustExist in Options) then begin
-    ShowMessage('File not Found', 'File ' + ExtractFullName(txt) + ' does not exist.');
-    FileBox^.Draw;
-    exit;
-  end;
-  Filename := txt;
-  ModalResult := mrOk;
-  Close;
+  CloseDialog(mrOk, AFilename);
 end;
 
 procedure TFileDialog.SelectFile(AFile: PFile);
@@ -645,11 +666,7 @@ begin
       FilenameEntry^.SetText('');
       FilenameEntry^.Draw;
     end else begin
-      if (doFileMustExist in Options) and not FileExists(txt) then
-        exit;
-      Filename := txt;
-      ModalResult := mrOk;
-      Close;
+      CloseDialog(mrOk, txt);
     end;
   end;
 end;
@@ -669,9 +686,9 @@ begin
   CurrentDir^.Sort(dsFilename, dsAsc, true);
   for index := 0 to CurrentDir^.Files^.Count - 1 do begin
     afile := CurrentDir^.Files^.Getitem(index);
-    afilename := StrPas(afile^.Name);
+    afilename := FirstUpper(StrPas(afile^.Name));
     if faDirectory in aFile^.Attr then
-      afilename := '<' + afilename + '>';
+      afilename := '[ ' + afilename + ' ]';
     FileBox^.Items^.AddItem(afilename, aFile);
   end;
 end;
@@ -721,16 +738,16 @@ begin
   Filename := '';
   DefaultExt := '';
   FileBox := New(PListBox, CreateParent('FileListBox', @self));
-  OnActionExecute := @FileDialogActionExecute;
   FileBox^.OnMouseDblClick := @FileDialogDblClick;
   FileBox^.OnSelectedIndexChanged := @FileDialogIndexChanged;
   FileBox^.OnKeyPress := @FileDialogListKeyPress;
+  FileBox^.Font := VeridianApp^.Fonts^.GetItemById('Seattle');
   FilenameEntry := New(PEdit, CreateParent('FilenameEntry', @self));
   FilenameEntry^.ValidChars := ValidDosChars + ['\', ':', #9];
   FilenameEntry^.MaxLength := 255;
   FilenameEntry^.OnKeyPress := @FilenameKeyPress;
-  FilenameEntry^.Font := VeridianApp^.Fonts^.GetItemById('System');
-  DirectoryLabel := New(PLabel, CreateText('', InitialPath, @self));
+
+  DirectoryLabel := New(PLabel, CreateText('DirLabel', InitialPath, @self));
   DirectoryLabel^.AutoSize := false;
   ReadPath(InitialPath);
 end;
@@ -758,7 +775,7 @@ begin
     margin := 2;
   end
   else begin
-    items := 13;
+    items := 17;
     dirHeight := Font^.Height + 4;
     entryHeight := Font^.Height + 6;
     margin := 4;
@@ -796,10 +813,10 @@ begin
   inherited Free;
 end;
 
-constructor TShowMessageDialog.Create(const ATitle, AMessage: string);
+constructor TShowMessageDialog.Create(const ATitle, AMessage: string; AButtons: TDialogButtons);
 begin
   Message := AMessage;
-  inherited Create('ShowMessageDialog', [mbOk]);
+  inherited Create('ShowMessageDialog', AButtons);
   X := CenterX;
   Y := CenterY;
   SetTitle(ATitle);

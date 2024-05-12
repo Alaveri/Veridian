@@ -26,6 +26,7 @@ type
     procedure HideList;
     function Items: PListItems;
     function SelectedIndex: integer;
+    function SelectedItem: PListItem;
     procedure SetSelectedIndex(AIndex: integer);
     procedure MouseDown(var AEvent: TMouseEvent); virtual;
     procedure KeyPress(var AEvent: TKeyEvent); virtual;
@@ -181,7 +182,7 @@ begin
   FList^.Visible := false;
   Parent^.StartDrawingEx(false);
   Graph^.State.ViewPort.Assign(rect);
-  Parent^.PaintRegion(rect);
+  Parent^.PaintRegion(rect, FList);
   Parent^.EndDrawing;
   Desktop^.ActiveDropDown := nil;
   SetFocus(true, true);
@@ -279,6 +280,14 @@ end;
 function TDropDownList.SelectedIndex: integer;
 begin
   SelectedIndex := FList^.SelectedIndex;
+end;
+
+function TDropDownList.SelectedItem: PListItem;
+begin
+  SelectedItem := nil;
+  if (SelectedIndex < 0) or (SelectedIndex > FList^.Items^.Count - 1) then
+    exit;
+  SelectedItem := FList^.Items^.GetItem(FList^.SelectedIndex);
 end;
 
 procedure TDropDownList.SetSelectedIndex(AIndex: integer);

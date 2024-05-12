@@ -121,6 +121,7 @@ type
 
   TControl = object(TIdentifiable)
   private
+    procedure InternalPaintRegion(ARegion: PRegion; AScreenRect: TRect; AExclude: PControl);
   public
     X, Y: integer;
     Width, Height: word;
@@ -178,7 +179,7 @@ type
     procedure Draw; virtual;
     procedure DrawSelf; virtual;
     procedure Paint; virtual;
-    procedure PaintRegion(AScreenRect: TRect); virtual;
+    procedure PaintRegion(AScreenRect: TRect; AExclude: PControl); virtual;
     {Set bounds relative to parent client rect}
     procedure SetBounds(AX, AY, AWidth, AHeight: integer); virtual;
     {Set bounds rectangle relative to parent client rect}
@@ -740,7 +741,7 @@ begin
   end;
   Visible := false;
   GetScreenBounds(rect);
-  Desktop^.PaintRegion(rect);
+  Desktop^.PaintRegion(rect, @self);
   EndDrawing;
 end;
 
@@ -755,51 +756,62 @@ begin
   Graph^.State.Font := Font;
 end;
 
-procedure TControl.PaintRegion(AScreenRect: TRect);
+procedure TControl.PaintRegion(AScreenRect: TRect; AExclude: PControl);
+var
+  region: PRegion;
+begin
+  region := New(PRegion, Create);
+  Graph^.State.ViewPort := AScreenRect;
+  InternalPaintRegion(region, AScreenRect, AExclude);
+  FreeAndNil(region);
+end;
+
+procedure TControl.InternalPaintRegion(ARegion: PRegion; AScreenRect: TRect; AExclude: PControl);
 var
   index: integer;
   control: PControl;
   rect: TRect;
   controlRect: TRect;
   regionRect: PRect;
-  parentRect: TRect;
-  region: PRegion;
 begin
+  if AExclude = @self then
+    exit;
   if not GetVisible then
     exit;
   GetScreenBounds(rect);
   if rect.IsEmpty then
     exit;
-  region := New(PRegion, Create);
   VeridianApp^.PushState;
   VeridianApp^.CursorOff;
-  Graph8^.HideMouseCursor;
   rect.Intersect(AScreenRect);
   Graph^.State.ViewPort := rect;
+
   if Controls^.Count > 0 then begin
     for index := Controls^.Count - 1 downto 0 do begin
       control := Controls^.GetItem(index);
+      if control = AExclude then
+        continue;
       if not control^.GetVisible then
         continue;
       control^.GetScreenBounds(controlRect);
       controlRect.Intersect(AScreenRect);
       if not controlRect.IsEmpty then begin
-        control^.PaintRegion(controlRect);
+        control^.InternalPaintRegion(ARegion, controlRect, @self);
         regionRect := New(PRect, CreateRect(controlRect));
-        region^.Add(regionRect);
+        ARegion^.Add(regionRect);
         continue;
       end;
     end;
   end;
+
   GetScreenBounds(rect);
   rect.Intersect(AScreenRect);
-  Graph^.State.ViewPort := rect;
-  if region^.Count > 0 then begin
+  if (ARegion^.Count > 0) and ARegion^.IntersectsRect(rect) then begin
     Graph^.State.RegionMode := rmExclude;
-    Graph^.State.Region := region;
+    Graph^.State.Region := ARegion;
+    Graph^.State.ViewPort := rect;
   end;
   Paint;
-  FreeAndNil(region);
   Graph^.State.Region := nil;
   VeridianApp^.PopState;
 end;
@@ -818,7 +830,7 @@ end;
 procedure TControl.Draw;
 begin
   if not VeridianApp^.DrawEnabled then
-    exit;
+   exit;
   if not GetVisible then
     exit;
   StartDrawing;

@@ -233,7 +233,7 @@ end;
 
 function TListBox.GetAutoHeight: longint;
 begin
-  GetAutoHeight := Items^.Count * Font^.Height;
+  GetAutoHeight := Items^.Count * Font^.Height + 1;
 end;
 
 function TListBox.GetSelectedIndex(AEvent: TMouseEvent): integer;

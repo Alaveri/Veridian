@@ -139,9 +139,9 @@ var
 implementation
 
 uses
+  Veridian,
   GraphApp,
-  GrDrv8,
-  Veridian;
+  GrDrv8;
 
 procedure TDesktop.DeactivateCurrentMenu;
 var
