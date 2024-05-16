@@ -72,7 +72,6 @@ type
   TTabClosingEvent = object(TTabClosedEvent)
   private
   public
-    Tab: PTab;
     CanClose: boolean;
     procedure Init; virtual;
   end;
@@ -106,6 +105,8 @@ type
     procedure Init; virtual;
     procedure SetupControls; virtual;
     procedure Paint; virtual;
+    procedure CloseTab(ATab: PTab);
+    procedure CloseTabAt(AIndex: integer);
     destructor Free; virtual;
   end;
 
@@ -121,47 +122,14 @@ procedure CloseClick(ASender: PObject; var AEvent: TMouseEvent); far;
 var
   button: PButton;
   view: PTabView;
-  tabIndex, index: integer;
   tabButton: PTabButton;
-  event: TTabClosingEvent;
-  closedevent: TTabClosedEvent;
   tab: PTab;
 begin
   button := PButton(ASender);
   tabButton := PTabButton(button^.Parent);
   tab := tabButton^.Tab;
   view := PTabView(tabButton^.View);
-
-  event.Create;
-  event.Tab := tab;
-  event.CanClose := true;
-  event.TabIndex := tab^.TabIndex;
-  if Assigned(view^.OnTabClosing) then
-    TTabClosingEventProc(view^.OnTabClosing)(view, event);
-  if not event.CanClose then
-    exit;
-  index := view^.ButtonContainer^.Controls^.IndexOf(tabButton);
-  view^.ButtonContainer^.Controls^.Delete(index);
-  tabIndex := tab^.TabIndex;
-  view^.FTabs.Delete(tabIndex);
-  closedEvent.Create;
-  closedEvent.TabIndex := tabIndex;
-  index := view^.Controls^.IndexOf(tab);
-  VeridianApp^.ClearMouseOver;
-  view^.Controls^.Delete(index);
-  if view^.FTabs.Count = 0 then begin
-    view^.TabIndex := -1;
-  end
-  else if tabIndex = view^.TabIndex then begin
-    if tabIndex > view^.FTabs.Count - 1 then
-      tabIndex := view^.FTabs.Count - 1;
-    view^.ActivateTab(tabIndex);
-  end
-  else
-    Dec(view^.TabIndex);
-  view^.Draw;
-  if Assigned(view^.OnTabClosed) then
-    TTabClosedEventProc(view^.OnTabClosed)(view, closedEvent);
+  view^.CloseTab(tab);
 end;
 
 procedure LeftScrollClick(ASender: PObject; var AEvent: TMouseEvent); far;
@@ -532,6 +500,51 @@ begin
     ARect.Grow(-RightButton^.Width, 0);
 end;
 
+procedure TTabView.CloseTabAt(AIndex: integer);
+begin
+  if (AIndex < 0) or (AIndex > FTabs.Count - 1) then
+    exit;
+  CloseTab(FTabs.GetItem(AIndex));
+end;
+
+procedure TTabView.CloseTab(ATab: PTab);
+var
+  event: TTabClosingEvent;
+  closedevent: TTabClosedEvent;
+  index: integer;
+  controlIndex: integer;
+begin
+  event.Create;
+  event.CanClose := true;
+  event.TabIndex := ATab^.TabIndex;
+  if Assigned(OnTabClosing) then
+    TTabClosingEventProc(OnTabClosing)(ATab, event);
+  if not event.CanClose then
+    exit;
+  if Assigned(OnTabClosed) then begin
+    closedEvent.Create;
+    closedEvent.TabIndex := event.TabIndex;
+    TTabClosedEventProc(OnTabClosed)(ATab, closedEvent);
+  end;
+  index := ButtonContainer^.Controls^.IndexOf(ATab^.Button);
+  ButtonContainer^.Controls^.Delete(index);
+  FTabs.Delete(index);
+  VeridianApp^.ClearMouseOver;
+  controlIndex := Controls^.IndexOf(ATab);
+  Controls^.Delete(controlIndex);
+  if FTabs.Count = 0 then begin
+    TabIndex := -1;
+  end
+  else if index = TabIndex then begin
+    if index > FTabs.Count - 1 then
+      index := FTabs.Count - 1;
+    ActivateTab(index);
+  end
+  else
+    Dec(TabIndex);
+  Draw;
+end;
+
 procedure TTabView.SetupControls;
 var
   tabWidth: integer;
@@ -621,13 +634,12 @@ procedure TTabClosingEvent.Init;
 begin
   inherited Init;
   CanClose := true;
-  Tab := nil;
 end;
 
 procedure TTabClosedEvent.Init;
 begin
   inherited Init;
-  TabIndex := 0;
+  TabIndex := -1;
 end;
 
 end.
