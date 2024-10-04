@@ -49,7 +49,7 @@ type
   public
     ActionList: PActionList;
     Buttons: TDialogButtons;
-    ButtonAlign: TTextAlign;
+    ButtonAlign: THorzAlign;
     DefaultButton: TDialogButton;
     CancelButton: TDialogButton;
     ModalResult: TModalResult;
@@ -371,7 +371,7 @@ begin
   BorderStyle := bsSingle;
   Modal := true;
   Closed := false;
-  ButtonAlign := taCenter;
+  ButtonAlign := haCenter;
   FDialogButtons := New(PButtonList, Create);
   FDialogButtons^.DisposeObjects := false;
   ModalResult := mrNone;
@@ -480,9 +480,9 @@ begin
       Inc(totalWidth, 4);
   end;
   case ButtonAlign of
-    taLeft: bx := rect.X + 4;
-    taRight: bx := rect.Right - totalWidth - 4;
-    taCenter: bx := rect.X + (rect.Width - totalWidth) div 2;
+    haLeft: bx := rect.X + 4;
+    haRight: bx := rect.Right - totalWidth - 4;
+    haCenter: bx := rect.X + (rect.Width - totalWidth) div 2;
   end;
   for index := 0 to FDialogButtons^.Count - 1 do begin
     button := PModalDialogButton(FDialogButtons^.GetItem(index));
@@ -733,7 +733,7 @@ begin
   Options := [];
   Title := nil;
   ScrollType := scNone;
-  ButtonAlign := taRight;
+  ButtonAlign := haRight;
   CurrentDir := nil;
   Filename := '';
   DefaultExt := '';
@@ -830,7 +830,7 @@ begin
   DefaultButton := mbOk;
   CancelButton := mbOk;
   ScrollType := scNone;
-  ButtonAlign := taCenter;
+  ButtonAlign := haCenter;
   FLabel := New(PLabel, CreateParent(Message, @self));
   FLabel^.Text := TString.New(Message);
   labelWidth := Font^.TextWidth(Message);

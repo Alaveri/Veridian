@@ -221,7 +221,7 @@ begin
   FocusedBackColor := Desktop^.Colors^.FocusedBack;
   SelectForeColor := Desktop^.Colors^.Select;
   SelectBackColor := Desktop^.Colors^.SelectBack;
-  TextAlign := taLeft;
+  TextAlign := haLeft;
   VertAlign := vaCenter;
   Margin := 3;
   CanFocus := true;
@@ -287,7 +287,7 @@ begin
   Graph^.BeginDrawBuffer(buffer, drawRect);
   if Graph^.HasException then begin
     Graph^.ClearException;
-    VeridianApp^.Error(@self, ecNotEnoughMemory);
+    VeridianApp^.Error(self, ecNotEnoughMemory);
     exit;
   end;
   Graph^.State.Font := Font;
@@ -390,7 +390,7 @@ begin
     Length := 0;
     ScrollPos := 0;
     if CheckSize(DefaultEditorSize) = 0 then
-      VeridianApp^.Error(@self, ecNotEnoughMemory);
+      VeridianApp^.Error(self, ecNotEnoughMemory);
   end
   else begin
     FBuffer.Move(SelectEnd, SelectStart, Length - SelectStart);

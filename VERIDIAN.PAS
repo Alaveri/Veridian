@@ -5,6 +5,7 @@ interface
 
 uses
   GraphApp,
+  AplApps,
   AplTypes,
   Lists,
   DateTime,
@@ -18,12 +19,14 @@ uses
   KeyDrv,
   Controls,
   Actions,
+  Errors,
   Desk;
 
 const
-  mKeyDown = 1001;
-  mKeyPressed = 1002;
-  mKeyUp = 1003;
+  vmVeridian = 1000;
+  vmKeyDown = vmVeridian + 1;
+  vmKeyPressed = vmVeridian + 2;
+  vmKeyUp = vmVeridian + 3;
 
   DefaultDoubleClickDelay: double = 1;
   DefaultCursorBlinkRate = 0.4;
@@ -33,7 +36,6 @@ type
   PVeridianApp = ^TVeridianApp;
   PVeridianAppSettings = ^TVeridianAppSettings;
   PAppState = ^TAppState;
-  PMessage = ^TMessage;
 
   TAppState = object(TObject)
   private
@@ -42,19 +44,6 @@ type
     CursorOn: boolean;
     procedure Init; virtual;
     procedure Assign(var ASource: TObject); virtual;
-  end;
-
-  TMessage = object(TObject)
-  private
-  public
-    Sender: PObject;
-    Code: integer;
-    Key: word;
-    ScanCode: byte;
-    X: integer;
-    Y: integer;
-    ShiftState: TKeyboardFlags;
-    procedure Init; virtual;
   end;
 
   TVeridianAppSettings = object(TObject)
@@ -99,7 +88,7 @@ type
     procedure HandleDblClick(ATime: TDateTime; AControl: PControl; var AEvent: TMouseEvent);
     procedure ProcessMouseEvents;
     procedure ProcessKeyEvents(AControl: PControl; var AEvent: TKeyEvent);
-    procedure ProcessMessages;
+    procedure ProcessMessages; virtual;
     procedure LoadFonts;
     procedure CreateDesktop;
     procedure CreateObjects;
@@ -121,17 +110,19 @@ type
     EditorFont: PFont;
     Parameters: PStringList;
     CurrentScrollSlider: PControl;
-    constructor Create(ADriverId: TGraphDrivers; AModeId: string);
+    constructor Create(ADriverId: TGraphDrivers; AWidth, AHeight, ABpp: integer);
     function HandleActionExecute(ASender: PObject; AAction: PAction): boolean; virtual;
     function GetMouseControl(AControl: PControl; var AMouseState: TMouseState): PControl;
     function LoadFont(const AFilename: string): PFont; virtual;
     function Scale(AValue: real): integer; virtual;
     function MenuBar: PMenuBar;
     function StatusBar: PStatusBar;
+    function CheckError(ASender: PStatusObject): boolean; virtual;
     procedure RedrawMouseCursor(AViewPort: TRect);
     procedure Init; virtual;
     procedure ProcessEvents; virtual;
     procedure InitControls; virtual;
+    procedure InitActions; virtual;
     procedure InitMouseCursors; virtual;
     procedure CursorOn;
     procedure CursorOff;
@@ -153,11 +144,7 @@ type
 var
   VeridianApp: PVeridianApp;
   AppDir: string;
-  MessageQueue: TQueue;
-
-procedure PostMessage(AMessage: PMessage);
-procedure PostKeyboardMessage(ACode: integer; ASender: PObject; AKey: word; AScanCode: byte);
-procedure PostMouseMessage(ACode: integer; ASender: PObject; X, Y: integer);
+  MessageQueue: TObjectQueue;
 
 implementation
 
@@ -173,52 +160,25 @@ uses
 var
   PreviousExitProc: PProc;
 
-procedure PostMessage(AMessage: PMessage);
-begin
-  MessageQueue.Enqueue(AMessage);
-end;
-
-procedure PostKeyboardMessage(ACode: integer; ASender: PObject; AKey: word; AScanCode: byte);
-var
-  message: PMessage;
-begin
-  message := New(PMessage, Create);
-  if not Assigned(message) then
-    exit;
-  message^.Code := ACode;
-  message^.Sender := ASender;
-  message^.Key := AKey;
-  message^.ScanCode := AScanCode;
-  MessageQueue.Enqueue(message);
-end;
-
-procedure PostMouseMessage(ACode: integer; ASender: PObject; X, Y: integer);
-var
-  message: PMessage;
-begin
-  message := New(PMessage, Create);
-  if not Assigned(message) then
-    exit;
-  message^.Code := ACode;
-  message^.Sender := ASender;
-  message^.X := X;
-  message^.Y := Y;
-  MessageQueue.Enqueue(message);
-end;
-
 procedure OnAllocError(ASize: word); far;
 begin
   with VeridianApp^ do begin
   end;
 end;
 
-procedure TVeridianApp.UpdateActionControl(AControl: PActionControl);
+function TVeridianApp.CheckError(ASender: PStatusObject): boolean;
 begin
+  CheckError := true;
+  if not ASender^.HasException then
+    exit;
+  CheckError := false;
+  Error(ASender, ASender^.Exception^.Code);
+  ASender^.ClearException;
 end;
 
-constructor TVeridianApp.Create(ADriverId: TGraphDrivers; AModeId: string);
+
+procedure TVeridianApp.UpdateActionControl(AControl: PActionControl);
 begin
-  inherited Create(ADriverId, AModeId);
 end;
 
 procedure TVeridianApp.InitMouseCursors;
@@ -323,7 +283,6 @@ begin
   SelectingControl := nil;
   CurrentScrollSlider := nil;
   FDoubleClickControl := nil;
-  ApplySettings;
   InitMouseCursors;
   LoadFonts;
   CreateDesktop;
@@ -344,10 +303,32 @@ begin
   inherited Free;
 end;
 
+constructor TVeridianApp.Create(ADriverId: TGraphDrivers; AWidth, AHeight, ABpp: integer);
+var
+  id: integer;
+begin
+  InitGraphics(ADriverId);
+  id := GetGraphicsModeId(AWidth, AHeight, ABpp);
+  if id = -1 then begin
+    WriteLn('Mode not found');
+    exit;
+  end;
+  if not SetMode(id) then begin
+    WriteLn('Could not set graphics mode.');
+    exit;
+  end;
+  inherited Create;
+end;
+
 procedure TVeridianApp.InitControls;
 begin
+  InitActions;
   Desktop^.SetBounds(0, 0, Graph^.Mode^.Width, Graph^.Mode^.Height);
   Desktop^.SetupControls;
+end;
+
+procedure TVeridianApp.InitActions;
+begin
 end;
 
 function TVeridianApp.Scale(AValue: real): integer;
@@ -448,14 +429,26 @@ end;
 procedure TVeridianApp.ProcessMessages;
 var
   message: PMessage;
+  procedure Process(AControl: PControl; AMessage: PMessage);
+  var
+    index: integer;
+    control: PControl;
+  begin
+    for index := 0 to AControl^.Controls^.Count - 1 do begin
+      control := AControl^.Controls^.GetItem(index);
+      if pointer(control) <> AMessage^.Target then
+        continue;
+      Process(control, message);
+      if message^.Processed then
+        exit;
+    end;
+    AControl^.ProcessMessage(message);
+  end;
 begin
   while MessageQueue.Count > 0 do begin
-    message := PMessage(MessageQueue.Dequeue);
-    case message^.Code of
-      mKeyDown:;
-      mKeyUp:;
-      mKeyPressed:;
-    end;
+    message := MessageQueue.Deq;
+    Process(Desktop, message);
+    FreeAndNil(message);
   end;
 end;
 
@@ -923,7 +916,6 @@ end;
 
 procedure TVeridianApp.ProcessEvents;
 begin
-  inherited ProcessEvents;
   Desktop^.MenuBar^.BringToFront;
   Desktop^.StatusBar^.BringToFront;
   Mouse.UpdateState;
@@ -949,6 +941,7 @@ end;
 
 procedure TVeridianApp.Run;
 begin
+  ApplySettings;
   DrawEnabled := true;
   Desktop^.Draw;
   Mouse.SetMousePosition(Graph^.Mode^.Width div 2, Graph^.Mode^.Height div 2);
@@ -974,18 +967,6 @@ begin
   source := PAppState(@ASource);
   CursorOn := source^.CursorOn;
   MouseCursor := source^.MouseCursor;
-end;
-
-procedure TMessage.Init;
-begin
-  inherited Init;
-  Sender := nil;
-  Code := 0;
-  Key := 0;
-  ScanCode := 0;
-  X := 0;
-  Y := 0;
-  ShiftState := [];
 end;
 
 procedure TVeridianAppSettings.Init;

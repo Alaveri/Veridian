@@ -9,9 +9,11 @@ uses
   {$ENDIF}
   AplObj,
   AplTypes,
+  Common,
   Lists,
   Drawing,
-  Common,
+  Controls,
+  Views,
   StrUtils,
   AplApps,
   Errors,
@@ -19,10 +21,8 @@ uses
   MouseDrv,
   KeyDrv,
   Actions,
-  Controls,
   Colors,
-  Combos,
-  Views;
+  Combos;
 
 type
   PDesktop = ^TDesktop;
@@ -285,7 +285,7 @@ begin
         shortcutDesc := Keyboard.KeyToShortcut(item^.GetShortcut);
       if not item^.GetVisible then
         continue;
-      item^.TextAlign := taLeft;
+      item^.TextAlign := haLeft;
       item^.VertAlign := vaCenter;
       item^.X := BorderWidth;
       item^.Y := currentY;
@@ -413,7 +413,7 @@ begin
   ActiveHighlightColor := Desktop^.Colors^.MenuActiveHighlight;
   BorderStyle := bsNone;
   VertAlign := vaCenter;
-  TextAlign := taLeft;
+  TextAlign := haLeft;
   Active := false;
 end;
 

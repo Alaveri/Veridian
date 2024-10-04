@@ -8,7 +8,7 @@ uses
   AplTypes,
   Drawing,
   Controls,
-  VeriType,
+  VTypes,
   Errors,
   Lists,
   Views;
@@ -203,7 +203,7 @@ begin
   CloseButton := New(PTextControl, CreateParent('CloseButton', @self));
   CloseButton^.Text := TString.New('x');
   CloseButton^.VertAlign := vaTop;
-  CloseButton^.TextAlign := taCenter;
+  CloseButton^.TextAlign := haCenter;
   CloseButton^.TextOffsetY := -1;
   CloseButton^.CanFocus := false;
   CloseButton^.OnMouseClick := @CloseClick;

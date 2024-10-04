@@ -63,60 +63,58 @@ implementation
 
 uses
   GraphApp,
+  Palettes,
   GrDrv8;
 
 procedure TColors.Init;
-var
-  intensity: byte;
 begin
   inherited Init;
   with Graph8^ do begin
-    Desktop := GetColor8(scWhite, MaxIntensity);
-    DesktopBack := GetColor8(scCyan, Intensity50);
+    Desktop := egaWhite;
+    DesktopBack := egaCyan;
     Window := 0;
-    WindowBack := GetColor8(scWhite, MaxIntensity);
+    WindowBack := egaWhite;
     Border := 0;
     Button := 0;
-    intensity := 12;
-    ButtonBack := GetColor8(scWhite, intensity);
-    ButtonShadow := GetColor8(scWhite, intensity - 2);
-    ButtonLight := GetColor8(scWhite, intensity + 3);
-    ButtonDownBack := GetColor8(scWhite, intensity - 1);
-    ButtonDownShadow := GetColor8(scWhite, intensity + 2);
-    ButtonDownLight := GetColor8(scWhite, intensity - 2);
-    ButtonDisabled := GetColor8(scWhite, Intensity50);
-    ButtonHighlight := GetColor8(scBlue, Intensity75);
+    ButtonBack := egaLightGray;
+    ButtonShadow := egaDarkGray;
+    ButtonLight := egaWhite;
+    ButtonDownBack := egaDarkGray;
+    ButtonDownShadow := egaWhite;
+    ButtonDownLight := egaDarkGray;
+    ButtonDisabled := egaDarkGray;
+    ButtonHighlight := egaBlue;
     Tab := 0;
-    TabBack := GetColor8(scWhite, MaxIntensity);
-    TabDisabled := GetColor8(scWhite, Intensity75);
-    TabInactive := GetColor8(scWhite, Intensity75);
+    TabBack := egaWhite;
+    TabDisabled := egaDarkGray;
+    TabInactive := egaLightGray;
     TabView := 0;
-    TabViewBack := GetColor8(scWhite, Intensity75);
+    TabViewBack := egaLightGray;
     WindowTitle := 0;
-    WindowTitleBack := GetColor8(scWhite, Intensity75);
-    WindowActiveTitle := GetColor8(scWhite, MaxIntensity);
-    WindowActiveTitleBack := GetColor8(scBlue, Intensity75);
+    WindowTitleBack := egaWhite;
+    WindowActiveTitle := egaWhite;
+    WindowActiveTitleBack := egaBlue;
     Menu := 0;
-    MenuBack := GetColor8(scWhite, MaxIntensity);
-    MenuActive := GetColor8(scWhite, MaxIntensity);
-    MenuHighlight := GetColor8(scBlue, Intensity75);
-    MenuActiveBack := GetColor8(scBlue, Intensity75);
-    MenuActiveHighLight := GetColor8(scWhite, MaxIntensity);
-    Shortcut := GetColor8(scRed, MaxIntensity);
-    ScrollBack := GetColor8(scWhite, Intensity75);
+    MenuBack := egaWhite;
+    MenuActive := egaWhite;
+    MenuHighlight := egaBlue;
+    MenuActiveBack := egaBlue;
+    MenuActiveHighLight := egaWhite;
+    Shortcut := egaRed;
+    ScrollBack := egaLightGray;
     Editor := 0;
-    EditorBack := GetColor8(scWhite, MaxIntensity);
+    EditorBack := egaWhite;
     Dialog := 0;
-    DialogBack := GetColor8(scWhite, MaxIntensity);
-    Select := GetColor8(scBlack, MaxIntensity);
-    SelectBack := GetColor8(scWhite, MaxIntensity);
-    CursorBack := GetColor8(scBlack, MaxIntensity);
-    Cursor := GetColor8(scWhite, MaxIntensity);
-    Focused := GetColor8(scWhite, MaxIntensity);
-    FocusedBack := GetColor8(scBlue, Intensity75);
-    EditorDisabled := GetColor8(scWhite, Intensity50);
+    DialogBack := egaWhite;
+    Select := 0;
+    SelectBack := egaWhite;
+    CursorBack := 0;
+    Cursor := egaWhite;
+    Focused := egaWhite;
+    FocusedBack := egaBlue;
+    EditorDisabled := egaWhite;
     ListUnfocusedSelect := 0;
-    ListUnfocusedSelectBack := GetColor8(scWhite, Intensity75);
+    ListUnfocusedSelectBack := egaWhite;
   end;
 end;
 

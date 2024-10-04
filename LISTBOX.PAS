@@ -9,7 +9,7 @@ uses
   Drawing,
   Images,
   Lists,
-  VeriType,
+  VTypes,
   Controls,
   Views;
 

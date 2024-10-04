@@ -194,7 +194,7 @@ begin
   BackColor := Desktop^.Colors^.ScrollBack;
   IncButton := New(PButton, CreateParent('IncButton', -1, @self));
   with IncButton^ do begin
-    TextAlign := taCenter;
+    TextAlign := haCenter;
     VertAlign := vaCenter;
     CanFocus := false;
     Tag := 1;
@@ -202,7 +202,7 @@ begin
   end;
   DecButton := New(PButton, CreateParent('DecButton', -1, @self));
   with DecButton^ do begin
-    TextAlign := taCenter;
+    TextAlign := haCenter;
     VertAlign := vaCenter;
     CanFocus := false;
     Tag := 0;
@@ -282,7 +282,7 @@ begin
   ActiveBackColor := Desktop^.Colors^.WindowActiveTitleBack;
   BorderStyle := bsNone;
   VertAlign := vaCenter;
-  TextAlign := taCenter;
+  TextAlign := haCenter;
   ParentView := nil;
   Font := Desktop^.Font;
   Margin := 1;

@@ -9,6 +9,7 @@ uses
   {$ENDIF}
   AplObj,
   AplTypes,
+  AplApps,
   Lists,
   AplConst,
   Drawing,
@@ -19,7 +20,7 @@ uses
   Common,
   Actions,
   MouseDrv,
-  VeriType,
+  VTypes,
   KeyDrv,
   GraphDrv,
   GrDrv8;
@@ -45,11 +46,11 @@ type
     sbSlider
   );
 
-  TTextAlign =
+  THorzAlign =
   (
-    taLeft,
-    taRight,
-    taCenter
+    haLeft,
+    haRight,
+    haCenter
   );
 
   TVertAlign =
@@ -119,22 +120,26 @@ type
   TDragEventProc = procedure(ASender: PObject; var AEvent: TDragEvent);
   TScrollEventProc = procedure(ASender: PObject; var AEvent: TScrollEvent);
 
-  TControl = object(TIdentifiable)
+  TControl = object(TMessageObject)
   private
     procedure InternalPaintRegion(ARegion: PRegion; AScreenRect: TRect; AExclude: PControl);
   public
     X, Y: integer;
     Width, Height: word;
     Visible: boolean;
+
     BorderColor: byte;
     ForeColor: byte;
     BackColor: byte;
+    BorderStyle: TBorderStyle;
     FocusedForeColor: byte;
     FocusedBackColor: byte;
     HoverForeColor: byte;
     HoverBackColor: byte;
-    CanDrag: boolean;
     HoverHighlightColor: byte;
+    Font: PFont;
+
+    CanDrag: boolean;
     OnMouseMove: PMouseEventProc;
     OnMouseUp: PMouseEventProc;
     OnMouseDown: PMouseEventProc;
@@ -148,7 +153,6 @@ type
     OnDragEnd: PDragEventProc;
     Controls: PControlList;
     Parent: PControl;
-    BorderStyle: TBorderStyle;
     Modal: boolean;
     IsLeftMouseDown: boolean;
     IsRightMouseDown: boolean;
@@ -165,7 +169,6 @@ type
     UsesCursor: boolean;
     AcceptEnter: boolean;
     AcceptTab: boolean;
-    Font: PFont;
     Tag: integer;
     MouseCursor: PMouseCursor;
     constructor Create(const AId: string);
@@ -269,7 +272,7 @@ type
   private
   public
     Text: PChar;
-    TextAlign: TTextAlign;
+    TextAlign: THorzAlign;
     VertAlign: TVertAlign;
     Margin: integer;
     HighlightColor: byte;
@@ -352,7 +355,6 @@ implementation
 
 uses
   GraphApp,
-
   Veridian,
   Desk;
 
@@ -1211,7 +1213,7 @@ procedure TTextControl.Init;
 begin
   inherited Init;
   Text := nil;
-  TextAlign := taLeft;
+  TextAlign := haLeft;
   VertAlign := vaCenter;
   Margin := 0;
   TextOffsetX := 0;
@@ -1227,9 +1229,9 @@ begin
   txt := GetText;
   textWidth := TrueTextWidth(txt);
   case TextAlign of
-    taLeft: AXPos := ARect.X + Margin + BorderWidth;
-    taRight: AXPos := ARect.X + ARect.Width - textWidth - Margin - BorderWidth;
-    taCenter: AXPos := ARect.X + (ARect.Width - textWidth) div 2 + 1;
+    haLeft: AXPos := ARect.X + Margin + BorderWidth;
+    haRight: AXPos := ARect.X + ARect.Width - textWidth - Margin - BorderWidth;
+    haCenter: AXPos := ARect.X + (ARect.Width - textWidth) div 2 + 1;
   end;
   case VertAlign of
     vaTop: AYPos := ARect.Y + Margin;
@@ -1284,7 +1286,7 @@ begin
   Down := false;
   Toggle := false;
   Grouped := false;
-  TextAlign := taCenter;
+  TextAlign := haCenter;
   BorderStyle := bsSingle;
   ForeColor := Desktop^.Colors^.Button;
   BackColor := Desktop^.Colors^.ButtonBack;
@@ -1468,7 +1470,7 @@ begin
   BackColor := Desktop^.Colors^.WindowBack;
   BorderColor := Desktop^.Colors^.Border;
   BorderStyle := bsNone;
-  TextAlign := taLeft;
+  TextAlign := haLeft;
   Margin := 0;
   HighlightColor := Desktop^.Colors^.ButtonHighlight;
 end;

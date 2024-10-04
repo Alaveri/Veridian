@@ -205,7 +205,7 @@ begin
   FList^.BorderStyle := bsSingle;
   FList^.OnSelectedIndexChanged := @SelectedIndexChanged;
   FList^.OnKeyPress := @ListKeyPress;
-  TextAlign := taLeft;
+  TextAlign := haLeft;
   ForeColor := Desktop^.Colors^.Editor;
   BackColor := Desktop^.Colors^.EditorBack;
   DisabledForeColor := Desktop^.Colors^.EditorDisabled;
