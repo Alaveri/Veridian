@@ -118,6 +118,7 @@ type
     function MenuBar: PMenuBar;
     function StatusBar: PStatusBar;
     function CheckError(ASender: PStatusObject): boolean; virtual;
+    function FocusNext(AControl: PControl; AReverse: boolean): boolean;
     procedure RedrawMouseCursor(AViewPort: TRect);
     procedure Init; virtual;
     procedure ProcessEvents; virtual;
@@ -128,8 +129,6 @@ type
     procedure CursorOff;
     procedure PushState;
     procedure PopState;
-    procedure FocusNext;
-    procedure FocusPrevious;
     procedure DeactivateActiveControl;
     procedure UpdateActionControl(AControl: PActionControl); virtual;
     procedure ResetDoubleClick; virtual;
@@ -685,16 +684,16 @@ begin
   if AEvent.Handled then
     exit;
   if AEvent.Key = kyTab then begin
-    if (not Assigned(Desktop^.ActiveControl)) or (not Desktop^.ActiveControl^.AcceptTab) then begin
-      FocusNext;
+    if (Assigned(Desktop^.ActiveControl) and Desktop^.ActiveControl^.AcceptTab) then begin
+      FocusNext(Desktop^.ActiveControl, false);
       AControl^.KeyPress(AEvent);
       AEvent.Handled := true;
       exit;
     end;
   end;
   if AEvent.Key = kyShiftTab then begin
-    if (not Assigned(Desktop^.ActiveControl)) or (not Desktop^.ActiveControl^.AcceptTab) then begin
-      FocusPrevious;
+    if (Assigned(AControl) and AControl^.AcceptTab) then begin
+      FocusNext(Desktop^.ActiveControl, true);
       AControl^.KeyPress(AEvent);
       AEvent.Handled := true;
       exit;
@@ -775,78 +774,40 @@ begin
   end;
 end;
 
-procedure TVeridianApp.FocusNext;
+function TVeridianApp.FocusNext(AControl: PControl; AReverse: boolean): boolean;
 var
-  index, controlIndex: integer;
   parent: PControl;
-  control: PControl;
+  current: PControl;
   next: PControl;
-  found: PControl;
+  focusList: PObjectList;
+  controlIndex: integer;
+  currentIndex: integer;
 begin
-  if not Assigned(Desktop^.ActiveControl) then begin
+  parent := AControl^.Parent;
+  current := parent;
+  while Assigned(current^.Parent) do
+    current := current^.Parent;
+  if not Assigned(current) then
     exit;
+  focusList := New(PObjectList, Create);
+  focusList^.DisposeObjects := false;
+  Desktop^.GetFocusList(focusList, Desktop);
+  controlIndex := focusList^.IndexOf(AControl);
+  if AReverse then begin
+    currentIndex := controlIndex - 1;
+    if currentIndex < 0 then
+      currentIndex := focusList^.Count - 1;
+  end
+  else begin
+    currentIndex := controlIndex + 1;
+    if currentIndex > focusList^.Count - 1 then
+      currentIndex := 0;
   end;
-  control := Desktop^.ActiveControl;
-  parent := control^.Parent;
-  if not Assigned(Parent) then
-    exit;
-  controlIndex := parent^.Controls^.IndexOf(control);
-  found := nil;
-  for index := controlIndex + 1 to parent^.Controls^.Count - 1 do begin
-    next := parent^.Controls^.GetItem(index);
-    if next^.CanFocus and next^.GetEnabled and next^.GetVisible then begin
-      found := next;
-      break;
-    end;
+  if currentIndex <> controlIndex then begin
+    next := PControl(focusList^.GetItem(currentIndex));
+    next^.Focus;
   end;
-  if not Assigned(found) then begin
-    for index := 0 to controlIndex - 1 do begin
-      next := parent^.Controls^.GetItem(index);
-      if next^.CanFocus and next^.GetEnabled and next^.GetVisible then begin
-        found := next;
-        break;
-      end;
-    end;
-  end;
-  if Assigned(found) then
-    found^.Focus;
-end;
-
-procedure TVeridianApp.FocusPrevious;
-var
-  index, controlIndex: integer;
-  parent: PControl;
-  control: PControl;
-  next: PControl;
-  found: PControl;
-begin
-  if not Assigned(Desktop^.ActiveControl) then begin
-    exit;
-  end;
-  control := Desktop^.ActiveControl;
-  parent := control^.Parent;
-  if not Assigned(Parent) then
-    exit;
-  controlIndex := parent^.Controls^.IndexOf(control);
-  found := nil;
-  for index := controlIndex - 1 downto 0 do begin
-    next := parent^.Controls^.GetItem(index);
-    if next^.CanFocus and next^.GetEnabled and next^.GetVisible then begin
-      found := next;
-      break;
-    end;
-  end;
-  if not Assigned(found) then begin
-    for index := parent^.Controls^.Count - 1 downto controlIndex + 1 do begin
-      next := parent^.Controls^.GetItem(index);
-      if next^.CanFocus and next^.GetEnabled and next^.GetVisible then begin
-        found := next;
-        break;
-      end;
-    end;
-  end;
-  if Assigned(found) then
-    found^.Focus;
+  FreeAndNil(focusList);
 end;
 
 function TVeridianApp.MenuBar: PMenuBar;

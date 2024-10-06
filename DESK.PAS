@@ -111,6 +111,7 @@ type
     function AddMenuBar(AMenuBar: PMenuBar): PMenuBar; virtual;
     function FindNextControl(AControl: PControl): PControl; virtual;
     function FindPreviousControl(AControl: PControl): PControl; virtual;
+    procedure GetFocusList(AList: PObjectList; AControl: PControl);
     procedure Init; virtual;
     procedure Paint; virtual;
     procedure GetClientRect(var ARect: TRect); virtual;
@@ -186,6 +187,19 @@ begin
   ActiveDropDown := nil;
   ForeColor := Colors^.Desktop;
   BackColor := Colors^.DesktopBack;
+end;
+
+procedure TDesktop.GetFocusList(AList: PObjectList; AControl: PControl);
+var
+  control: PControl;
+  index: integer;
+begin
+  for index := 0 to AControl^.Controls^.Count - 1 do begin
+    control := AControl^.Controls^.GetItem(index);
+    GetFocusList(AList, control);
+    if control^.GetVisible and control^.GetEnabled and control^.CanFocus then
+      AList^.Add(control);
+  end;
 end;
 
 destructor TDesktop.Free;
@@ -679,35 +693,39 @@ begin
 
   case AEvent.Key of
     kyLeft: begin
-      menuItem := Desktop^.ActiveMenu^.ParentItem;
-      index := Controls^.IndexOf(menuItem);
-      Dec(index);
-      if (index < 0) then
-        index := Controls^.Count - 1;
-      activeItem := GetActiveMenuItem;
-      if Assigned(activeItem) then
-        activeItem^.Deactivate;
-      menuItem := PMenuItem(Controls^.GetItem(index));
-      menuItem^.ActivateMenu;
-      menuItem^.Activate;
-      AEvent.Handled := true;
-      exit;
+      if Controls^.Count > 1 then begin
+        menuItem := Desktop^.ActiveMenu^.ParentItem;
+        index := Controls^.IndexOf(menuItem);
+        Dec(index);
+        if (index < 0) then
+          index := Controls^.Count - 1;
+        activeItem := GetActiveMenuItem;
+        if Assigned(activeItem) then
+          activeItem^.Deactivate;
+        menuItem := PMenuItem(Controls^.GetItem(index));
+        menuItem^.ActivateMenu;
+        menuItem^.Activate;
+        AEvent.Handled := true;
+        exit;
+      end;
     end;
 
     kyRight: begin
-      menuItem := Desktop^.ActiveMenu^.ParentItem;
-      index := Controls^.IndexOf(menuItem);
-      Inc(index);
-      if (index > Controls^.Count - 1) then
-        index := 0;
-      activeItem := GetActiveMenuItem;
-      if Assigned(activeItem) then
-        activeItem^.Deactivate;
-      menuItem := PMenuItem(Controls^.GetItem(index));
-      menuItem^.ActivateMenu;
-      menuItem^.Activate;
-      AEvent.Handled := true;
-      exit;
+      if Controls^.Count > 1 then begin
+        menuItem := Desktop^.ActiveMenu^.ParentItem;
+        index := Controls^.IndexOf(menuItem);
+        Inc(index);
+        if (index > Controls^.Count - 1) then
+          index := 0;
+        activeItem := GetActiveMenuItem;
+        if Assigned(activeItem) then
+          activeItem^.Deactivate;
+        menuItem := PMenuItem(Controls^.GetItem(index));
+        menuItem^.ActivateMenu;
+        menuItem^.Activate;
+        AEvent.Handled := true;
+        exit;
+      end;
     end;
 
     kyUp, kyDown: begin

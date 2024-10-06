@@ -19,6 +19,14 @@ const
     ' ', '.', '(', ')', '[', ']', '{', '}', ',','/','<', '>','?', '/', ':',
     '"', '''', ';', '-', '+', '-', '|', '\', '!'
   ];
+  Aplpha = ['A'..'Z', 'a'..'z'];
+  AlphaNumeric = ['0'..'9', 'A'..'Z', 'a'..'z'];
+  Numeric = ['0'..'9'];
+  Puncuation = ['.', ',', ';', ':', '!', '?', '"', '''', '(', ')', '[', ']',
+    '{', '}', '/', '\', '|', '-', '+', '=', '*', '&', '^', '%', '$', '#',
+    '@', '~', '`', '<', '>'
+  ];
+  Hexadecimal = ['0'..'9', 'A'..'F', 'a'..'f'];
 
 type
   PEdit = ^TEdit;
@@ -54,6 +62,7 @@ type
     WordDelimiters: set of char;
     ValidChars: set of char;
     SelectAllOnFocus: boolean;
+    CanEdit: boolean;
     function CursorPos: word;
     function SetCursorPos(APos: word): boolean; virtual;
     function GetCursorForeColor: byte; virtual;
@@ -212,6 +221,7 @@ procedure TEdit.Init;
 begin
   inherited Init;
   Font := VeridianApp^.Fonts^.GetItemById('Editor');
+  CanEdit := true;
   UsesCursor := true;
   SelectAllOnFocus := true;
   ForeColor := Desktop^.Colors^.Editor;
@@ -408,9 +418,9 @@ end;
 
 procedure TEdit.AddChar(AChar: char);
 begin
+  ClearText;
   if Length >= MaxLength then
     exit;
-  ClearText;
   if CheckSize(Length + 1) < 0 then
     exit;
   FBuffer.SetChar(Length, AChar);
@@ -443,8 +453,10 @@ end;
 
 procedure TEdit.AddInsertChar(AChar: char);
 begin
-  if not (AChar in ValidChars) then
+  if not (AChar in ValidChars) then begin
+    ClearText;
     exit;
+  end;
   if FCursorPos < Length then
     InsertChar(FCursorPos, AChar)
   else
@@ -714,7 +726,7 @@ procedure TEdit.KeyPress(var AEvent: TKeyEvent);
 var
   key: word;
 begin
-  if not (CanFocus and Focused) then
+  if not (GetVisible and GetEnabled and CanFocus and Focused and CanEdit) then
     exit;
   if AEvent.Handled then
     exit;
@@ -752,7 +764,7 @@ begin
     SelectEnd := 0;
     Focus;
   end;
-  if not (GetVisible and GetEnabled) then
+  if not (GetVisible and GetEnabled and CanEdit) then
     exit;
   if not (CanFocus and Focused) then
     exit;
@@ -775,17 +787,15 @@ var
   index: longint;
   rect: TRect;
 begin
+  if not (GetVisible and GetEnabled and CanEdit) then
+    exit;
   if VeridianApp^.SelectingControl = @self then begin
     GetScreenBounds(rect);
-    if not rect.IntersectsCoords(AEvent.NewMouseState.X, AEvent.NewMouseState.Y) then begin
-
-    end;
     index := GetIndexAt(AEvent.X, AEvent.Y);
     CheckLongRange(index, 0, Length);
     if index = FCursorPos then
       exit;
     ChangeSelect(index);
-
     Draw;
     ResetCursor;
   end;
@@ -797,6 +807,8 @@ var
   mouseControl: PControl;
   selecting: boolean;
 begin
+  if not (GetVisible and GetEnabled and CanEdit) then
+    exit;
   selecting := VeridianApp^.SelectingControl = @self;
   VeridianApp^.SelectingControl := nil;
   mouseControl := VeridianApp^.GetMouseControl(Desktop, AEvent.NewMouseState);

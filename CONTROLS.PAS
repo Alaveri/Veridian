@@ -151,6 +151,8 @@ type
     OnKeyPress: PKeyEventProc;
     OnDragStart: PDragEventProc;
     OnDragEnd: PDragEventProc;
+    OnEnter: PEventProc;
+    OnExit: PEventProc;
     Controls: PControlList;
     Parent: PControl;
     Modal: boolean;
@@ -212,7 +214,7 @@ type
     procedure DragEnd(var AEvent: TDragEvent); virtual;
     procedure Focus; virtual;
     procedure Unfocus; virtual;
-    procedure SetFocus(AFocused, ARedraw: boolean);
+    procedure SetFocus(AFocused, ARedraw: boolean); virtual;
     procedure KeyPress(var AEvent: TKeyEvent); virtual;
     procedure StartDrawing; virtual;
     procedure StartDrawingEx(ASetupControls: boolean); virtual;
@@ -447,6 +449,8 @@ begin
   OnMouseClick := nil;
   OnDragStart := nil;
   OnDragEnd := nil;
+  OnEnter := nil;
+  OnExit := nil;
   Enabled := true;
   Modal := false;
   IsLeftMouseDown := false;
@@ -461,7 +465,7 @@ begin
   CanFocus := false;
   UsesCursor := false;
   AcceptEnter := false;
-  AcceptTab := false;
+  AcceptTab := true;
   Parent := nil;
   Font := Desktop^.Font;
   MouseCursor := VeridianApp^.MouseCursors^.GetItemById('Default');
@@ -565,18 +569,26 @@ begin
 end;
 
 procedure TControl.SetFocus(AFocused, ARedraw: boolean);
+var
+  event: TEvent;
 begin
   if not (CanFocus and GetVisible and GetEnabled) then
     exit;
+  event.Create;
   Focused := AFocused;
   if AFocused then begin
     if Desktop^.ActiveControl = @self then
       exit;
-    if Assigned(Desktop^.ActiveControl) and Desktop^.ActiveControl^.Focused then
+    if Assigned(Desktop^.ActiveControl) and Desktop^.ActiveControl^.Focused then begin
+      if Assigned(Desktop^.ActiveControl^.OnExit) then
+        TEventProc(Desktop^.ActiveControl^.OnExit)(Desktop^.ActiveControl, event);
       Desktop^.ActiveControl^.Unfocus;
+    end;
     Desktop^.ActiveControl := @self;
     if ARedraw then
       Draw;
+    if Assigned(OnEnter) then
+      TEventProc(OnEnter)(@self, event);
     if UsesCursor then begin
       VeridianApp^.CursorOn;
     end;
@@ -597,7 +609,7 @@ end;
 
 procedure TControl.GetBounds(var ARect: TRect);
 begin
-  ARect.CreateDims(X, Y, Width, Height);
+   ARect.CreateDims(X, Y, Width, Height);
 end;
 
 procedure TControl.SetBounds(AX, AY, AWidth, AHeight: integer);
@@ -775,6 +787,19 @@ var
   rect: TRect;
   controlRect: TRect;
   regionRect: PRect;
+
+  function HasRect(region: PRegion; crect: PRect): boolean;
+  var
+    regionIndex: integer;
+  begin
+    HasRect := false;
+    for regionIndex := 0 to region^.Count - 1 do begin
+      if region^.GetItem(regionIndex)^.Equals(crect^) then begin
+        HasRect := true;
+        break;
+      end;
+    end;
+  end;
 begin
   if AExclude = @self then
     exit;
@@ -798,9 +823,11 @@ begin
       control^.GetScreenBounds(controlRect);
       controlRect.Intersect(AScreenRect);
       if not controlRect.IsEmpty then begin
-        control^.InternalPaintRegion(ARegion, controlRect, @self);
+        control^.PaintRegion(controlRect, nil);
+        Graph^.State.ViewPort := controlRect;
         regionRect := New(PRect, CreateRect(controlRect));
-        ARegion^.Add(regionRect);
+        if not HasRect(ARegion, regionRect) then
+          ARegion^.Add(regionRect);
         continue;
       end;
     end;
@@ -1060,10 +1087,10 @@ begin
   if Assigned(Action) then
     VeridianApp^.UpdateActionControl(@self);
   GetScreenBounds(rect);
-  rect.Intersect(Graph^.State.ViewPort);
   TPanel.Paint;
   txt := GetText;
   GetTextAlign(rect, textXPos, textYPos);
+  rect.Intersect(Graph^.State.ViewPort);
   textIndex := 1;
   while textIndex <= Length(txt) do begin
     SetForeColorEnabled(ForeColor);

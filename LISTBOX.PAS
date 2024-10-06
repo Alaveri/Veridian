@@ -37,8 +37,10 @@ type
     Text: PChar;
     Value: pointer;
     ImageIndex: integer;
+    Tag: integer;
     constructor CreateText(const AText: string);
     constructor CreateTextValue(const AText: string; AValue: pointer);
+    constructor CreateTextTag(const AText: string; ATag: integer);
     constructor CreateAll(const AText: string; AValue: pointer; AImageIndex: integer);
     procedure SetText(const AText: string);
     procedure Init; virtual;
@@ -51,7 +53,10 @@ type
     Owner: PListBox;
     constructor Create(AOwner: PListBox);
     function GetItem(AIndex: integer): PListItem;
+    function GetItemByTag(ATag: integer): PListItem;
+    function GetItemByValue(AValue: pointer): PListItem;
     function AddItem(const AText: string; AValue: pointer): integer;
+    function AddItemTag(const AText: string; ATag: integer): integer;
   end;
 
   TListBox = object(TView)
@@ -107,6 +112,12 @@ begin
   Value := AValue;
 end;
 
+constructor TListItem.CreateTextTag(const AText: string; ATag: integer);
+begin
+  CreateText(AText);
+  Tag := ATag;
+end;
+
 constructor TListItem.CreateAll(const AText: string; AValue: pointer; AImageIndex: integer);
 begin
   CreateTextValue(AText, AValue);
@@ -124,6 +135,7 @@ begin
   Text := nil;
   Value := nil;
   ImageIndex := -1;
+  Tag := 0;
 end;
 
 destructor TListItem.Free;
@@ -223,7 +235,7 @@ begin
     end;
   end;
   Graph^.FillRect(itemRect);
-  Graph^.DrawTextLarge(itemRect.X + Margin, itemRect.Y + 1, item^.Text);
+  Graph^.DrawTextLarge(itemRect.X + Margin, itemRect.Y + (itemRect.Height - Font^.Height) div 2 + 1, item^.Text);
 end;
 
 function TListBox.GetAutoWidth: longint;
@@ -256,6 +268,8 @@ var
   amount: integer;
 begin
   inherited MouseWheelChanged(AEvent);
+  if not VertScrollBar^.Visible then
+    exit;
   amount := AEvent.NewMouseState.WheelCounter * Font^.Height;
   if AEvent.NewMouseState.WheelCounter > 0 then
     ScrollVert(amount)
@@ -408,6 +422,42 @@ begin
   item^.Text := TString.New(AText);
   item^.Value := AValue;
   AddItem := inherited Add(item);
+end;
+
+function TListItems.AddItemTag(const AText: string; ATag: integer): integer;
+var
+  item: PListItem;
+begin
+  item := New(PListItem, Create);
+  item^.Text := TString.New(AText);
+  item^.Tag := ATag;
+  AddItemTag := inherited Add(item);
+end;
+
+function TListItems.GetItemByTag(ATag: integer): PListItem;
+var
+  index: integer;
+begin
+  GetItemByTag := nil;
+  for index := 0 to Count - 1 do begin
+    if GetItem(index)^.Tag = ATag then begin
+      GetItemByTag := GetItem(index);
+      break;
+    end;
+  end;
+end;
+
+function TListItems.GetItemByValue(AValue: pointer): PListItem;
+var
+  index: integer;
+begin
+  GetItemByValue := nil;
+  for index := 0 to Count - 1 do begin
+    if GetItem(index)^.Value = AValue then begin
+      GetItemByValue := GetItem(index);
+      break;
+    end;
+  end;
 end;
 
 end.
