@@ -501,7 +501,7 @@ begin
   if result = nil then begin
     AControl^.GetScreenBounds(rect);
     if (AControl^.Modal and (PControl(Desktop^.ActiveView) = AControl))
-      or (SelectingControl = AControl) or (rect.IntersectsCoords(AMouseState.X, AMouseState.Y)) then
+      or (SelectingControl = AControl) or (rect.Contains(AMouseState.X, AMouseState.Y)) then
       result := AControl;
   end;
 
@@ -568,7 +568,7 @@ var
   rect: TRect;
 begin
   AControl^.GetScreenBounds(rect);
-  if rect.IntersectsCoords(AEvent.NewMouseState.X, AEvent.NewMouseState.Y) then begin
+  if rect.Contains(AEvent.NewMouseState.X, AEvent.NewMouseState.Y) then begin
     AControl^.MouseWheelChanged(AEvent);
   end;
 end;
@@ -586,7 +586,7 @@ begin
 
   if Assigned(Desktop^.ActiveDropDown) then begin
     Desktop^.ActiveDropDown^.GetScreenBounds(rect);
-    intersects := rect.IntersectsCoords(AEvent.NewMouseState.X, AEvent.NewMouseState.Y);
+    intersects := rect.Contains(AEvent.NewMouseState.X, AEvent.NewMouseState.Y);
     if not intersects then begin
       Desktop^.ActiveDropDown^.HideList;
       Desktop^.ActiveDropDown := nil;
@@ -594,11 +594,11 @@ begin
   end;
   if Assigned(Desktop^.ActiveMenu) then begin
     Desktop^.ActiveMenu^.GetScreenBounds(rect);
-    intersects := rect.IntersectsCoords(AEvent.NewMouseState.X, AEvent.NewMouseState.Y);
+    intersects := rect.Contains(AEvent.NewMouseState.X, AEvent.NewMouseState.Y);
     parentItem := Desktop^.ActiveMenu^.ParentItem;
     if Assigned(parentItem) then begin
       parentItem^.GetScreenBounds(rect);
-      intersects := intersects or rect.IntersectsCoords(AEvent.NewMouseState.X, AEvent.NewMouseState.Y)
+      intersects := intersects or rect.Contains(AEvent.NewMouseState.X, AEvent.NewMouseState.Y)
     end;
     if not intersects then begin
       Desktop^.DeactivateCurrentMenu;
