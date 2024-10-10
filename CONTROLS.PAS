@@ -83,6 +83,7 @@ type
   PKeyEventProc = ^TKeyEventProc;
   PDragEventProc = ^TDragEventProc;
   PScrollEventProc = ^TScrollEventProc;
+  PControlListProc = ^TControlListProc;
 
   TKeyEvent = object(TEvent)
   private
@@ -119,6 +120,7 @@ type
   TKeyEventProc = procedure(ASender: PObject; var AEvent: TKeyEvent);
   TDragEventProc = procedure(ASender: PObject; var AEvent: TDragEvent);
   TScrollEventProc = procedure(ASender: PObject; var AEvent: TScrollEvent);
+  TControlListProc = procedure(ASender: PControlList; AControl: PControl);
 
   TControl = object(TMessageObject)
   private
@@ -240,6 +242,7 @@ type
     function GetItem(AIndex: integer): PControl;
     function Add(AItem: pointer): integer; virtual;
     procedure Insert(AIndex: integer; AItem: pointer); virtual;
+    procedure ForEach(AProc: PControlListProc);
     procedure Init; virtual;
     procedure Remove(AControl: PControl);
   end;
@@ -370,6 +373,11 @@ procedure TControlList.Init;
 begin
   inherited Init;
   Parent := nil;
+end;
+
+procedure TControlList.ForEach(AProc: PControlListProc);
+begin
+  TList.ForEach(PListProc(AProc));
 end;
 
 function TControlList.GetItem(AIndex: integer): PControl;
