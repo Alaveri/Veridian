@@ -685,6 +685,9 @@ begin
     exit;
   if AEvent.Key = kyTab then begin
     if (Assigned(Desktop^.ActiveControl) and Desktop^.ActiveControl^.AcceptTab) then begin
+      if Desktop^.ActiveControl^.Parent = PControl(Desktop^.ActiveDropDown) then begin
+        Desktop^.ActiveDropDown^.HideList;
+      end;
       FocusNext(Desktop^.ActiveControl, false);
       AControl^.KeyPress(AEvent);
       AEvent.Handled := true;

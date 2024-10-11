@@ -31,6 +31,7 @@ type
     function SelectedItem: PListItem;
     procedure SetSelectedIndex(AIndex: integer);
     procedure MouseDown(var AEvent: TMouseEvent); virtual;
+    procedure Unfocus; virtual;
     procedure KeyPress(var AEvent: TKeyEvent); virtual;
     procedure Init; virtual;
     procedure Paint; virtual;
@@ -118,10 +119,13 @@ begin
   dropDown := PDropDownList(self^.Parent);
   case AEvent.Key of
     kyEnter: begin
+      Graph^.PushState;
       Graph8^.HideMouseCursor;
       dropDown^.HideList;
       dropDown^.SetText(StrPas(self^.Items^.GetItem(self^.SelectedIndex)^.Text));
-      Graph8^.ShowMouseCursor;
+      Graph^.PopState;
+      if Graph8^.MouseCursor^.Visible then
+        Graph8^.ShowMouseCursor;
     end;
     kyTab: begin
       AEvent.Handled := true;
@@ -134,6 +138,13 @@ begin
       VeridianApp^.FocusNext(@self, true);
       end;
   end;
+end;
+
+procedure TDropDownList.Unfocus;
+begin
+  if FList^.GetVisible then
+    HideList;
+  inherited Unfocus;
 end;
 
 procedure TDropDownList.KeyPress(var AEvent: TKeyEvent);
@@ -208,10 +219,9 @@ begin
   if not FList^.GetVisible then
     exit;
   FList^.GetScreenBounds(rect);
-  rect.Translate(0, 1);
-  rect.Grow(0, -1);
   Dec(Height, FList^.Height);
   FList^.Visible := false;
+  FList^.Hide;
   Parent^.StartDrawingEx(false);
   Graph^.State.ViewPort.Assign(rect);
   Parent^.PaintRegion(rect, @self);
@@ -401,14 +411,14 @@ begin
   FEntry^.OnKeyPress := @NumericUpDownKeyPress;
   FEntry^.OnExit := @NumericUpDownExit;
   FIncButton := New(PButton, CreateParent('IncButton', 0, @self));
-  FIncButton^.SetText(#24);
+  FIncButton^.SetText(#30);
   FIncButton^.CanFocus := false;
   FIncButton^.OnMouseClick := @NumericUpDownIncClick;
   FDecButton := New(PButton, CreateParent('DecButton', 0, @self));
-  FDecButton^.SetText(#25);
+  FDecButton^.SetText(#31);
   FDecButton^.OnMouseClick := @NumericUpDownDecClick;
   FDecButton^.CanFocus := false;
-  Width := 32 + Font^.TextWidth('9999');
+  Width := 34 + Font^.TextWidth('9999');
   Height := Font^.Height + 2 * BorderWidth + 2;
   FMinValue := 0;
   FMaxValue := 100;

@@ -231,6 +231,8 @@ type
     function GetModal: boolean; virtual;
     function GetCursorForeColor: byte; virtual;
     function GetCursorBackColor: byte; virtual;
+    procedure Invoke(AEventProc: pointer; ASender: PObject; AEvent: PEvent); virtual;
+    procedure InvokeSelf(AEventProc: pointer; AEvent: PEvent); virtual;
   end;
 
   TControlList = Object(TIdentifiableList)
@@ -477,6 +479,17 @@ begin
   Parent := nil;
   Font := Desktop^.Font;
   MouseCursor := VeridianApp^.MouseCursors^.GetItemById('Default');
+end;
+
+procedure TControl.Invoke(AEventProc: pointer; ASender: PObject; AEvent: PEvent);
+begin
+  if Assigned(AEventProc) then
+    TEventProc(AEventProc)(ASender, AEvent^);
+end;
+
+procedure TControl.InvokeSelf(AEventProc: pointer; AEvent: PEvent);
+begin
+  Invoke(AEventProc, @self, AEvent);
 end;
 
 function TControl.IsActionControl: boolean;
@@ -795,19 +808,6 @@ var
   rect: TRect;
   controlRect: TRect;
   regionRect: PRect;
-
-  function HasRect(region: PRegion; crect: PRect): boolean;
-  var
-    regionIndex: integer;
-  begin
-    HasRect := false;
-    for regionIndex := 0 to region^.Count - 1 do begin
-      if region^.GetItem(regionIndex)^.Equals(crect^) then begin
-        HasRect := true;
-        break;
-      end;
-    end;
-  end;
 begin
   if AExclude = @self then
     exit;
@@ -834,7 +834,7 @@ begin
         control^.PaintRegion(controlRect, nil);
         Graph^.State.ViewPort := controlRect;
         regionRect := New(PRect, CreateRect(controlRect));
-        if not HasRect(ARegion, regionRect) then
+        if not ARegion^.HasRect(regionRect^) then
           ARegion^.Add(regionRect);
         continue;
       end;
@@ -1382,8 +1382,8 @@ begin
     Graph^.SetForeColor(DownLightColor)
   else
     Graph^.SetForeColor(LightColor);
-  Graph^.HLine(rect.X, rect.Y, rect.Width);
-  Graph^.VLine(rect.X, rect.Y, rect.Height);
+  Graph^.HLine(rect.X, rect.Y, rect.Width - 1);
+  Graph^.VLine(rect.X, rect.Y, rect.Height - 1);
   if Down and Clickable then
     Graph^.SetForeColor(DownShadowColor)
   else
