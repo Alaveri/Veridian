@@ -687,6 +687,7 @@ begin
     if (Assigned(Desktop^.ActiveControl) and Desktop^.ActiveControl^.AcceptTab) then begin
       if Desktop^.ActiveControl^.Parent = PControl(Desktop^.ActiveDropDown) then begin
         Desktop^.ActiveDropDown^.HideList;
+        Desktop^.ActiveDropDown := nil;
       end;
       FocusNext(Desktop^.ActiveControl, false);
       AControl^.KeyPress(AEvent);
@@ -704,9 +705,7 @@ begin
   end;
   if (AEvent.Key = kyEsc) and Assigned(Desktop^.ActiveDropDown) then begin
     Desktop^.ActiveDropDown^.GetScreenBounds(rect);
-    Graph8^.HideMouseCursor;
     Desktop^.ActiveDropDown^.HideList;
-    Graph8^.ShowMouseCursor;
     Desktop^.ActiveDropDown := nil;
     AEvent.Handled := true;
     exit;

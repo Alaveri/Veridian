@@ -364,13 +364,7 @@ end;
 
 procedure TMenu.Paint;
 begin
-  Graph^.PushState;
-  if typeof(Parent^) = typeof(TMainMenuItem) then begin
-    Graph^.State.ViewPort.Translate(0, 1);
-    Graph^.State.ViewPort.Grow(0, -1);
-  end;
   inherited Paint;
-  Graph^.PopState;
 end;
 
 function TMenu.NewMenuItem(AId: string; AActionId: integer): PMenuItem;

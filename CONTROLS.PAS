@@ -19,6 +19,7 @@ uses
   Files,
   Common,
   Actions,
+  UndoStk,
   MouseDrv,
   VTypes,
   KeyDrv,
@@ -140,8 +141,8 @@ type
     HoverBackColor: byte;
     HoverHighlightColor: byte;
     Font: PFont;
-
     CanDrag: boolean;
+    CanUndo: boolean;
     OnMouseMove: PMouseEventProc;
     OnMouseUp: PMouseEventProc;
     OnMouseDown: PMouseEventProc;
@@ -157,6 +158,7 @@ type
     OnExit: PEventProc;
     Controls: PControlList;
     Parent: PControl;
+    UndoStack: PUndoStack;
     Modal: boolean;
     IsLeftMouseDown: boolean;
     IsRightMouseDown: boolean;
@@ -233,6 +235,8 @@ type
     function GetCursorBackColor: byte; virtual;
     procedure Invoke(AEventProc: pointer; ASender: PObject; AEvent: PEvent); virtual;
     procedure InvokeSelf(AEventProc: pointer; AEvent: PEvent); virtual;
+    procedure Undo; virtual;
+    procedure Redo; virtual;
   end;
 
   TControlList = Object(TIdentifiableList)
@@ -437,6 +441,7 @@ begin
   SetBounds(0, 0, 0, 0);
   Tag := 0;
   CanDrag := false;
+  CanUndo := false;
   Visible := true;
   Position := spRelative;
   BorderStyle := bsNone;
@@ -461,6 +466,7 @@ begin
   OnDragEnd := nil;
   OnEnter := nil;
   OnExit := nil;
+  UndoStack := nil;
   Enabled := true;
   Modal := false;
   IsLeftMouseDown := false;
@@ -584,6 +590,48 @@ begin
     TDragEventProc(OnDragEnd)(@self, AEvent);
 end;
 
+procedure TControl.Undo;
+var
+  action: PUndoAction;
+  item: PUndoItem;
+  index: integer;
+begin
+  if not (Assigned(UndoStack) and CanUndo) then
+    exit;
+  if UndoStack^.Count = 0 then
+    exit;
+  if UndoStack^.RedoIndex = 0 then
+    exit;
+  item := UndoStack^.GetItem(UndoStack^.RedoIndex);
+  Dec(UndoStack^.RedoIndex);
+  action := UndoStack^.Actions^.GetItemByType(item^.ActionType);
+  if not Assigned(action) then
+    exit;
+  if not Assigned(action^.OnUndo) then
+    exit;
+  TUndoEventProc(action^.OnUndo)(@self, item);
+  FreeAndNil(item);
+end;
+
+procedure TControl.Redo;
+var
+  action: PUndoAction;
+  item: PUndoItem;
+begin
+  if not (Assigned(UndoStack) and CanUndo) then
+    exit;
+  if UndoStack^.RedoIndex = UndoStack^.Count then
+    exit;
+  item := UndoStack^.GetItem(UndoStack^.RedoIndex);
+  Inc(UndoStack^.RedoIndex);
+  action := UndoStack^.Actions^.GetItemByType(item^.ActionType);
+  if not Assigned(action) then
+    exit;
+  if not Assigned(action^.OnRedo) then
+    exit;
+  TUndoEventProc(action^.OnRedo)(@self, item);
+end;
+
 procedure TControl.Focus;
 begin
   SetFocus(true, true);
@@ -702,6 +750,7 @@ end;
 destructor TControl.Free;
 begin
   FreeAndNil(Controls);
+  FreeAndNil(UndoStack);
   inherited Free;
 end;
 
@@ -1277,8 +1326,9 @@ end;
 
 procedure TTextControl.SetText(const AText: string);
 begin
+  Hide;
   TString.Assign(Text, AText);
-  Draw;
+  Show;
 end;
 
 function TTextControl.GetText: string;

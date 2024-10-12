@@ -225,9 +225,9 @@ begin
   Parent^.StartDrawingEx(false);
   Graph^.State.ViewPort.Assign(rect);
   Parent^.PaintRegion(rect, @self);
-  Parent^.EndDrawing;
   Desktop^.ActiveDropDown := nil;
   SetFocus(true, true);
+  Parent^.EndDrawing;
 end;
 
 procedure TDropDownList.MouseDown(var AEvent: TMouseEvent);
