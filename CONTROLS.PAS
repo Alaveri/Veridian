@@ -205,6 +205,7 @@ type
     procedure GetClientScreenRect(var ARect: TRect); virtual;
     {Get editor cursor rect in absolute screen coordinates}
     procedure GetCursorRect(var ARect: TRect); virtual;
+    procedure GetScreenBoundsClipped(var ARect: TRect); virtual;
     procedure DrawControls; virtual;
     procedure SetupControls; virtual;
     procedure MouseMove(var AEvent: TMouseEvent); virtual;
@@ -707,6 +708,13 @@ begin
     exit;
   Parent^.GetScreenBounds(parentRect);
   ARect.Translate(parentRect.X, parentRect.Y);
+end;
+
+procedure TControl.GetScreenBoundsClipped(var ARect: TRect);
+begin
+  GetScreenBounds(ARect);
+  ARect.Intersect(Graph^.State.ViewPort);
+  ARect.Intersect(Graph^.Mode^.Bounds);
 end;
 
 procedure TControl.GetClientRect(var ARect: TRect);
