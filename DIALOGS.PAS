@@ -443,12 +443,12 @@ begin
     oldActiveControl^.Focus;
   Desktop^.ActionList := desktopActions;
   GetScreenBounds(rect);
+  Desktop^.Controls^.Remove(@self);;
   Desktop^.StartDrawing;
   GetScreenBounds(rect);
   Graph^.State.ViewPort.Assign(rect);
   Desktop^.PaintRegion(rect, @self);
   Desktop^.EndDrawing;
-  Desktop^.Controls^.Remove(@self);;
   ShowModal := ModalResult;
 end;
 

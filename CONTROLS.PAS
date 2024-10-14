@@ -24,6 +24,7 @@ uses
   VTypes,
   KeyDrv,
   GraphDrv,
+  Errors,
   GrDrv8;
 
 type
@@ -233,8 +234,8 @@ type
     function GetModal: boolean; virtual;
     function GetCursorForeColor: byte; virtual;
     function GetCursorBackColor: byte; virtual;
-    procedure Invoke(AEventProc: pointer; ASender: PObject; AEvent: PEvent); virtual;
-    procedure InvokeSelf(AEventProc: pointer; AEvent: PEvent); virtual;
+    procedure InvokeSender(AEventProc: pointer; ASender: PObject; var AEvent: TEvent); virtual;
+    procedure Invoke(AEventProc: pointer; var AEvent: TEvent); virtual;
     procedure Undo; virtual;
     procedure Redo; virtual;
   end;
@@ -330,6 +331,7 @@ type
     constructor CreateText(const AId, AText: string; AParent: PControl);
     procedure Init; virtual;
     procedure Paint; virtual;
+    procedure SetText(const AText: string); virtual;
     procedure Clear; virtual;
     procedure SetupControls; virtual;
     destructor Free; virtual;
@@ -355,7 +357,9 @@ type
 
   TPopUp = object(TPanel)
   private
+    FBackBuffer: PMemoryStream;
   public
+    UseBackBuffer: boolean;
     destructor Free; virtual;
     procedure Init; virtual;
     procedure Show; virtual;
@@ -487,15 +491,15 @@ begin
   MouseCursor := VeridianApp^.MouseCursors^.GetItemById('Default');
 end;
 
-procedure TControl.Invoke(AEventProc: pointer; ASender: PObject; AEvent: PEvent);
+procedure TControl.InvokeSender(AEventProc: pointer; ASender: PObject; var AEvent: TEvent);
 begin
   if Assigned(AEventProc) then
-    TEventProc(AEventProc)(ASender, AEvent^);
+    TEventProc(AEventProc)(ASender, AEvent);
 end;
 
-procedure TControl.InvokeSelf(AEventProc: pointer; AEvent: PEvent);
+procedure TControl.Invoke(AEventProc: pointer; var AEvent: TEvent);
 begin
-  Invoke(AEventProc, @self, AEvent);
+  InvokeSender(AEventProc, @self, AEvent);
 end;
 
 function TControl.IsActionControl: boolean;
@@ -868,7 +872,6 @@ begin
   VeridianApp^.PushState;
   VeridianApp^.CursorOff;
   rect.Intersect(AScreenRect);
-  Graph^.State.ViewPort := rect;
 
   if Controls^.Count > 0 then begin
     for index := Controls^.Count - 1 downto 0 do begin
@@ -878,10 +881,9 @@ begin
       if not control^.GetVisible then
         continue;
       control^.GetScreenBounds(controlRect);
-      controlRect.Intersect(AScreenRect);
+      controlRect.Intersect(rect);
       if not controlRect.IsEmpty then begin
         control^.PaintRegion(controlRect, nil);
-        Graph^.State.ViewPort := controlRect;
         regionRect := New(PRect, CreateRect(controlRect));
         if not ARegion^.HasRect(regionRect^) then
           ARegion^.Add(regionRect);
@@ -890,8 +892,6 @@ begin
     end;
   end;
 
-  GetScreenBounds(rect);
-  rect.Intersect(AScreenRect);
   if (ARegion^.Count > 0) and ARegion^.IntersectsRect(rect) then begin
     Graph^.State.RegionMode := rmExclude;
     Graph^.State.Region := ARegion;
@@ -1326,9 +1326,8 @@ end;
 
 procedure TTextControl.SetText(const AText: string);
 begin
-  Hide;
   TString.Assign(Text, AText);
-  Show;
+  Draw;
 end;
 
 function TTextControl.GetText: string;
@@ -1478,13 +1477,14 @@ end;
 procedure TPopUp.Init;
 begin
   inherited Init;
+  UseBackBuffer := true;
+  FBackBuffer := nil;
 end;
 
 destructor TPopUp.Free;
-var
-  rect: TRect;
 begin
-  GetBounds(rect);
+  if Assigned(FBackBuffer) then
+    FreeAndNil(FBackBuffer);
   inherited Free;
 end;
 
@@ -1493,12 +1493,43 @@ var
   rect: TRect;
 begin
   Visible := true;
+  if not GetVisible then
+    exit;
+  if not UseBackBuffer then begin
+    inherited Show;
+    exit;
+  end;
+  SetupControls;
+  GetScreenBounds(rect);
+  if Assigned(FBackBuffer) then
+    FreeAndNil(FBackBuffer);
+  FBackBuffer := New(PMemoryStream, Create(rect.Width * rect.Height));
+  if FBackBuffer = nil then begin
+    VeridianApp^.Error(self, ecNotEnoughMemory);
+    exit;
+  end;
+  StartDrawing;
+  Graph^.GetImageStreamRect(rect, FBackBuffer);
+  EndDrawing;
   Draw;
 end;
 
 procedure TPopUp.Hide;
+var
+  rect: TRect;
 begin
-  inherited Hide;
+  if not UseBackBuffer then begin
+    inherited Hide;
+    exit;
+  end;
+  StartDrawing;
+  SetupControls;
+  GetScreenBounds(rect);
+  Visible := false;
+  FBackBuffer^.Seek(0, soFromBeginning);
+  Graph^.DrawImageStreamRect(rect, FBackBuffer);
+  FreeAndNil(FBackBuffer);
+  EndDrawing;
 end;
 
 procedure TButton.MouseDown(var AEvent: TMouseEvent);
@@ -1532,6 +1563,17 @@ begin
   inherited CreateParent(AId, AParent);
   SetText(AText);
 end;
+procedure TLabel.SetText(const AText: string);
+var
+  isVisible: boolean;
+begin
+  isVisible := GetVisible;
+  if isVisible then
+    Hide;
+  TString.Assign(Text, AText);
+  if isVisible then
+    Show;
+end;
 
 procedure TLabel.Clear;
 var
@@ -1549,7 +1591,7 @@ end;
 procedure TLabel.Init;
 begin
   inherited Init;
-  Drawbackground := false;
+  Drawbackground := true;
   Autosize := true;
   ForeColor := Desktop^.Colors^.Window;
   BackColor := Desktop^.Colors^.WindowBack;

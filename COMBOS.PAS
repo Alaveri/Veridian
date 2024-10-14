@@ -119,13 +119,9 @@ begin
   dropDown := PDropDownList(self^.Parent);
   case AEvent.Key of
     kyEnter: begin
-      Graph^.PushState;
-      Graph8^.HideMouseCursor;
       dropDown^.HideList;
       dropDown^.SetText(StrPas(self^.Items^.GetItem(self^.SelectedIndex)^.Text));
-      Graph^.PopState;
-      if Graph8^.MouseCursor^.Visible then
-        Graph8^.ShowMouseCursor;
+      AEvent.Handled := true;
     end;
     kyTab: begin
       AEvent.Handled := true;
@@ -219,15 +215,16 @@ begin
   if not FList^.GetVisible then
     exit;
   FList^.GetScreenBounds(rect);
+  rect.Grow(0, -1);
+  rect.Translate(0, 1);
+  rect.Intersect(Graph^.State.ViewPort);
   Dec(Height, FList^.Height);
   FList^.Visible := false;
-  FList^.Hide;
   Parent^.StartDrawingEx(false);
-  Graph^.State.ViewPort.Assign(rect);
   Parent^.PaintRegion(rect, @self);
+  Parent^.EndDrawing;
   Desktop^.ActiveDropDown := nil;
   SetFocus(true, true);
-  Parent^.EndDrawing;
 end;
 
 procedure TDropDownList.MouseDown(var AEvent: TMouseEvent);
