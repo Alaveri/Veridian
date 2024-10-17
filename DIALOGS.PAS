@@ -55,6 +55,7 @@ type
     ModalResult: TModalResult;
     Closed: boolean;
     constructor Create(AId: string; AButtons: TDialogButtons);
+    constructor CreateParent(AId: string; AParent: PControl; AButtons: TDialogButtons);
     function ShowModal: TModalResult;
     procedure Init; virtual;
     procedure BeforeShow; virtual;
@@ -351,10 +352,21 @@ end;
 
 constructor TDialog.Create(AId: string; AButtons: TDialogButtons);
 begin
-  VeridianApp^.DrawEnabled := false;
+  VeridianApp^.PushState;
+  VeridianApp^.State.DrawEnabled := false;
   Buttons := AButtons;
   inherited CreateParent(AId, Desktop);
-  VeridianApp^.DrawEnabled := true;
+  VeridianApp^.PopState;
+  BringToFront;
+end;
+
+constructor TDialog.CreateParent(AId: string; AParent: PControl; AButtons: TDialogButtons);
+begin
+  VeridianApp^.PushState;
+  VeridianApp^.State.DrawEnabled := false;
+  Buttons := AButtons;
+  inherited CreateParent(AId, AParent);
+  VeridianApp^.PopState;
   BringToFront;
 end;
 
@@ -406,8 +418,8 @@ begin
   Desktop^.MenuBar^.Draw;
   Modal := true;
   Activate;
-  oldDrawEnabled := VeridianApp^.DrawEnabled;
-  VeridianApp^.DrawEnabled := false;
+  VeridianApp^.PushState;
+  VeridianApp^.State.DrawEnabled := false;
   if (not found) and (FDialogButtons^.Count > 0) then
     FDialogButtons^.GetItem(0)^.Focus;
   BeforeShow;
@@ -421,7 +433,7 @@ begin
       break;
     end;
   end;
-  VeridianApp^.DrawEnabled := oldDrawEnabled;
+  VeridianApp^.PopState;
   Show;
   AfterShow;
   Desktop^.ActionList := ActionList;
@@ -443,11 +455,12 @@ begin
     oldActiveControl^.Focus;
   Desktop^.ActionList := desktopActions;
   GetScreenBounds(rect);
-  Desktop^.Controls^.Remove(@self);;
+  Desktop^.Controls^.Remove(@self);
   Desktop^.StartDrawing;
   GetScreenBounds(rect);
   Graph^.State.ViewPort.Assign(rect);
-  Desktop^.PaintRegion(rect, @self);
+  if Assigned(Parent) then
+    Parent^.PaintRegion(rect, @self);
   Desktop^.EndDrawing;
   ShowModal := ModalResult;
 end;

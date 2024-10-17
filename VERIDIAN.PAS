@@ -42,6 +42,7 @@ type
   public
     MouseCursor: PMouseCursor;
     CursorOn: boolean;
+    DrawEnabled: boolean;
     procedure Init; virtual;
     procedure Assign(var ASource: TObject); virtual;
   end;
@@ -99,7 +100,6 @@ type
     CursorBlinkTime: TDateTime;
     State: TAppState;
     StateStack: TObjectStack;
-    DrawEnabled: boolean;
     Fonts: PFontList;
     MouseCursors: PMouseCursorList;
     SelectingControl: PControl;
@@ -272,7 +272,6 @@ begin
   ParseParameters;
   CreateObjects;
   VeridianApp := @self;
-  DrawEnabled := false;
   FCursorBlinkVisible := false;
   Memory.OnAllocError := @OnAllocError;
   FMouseOverControl := nil;
@@ -383,7 +382,7 @@ var
   cursorColor: byte;
   activeControl: PControl;
 begin
-  if not DrawEnabled then
+  if not State.DrawEnabled then
     exit;
   activeControl := Desktop^.ActiveControl;
   if not Assigned(activeControl) then
@@ -905,7 +904,7 @@ end;
 procedure TVeridianApp.Run;
 begin
   ApplySettings;
-  DrawEnabled := true;
+  State.DrawEnabled := true;
   Desktop^.Draw;
   Mouse.SetMousePosition(Graph^.Mode^.Width div 2, Graph^.Mode^.Height div 2);
   Mouse.ShowMouse;
@@ -920,6 +919,7 @@ begin
   inherited Init;
   CursorOn := false;
   MouseCursor := nil;
+  DrawEnabled := false;
 end;
 
 procedure TAppState.Assign(var ASource: TObject);
@@ -930,6 +930,7 @@ begin
   source := PAppState(@ASource);
   CursorOn := source^.CursorOn;
   MouseCursor := source^.MouseCursor;
+  DrawEnabled := source^.DrawEnabled;
 end;
 
 procedure TVeridianAppSettings.Init;

@@ -269,7 +269,7 @@ end;
 
 procedure TEdit.Draw;
 begin
-  if not VeridianApp^.DrawEnabled then
+  if not VeridianApp^.State.DrawEnabled then
     exit;
   VeridianApp^.PushState;
   inherited Draw;

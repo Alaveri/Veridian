@@ -441,6 +441,8 @@ end;
 
 procedure TControl.Init;
 begin
+  VeridianApp^.PushState;
+  VeridianApp^.State.DrawEnabled := false;
   inherited Init;
   Controls := New(PControlList, CreateParent(@self));
   SetBounds(0, 0, 0, 0);
@@ -490,6 +492,7 @@ begin
   Parent := nil;
   Font := Desktop^.Font;
   MouseCursor := VeridianApp^.MouseCursors^.GetItemById('Default');
+  VeridianApp^.PopState;
 end;
 
 procedure TControl.InvokeSender(AEventProc: pointer; ASender: PObject; var AEvent: TEvent);
@@ -837,7 +840,8 @@ begin
   end;
   Visible := false;
   GetScreenBounds(rect);
-  Desktop^.PaintRegion(rect, @self);
+  if Assigned(Parent) then
+    Parent^.PaintRegion(rect, @self);
   EndDrawing;
 end;
 
@@ -865,10 +869,11 @@ end;
 procedure TControl.InternalPaintRegion(ARegion: PRegion; AScreenRect: TRect; AExclude: PControl);
 var
   index: integer;
-  control: PControl;
+  par, control: PControl;
   rect: TRect;
   controlRect: TRect;
   regionRect: PRect;
+  ptr: pointer;
 begin
   if AExclude = @self then
     exit;
@@ -880,8 +885,27 @@ begin
   VeridianApp^.PushState;
   VeridianApp^.CursorOff;
   rect.Intersect(AScreenRect);
+  Graph^.State.ViewPort := rect;
+  Paint;
 
-  if Controls^.Count > 0 then begin
+  VeridianApp^.PopState;
+  for index := Controls^.Count - 1 downto 0 do begin
+    control := Controls^.Items^[index];
+    if control = AExclude then
+      continue;
+    if not control^.GetVisible then
+      continue;
+
+    control^.GetScreenBounds(controlRect);
+    controlRect.Intersect(rect);
+    if controlRect.IsEmpty then
+      continue;
+    control^.PaintRegion(controlRect, nil);
+  end;
+
+
+
+{  if Controls^.Count > 0 then begin
     for index := Controls^.Count - 1 downto 0 do begin
       control := Controls^.GetItem(index);
       if control = AExclude then
@@ -907,12 +931,12 @@ begin
   end;
   Paint;
   Graph^.State.Region := nil;
-  VeridianApp^.PopState;
+  VeridianApp^.PopState;}
 end;
 
 procedure TControl.DrawSelf;
 begin
-  if not VeridianApp^.DrawEnabled then
+  if not VeridianApp^.State.DrawEnabled then
     exit;
   if not GetVisible then
     exit;
@@ -923,7 +947,7 @@ end;
 
 procedure TControl.Draw;
 begin
-  if not VeridianApp^.DrawEnabled then
+  if not VeridianApp^.State.DrawEnabled then
    exit;
   if not GetVisible then
     exit;
@@ -938,6 +962,8 @@ var
   index: integer;
   control: PControl;
 begin
+  if not VeridianApp^.State.DrawEnabled then
+   exit;
   for index := Controls^.Count - 1 downto 0 do begin
     control := Controls^.GetItem(index);
     control^.Draw;
@@ -1525,9 +1551,23 @@ end;
 procedure TPopUp.Hide;
 var
   rect: TRect;
+  index: integer;
+  control: PControl;
 begin
   if not UseBackBuffer then begin
-    inherited Hide;
+    StartDrawing;
+    for index := 0 to Controls^.Count - 1 do begin
+      control := Controls^.GetItem(index);
+      control^.IsMouseOver := false;
+      control^.IsLeftMouseDown := false;
+      control^.IsRightMouseDown := false;
+      if Desktop^.ActiveControl = control then
+        Desktop^.ActiveControl := nil;
+    end;
+    Visible := false;
+    GetScreenBounds(rect);
+    Desktop^.PaintRegion(rect, @self);
+    EndDrawing;
     exit;
   end;
   StartDrawing;

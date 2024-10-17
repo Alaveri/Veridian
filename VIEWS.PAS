@@ -312,12 +312,8 @@ begin
 end;
 
 procedure TView.Init;
-var
-  oldDrawEnabled: boolean;
 begin
   inherited Init;
-  oldDrawEnabled := VeridianApp^.DrawEnabled;
-  VeridianApp^.DrawEnabled := false;
   CanFocus := false;
   IsMouseOver := false;
   ForeColor := Desktop^.Colors^.Window;
@@ -337,7 +333,6 @@ begin
   AutoSize := false;
   ScrollX := 0;
   ScrollY := 0;
-  VeridianApp^.DrawEnabled := oldDrawEnabled;
 end;
 
 function TView.GetAutoWidth: longint;
