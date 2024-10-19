@@ -6,6 +6,7 @@ interface
 uses
   AplObj,
   AplTypes,
+  VTypes,
   Lists,
   {$IFDEF DOS}
   Strings,

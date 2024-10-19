@@ -12,6 +12,7 @@ uses
   Lists,
   Files,
   Errors,
+  VTypes,
   Common,
   Veridian,
   Controls,
@@ -102,7 +103,9 @@ type
     Filename: string;
     Options: TFileDialogOptions;
     constructor Create(const ATitle, AInitialPath: string);
+    constructor CreateParent(const ATitle, AInitialPath: string; AParent: PControl);
     constructor CreateOptions(const ATitle, AInitialPath: string; AOptions: TFileDialogOptions);
+    constructor CreatreParentOptions(const ATitle, AInitialPath: string; AParent: PControl; AOptions: TFileDialogOptions);
     procedure SelectFile(AFile: PFile); virtual;
     procedure SelectText(AFilename: string); virtual;
     procedure HandleActionExecute(var AAction: PAction); virtual;
@@ -566,6 +569,20 @@ end;
 constructor TFileDialog.CreateOptions(const ATitle, AInitialPath: string; AOptions: TFileDialogOptions);
 begin
   Create(ATitle, AInitialPath);
+  Options := AOptions;
+end;
+
+constructor TFileDialog.CreateParent(const ATitle, AInitialPath: string; AParent: PControl);
+begin
+  InitialPath := FExpand(AInitialPath);
+  inherited CreateParent('FileDialog', AParent, [mbOk, mbCancel]);
+  SetTitle(ATitle);
+end;
+
+constructor TFileDialog.CreatreParentOptions(const ATitle, AInitialPath: string;
+  AParent: PControl; AOptions: TFileDialogOptions);
+begin
+  CreateParent(ATitle, AInitialPath, AParent);
   Options := AOptions;
 end;
 

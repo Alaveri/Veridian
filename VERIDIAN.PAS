@@ -656,7 +656,8 @@ begin
   CurrentScrollSlider := nil;
   if Assigned(Desktop^.ActiveMenu) and (AControl = PControl(Desktop^.ActiveMenu^.ActiveItem)) then
     selecting := true;
-  if (LeftMouseDownControl = AControl) or selecting then begin
+  if ((LeftMouseDownControl = AControl) and (AButton = bsLeft))
+      or ((RightMouseDownControl = AControl) and (AButton = bsRight)) or selecting then begin
     AControl^.MouseUp(AEvent);
     AControl^.MouseClick(AEvent);
     HandleDblClick(now, AControl, AEvent);

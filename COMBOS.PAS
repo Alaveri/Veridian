@@ -6,7 +6,9 @@ interface
 uses
   AplTypes,
   AplObj,
+  Math,
   Lists,
+  VTypes,
   ListBox,
   Drawing,
   Editors,
@@ -451,7 +453,7 @@ end;
 
 procedure TNumericUpDown.SetValue(AValue: longint);
 begin
-  FValue := EnsureRange(AValue, FMinValue, FMaxValue);
+  FValue := ClampL(AValue, FMinValue, FMaxValue);
   FEntry^.SetText(IntToStr(FValue));
 end;
 
@@ -461,7 +463,7 @@ var
 begin
   oldValue := FValue;
   FMaxValue := AValue;
-  AValue := EnsureRange(FValue, FMinValue, FMaxValue);
+  AValue := ClampL(FValue, FMinValue, FMaxValue);
   if oldValue <> AValue then
     FEntry^.SetText(IntToStr(AValue));
 end;
@@ -472,7 +474,7 @@ var
 begin
   oldValue := FValue;
   FMinValue := AValue;
-  AValue := EnsureRange(FValue, FMinValue, FMaxValue);
+  AValue := ClampL(FValue, FMinValue, FMaxValue);
   if oldValue <> AValue then
     FEntry^.SetText(IntToStr(AValue));
 end;

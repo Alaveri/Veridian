@@ -6,8 +6,11 @@ interface
 uses
   AplObj,
   AplTypes,
+  AplConst,
+  Math,
   Lists,
   Drawing,
+  VTypes,
   Common,
   MemDrv,
   GrDrv8,
@@ -192,7 +195,7 @@ var
 begin
   CheckSize := 0;
   Inc(ALength);
-  capacity := MaxWord(FBuffer.Size, DefaultEditorSize);
+  capacity := MaxW(FBuffer.Size, DefaultEditorSize);
   while capacity < ALength do begin
     if ALength >= 64 then
       capacity := capacity * 3 div 2
@@ -353,7 +356,7 @@ begin
   needsDraw := false;
   GetClientRect(drawRect);
   NeedsDraw := false;
-  CheckWordRange(APos, 0, Length);
+  APos := ClampW(APos, 0, Length);
   FCursorPos := APos;
   FCursorX := Font^.TextWidthAny(FBuffer.AsString, APos);
   charWidth := Font^.TextWidth(FBuffer.AsString[APos]);
@@ -369,7 +372,7 @@ begin
     needsDraw := true;
   end
   else if FCursorX + drawRect.X - ScrollPos < drawRect.X then begin
-    ScrollPos := MaxLong(0, FCursorX - drawRect.Width div 2);
+    ScrollPos := MaxL(0, FCursorX - drawRect.Width div 2);
     needsDraw := true;
   end;
 
@@ -378,8 +381,8 @@ end;
 
 function TEdit.CheckSelection: boolean;
 begin
-  CheckWordRange(SelectStart, 0, Length);
-  CheckWordRange(SelectEnd, 0, Length);
+  SelectStart := ClampW(SelectStart, 0, Length);
+  SelectEnd := ClampW(SelectEnd, 0, Length);
   if SelectStart > SelectEnd then
     SwapWord(SelectStart, SelectEnd);
   CheckSelection := SelectStart <> SelectEnd;
@@ -439,7 +442,7 @@ begin
   end;
   if CheckSize(Length + 1) < 0 then
     exit;
-  CheckWordRange(AIndex, 0, Length);
+  AIndex := ClampW(AIndex, 0, Length);
   if ClearText then
     AIndex := FCursorPos;
   FBuffer.Move(AIndex, AIndex + 1, Length - AIndex);
@@ -525,7 +528,7 @@ procedure TEdit.MoveRight;
 begin
   VeridianApp^.PushState;
   VeridianApp^.CursorOff;
-  if SetCursorPos(MaxWord(MinWord(FCursorPos + 1, Length), 0)) then
+  if SetCursorPos(MaxW(MinW(FCursorPos + 1, Length), 0)) then
     Draw;
   VeridianApp^.PopState;
   ResetCursor;
@@ -545,7 +548,7 @@ begin
   while (current > 0) and not (FBuffer.AsString[current - 1] in WordDelimiters) do begin
     Dec(current);
   end;
-  GetWordLeft := MaxWord(0, current);
+  GetWordLeft := MaxW(0, current);
 end;
 
 function TEdit.GetWordRight: word;
@@ -792,7 +795,7 @@ begin
   if VeridianApp^.SelectingControl = @self then begin
     GetScreenBounds(rect);
     index := GetIndexAt(AEvent.X, AEvent.Y);
-    CheckLongRange(index, 0, Length);
+    index := ClampW(index, 0, Length);
     if index = FCursorPos then
       exit;
     ChangeSelect(index);

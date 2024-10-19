@@ -8,7 +8,9 @@ uses
   AplTypes,
   Lists,
   Errors,
+  VTypes,
   GraphApp,
+  Math,
   Drawing,
   Common,
   MouseDrv,
@@ -532,12 +534,12 @@ begin
   parentView := PView(Parent);
   if mouseCoord < sliderCoord then begin
     newPos := CurrentPos - PageIncrement;
-    newPos := EnsureLongRange(newPos, Min, Max);
+    newPos := ClampL(newPos, Min, Max);
     SetCurrentPos(newPos);
   end
   else if mouseCoord > sliderCoord + Slider^.Height  then begin
     newPos := CurrentPos + PageIncrement;
-    newPos := EnsureLongRange(newPos, Min, Max);
+    newPos := ClampL(newPos, Min, Max);
     SetCurrentPos(newPos);
   end;
 end;
@@ -616,7 +618,7 @@ procedure TScrollbar.ScrollByPixels(ADelta: integer);
 var
   pos: longint;
 begin
-  pos := EnsureLongRange(CurrentPos + ADelta, Min, Max);
+  pos := ClampL(CurrentPos + ADelta, Min, Max);
   SetCurrentPos(pos);
 end;
 
@@ -629,13 +631,13 @@ begin
   minCoord := Size - 2 * BorderWidth;
   if Orientation = soHorizontal then begin
     maxCoord := Width - 2 * Size + BorderWidth;
-    slider^.X := EnsureRange(slider^.X + ADelta, minCoord, maxCoord);
+    slider^.X := Clamp(slider^.X + ADelta, minCoord, maxCoord);
     scrollSize := Width - 3 * Size + 3 * BorderWidth;
     pos := Round(((slider^.X - Size + 2 * BorderWidth) / scrollSize) * Max);
   end
   else begin
     maxCoord := Height - 2 * Size + BorderWidth;
-    slider^.Y := EnsureRange(slider^.Y + ADelta, minCoord, maxCoord);
+    slider^.Y := Clamp(slider^.Y + ADelta, minCoord, maxCoord);
     scrollSize := Height - 3 * Size + 3 * BorderWidth;
     pos := Round(((slider^.Y - Size + 2 * BorderWidth) / scrollSize) * Max);
   end;

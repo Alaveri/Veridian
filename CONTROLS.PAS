@@ -28,46 +28,6 @@ uses
   GrDrv8;
 
 type
-  TBorderStyle =
-  (
-    bsNone,
-    bsSingle,
-    bsDouble
-  );
-
-  TScrollStyle =
-  (
-    ssVert,
-    ssHorz
-  );
-
-  TScrollButtonStyle =
-  (
-    sbInc,
-    sbDec,
-    sbSlider
-  );
-
-  THorzAlign =
-  (
-    haLeft,
-    haRight,
-    haCenter
-  );
-
-  TVertAlign =
-  (
-    vaTop,
-    vaBottom,
-    vaCenter
-  );
-
-  TScreenPosition =
-  (
-    spAbsolute,
-    spRelative
-  );
-
   TBorderStyles = set of TBorderStyle;
 
   PActionControl = ^TActionControl;

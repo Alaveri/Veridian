@@ -10,6 +10,7 @@ uses
   Images,
   Lists,
   VTypes,
+  Math,
   Controls,
   Views;
 
@@ -290,7 +291,7 @@ begin
       Focus;
     previousindex := SelectedIndex;
     SelectedIndex := GetSelectedIndex(AEvent);
-    SelectedIndex := EnsureRange(SelectedIndex, 0, Items^.Count - 1);
+    SelectedIndex := Clamp(SelectedIndex, 0, Items^.Count - 1);
 
     DrawItem(previousIndex);
     DrawItem(SelectedIndex);
@@ -310,7 +311,7 @@ var
   previousIndex: integer;
   event: TIndexChangedEvent;
 begin
-  index := EnsureRange(SelectedIndex + ADelta, 0, Items^.Count - 1);
+  index := Clamp(SelectedIndex + ADelta, 0, Items^.Count - 1);
   if index = SelectedIndex then
     exit;
   previousindex := SelectedIndex;
@@ -364,7 +365,7 @@ begin
   VertScrollbar^.PageIncrement := Round(rect.Height / Font^.Height) * Font^.Height;
   max := GetAutoHeight;
   Dec(max, rect.Height);
-  VertScrollBar^.Max := Common.Max(0, max);
+  VertScrollBar^.Max := Math.MaxL(0, max);
 end;
 
 procedure TListBox.Clear;
