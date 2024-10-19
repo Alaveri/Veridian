@@ -14,8 +14,8 @@ type
   TRegion = object(TObjectList)
   private
   public
-    function IntersectsPoint(APoint: TPoint): boolean;
-    function IntersectsCoords(AX, AY: longint): boolean;
+    function ContainsPoint(APoint: TPoint): boolean;
+    function Contains(AX, AY: longint): boolean;
     function IntersectsRect(ARect: TRect): boolean;
     function Intersects(ARegion: PRegion): boolean;
     function Intersection(ARegion: PRegion): PRegion;
@@ -48,35 +48,35 @@ begin
   inherited Insert(AIndex, AItem);
 end;
 
-function TRegion.IntersectsPoint(APoint: TPoint): boolean;
+function TRegion.ContainsPoint(APoint: TPoint): boolean;
 var
   index: integer;
   rect: PRect;
 begin
-  IntersectsPoint := false;
+  ContainsPoint := false;
   if Count = 0 then
     exit;
   for index := 0 to Count - 1 do begin
     rect := GetItem(index);
-    if rect^.IntersectsPoint(APoint) then begin
-      IntersectsPoint := true;
+    if rect^.ContainsPoint(APoint) then begin
+      ContainsPoint := true;
       exit;
     end;
   end;
 end;
 
-function TRegion.IntersectsCoords(AX, AY: longint): boolean;
+function TRegion.Contains(AX, AY: longint): boolean;
 var
   index: integer;
   rect: PRect;
 begin
-{  IntersectsCoords := true;
+{  Contains := true;
   if Count = 0 then
     exit;
   for index := 0 to Count - 1 do begin
 {    rect := GetItem(index);
-    if rect^.IntersectsCoords(AX, AY) then begin
-      IntersectsCoords := true;
+    if rect^.Contains(AX, AY) then begin
+      Contains := true;
       exit;
     end;
   end;}

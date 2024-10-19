@@ -12,6 +12,7 @@ uses
   Lists,
   Files,
   Errors,
+  VTypes,
   Common,
   Veridian,
   Controls,
@@ -49,12 +50,13 @@ type
   public
     ActionList: PActionList;
     Buttons: TDialogButtons;
-    ButtonAlign: TTextAlign;
+    ButtonAlign: THorzAlign;
     DefaultButton: TDialogButton;
     CancelButton: TDialogButton;
     ModalResult: TModalResult;
     Closed: boolean;
     constructor Create(AId: string; AButtons: TDialogButtons);
+    constructor CreateParent(AId: string; AParent: PControl; AButtons: TDialogButtons);
     function ShowModal: TModalResult;
     procedure Init; virtual;
     procedure BeforeShow; virtual;
@@ -101,7 +103,9 @@ type
     Filename: string;
     Options: TFileDialogOptions;
     constructor Create(const ATitle, AInitialPath: string);
+    constructor CreateParent(const ATitle, AInitialPath: string; AParent: PControl);
     constructor CreateOptions(const ATitle, AInitialPath: string; AOptions: TFileDialogOptions);
+    constructor CreatreParentOptions(const ATitle, AInitialPath: string; AParent: PControl; AOptions: TFileDialogOptions);
     procedure SelectFile(AFile: PFile); virtual;
     procedure SelectText(AFilename: string); virtual;
     procedure HandleActionExecute(var AAction: PAction); virtual;
@@ -351,10 +355,21 @@ end;
 
 constructor TDialog.Create(AId: string; AButtons: TDialogButtons);
 begin
-  VeridianApp^.DrawEnabled := false;
+  VeridianApp^.PushState;
+  VeridianApp^.State.DrawEnabled := false;
   Buttons := AButtons;
   inherited CreateParent(AId, Desktop);
-  VeridianApp^.DrawEnabled := true;
+  VeridianApp^.PopState;
+  BringToFront;
+end;
+
+constructor TDialog.CreateParent(AId: string; AParent: PControl; AButtons: TDialogButtons);
+begin
+  VeridianApp^.PushState;
+  VeridianApp^.State.DrawEnabled := false;
+  Buttons := AButtons;
+  inherited CreateParent(AId, AParent);
+  VeridianApp^.PopState;
   BringToFront;
 end;
 
@@ -371,7 +386,7 @@ begin
   BorderStyle := bsSingle;
   Modal := true;
   Closed := false;
-  ButtonAlign := taCenter;
+  ButtonAlign := haCenter;
   FDialogButtons := New(PButtonList, Create);
   FDialogButtons^.DisposeObjects := false;
   ModalResult := mrNone;
@@ -406,8 +421,8 @@ begin
   Desktop^.MenuBar^.Draw;
   Modal := true;
   Activate;
-  oldDrawEnabled := VeridianApp^.DrawEnabled;
-  VeridianApp^.DrawEnabled := false;
+  VeridianApp^.PushState;
+  VeridianApp^.State.DrawEnabled := false;
   if (not found) and (FDialogButtons^.Count > 0) then
     FDialogButtons^.GetItem(0)^.Focus;
   BeforeShow;
@@ -421,7 +436,7 @@ begin
       break;
     end;
   end;
-  VeridianApp^.DrawEnabled := oldDrawEnabled;
+  VeridianApp^.PopState;
   Show;
   AfterShow;
   Desktop^.ActionList := ActionList;
@@ -443,12 +458,13 @@ begin
     oldActiveControl^.Focus;
   Desktop^.ActionList := desktopActions;
   GetScreenBounds(rect);
+  Desktop^.Controls^.Remove(@self);
   Desktop^.StartDrawing;
   GetScreenBounds(rect);
   Graph^.State.ViewPort.Assign(rect);
-  Desktop^.PaintRegion(rect, @self);
+  if Assigned(Parent) then
+    Parent^.PaintRegion(rect, @self);
   Desktop^.EndDrawing;
-  Desktop^.Controls^.Remove(@self);;
   ShowModal := ModalResult;
 end;
 
@@ -480,9 +496,9 @@ begin
       Inc(totalWidth, 4);
   end;
   case ButtonAlign of
-    taLeft: bx := rect.X + 4;
-    taRight: bx := rect.Right - totalWidth - 4;
-    taCenter: bx := rect.X + (rect.Width - totalWidth) div 2;
+    haLeft: bx := rect.X + 4;
+    haRight: bx := rect.Right - totalWidth - 4;
+    haCenter: bx := rect.X + (rect.Width - totalWidth) div 2;
   end;
   for index := 0 to FDialogButtons^.Count - 1 do begin
     button := PModalDialogButton(FDialogButtons^.GetItem(index));
@@ -553,6 +569,20 @@ end;
 constructor TFileDialog.CreateOptions(const ATitle, AInitialPath: string; AOptions: TFileDialogOptions);
 begin
   Create(ATitle, AInitialPath);
+  Options := AOptions;
+end;
+
+constructor TFileDialog.CreateParent(const ATitle, AInitialPath: string; AParent: PControl);
+begin
+  InitialPath := FExpand(AInitialPath);
+  inherited CreateParent('FileDialog', AParent, [mbOk, mbCancel]);
+  SetTitle(ATitle);
+end;
+
+constructor TFileDialog.CreatreParentOptions(const ATitle, AInitialPath: string;
+  AParent: PControl; AOptions: TFileDialogOptions);
+begin
+  CreateParent(ATitle, AInitialPath, AParent);
   Options := AOptions;
 end;
 
@@ -733,7 +763,7 @@ begin
   Options := [];
   Title := nil;
   ScrollType := scNone;
-  ButtonAlign := taRight;
+  ButtonAlign := haRight;
   CurrentDir := nil;
   Filename := '';
   DefaultExt := '';
@@ -830,7 +860,7 @@ begin
   DefaultButton := mbOk;
   CancelButton := mbOk;
   ScrollType := scNone;
-  ButtonAlign := taCenter;
+  ButtonAlign := haCenter;
   FLabel := New(PLabel, CreateParent(Message, @self));
   FLabel^.Text := TString.New(Message);
   labelWidth := Font^.TextWidth(Message);

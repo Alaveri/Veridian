@@ -8,7 +8,9 @@ uses
   AplTypes,
   Lists,
   Errors,
+  VTypes,
   GraphApp,
+  Math,
   Drawing,
   Common,
   MouseDrv,
@@ -194,7 +196,7 @@ begin
   BackColor := Desktop^.Colors^.ScrollBack;
   IncButton := New(PButton, CreateParent('IncButton', -1, @self));
   with IncButton^ do begin
-    TextAlign := taCenter;
+    TextAlign := haCenter;
     VertAlign := vaCenter;
     CanFocus := false;
     Tag := 1;
@@ -202,7 +204,7 @@ begin
   end;
   DecButton := New(PButton, CreateParent('DecButton', -1, @self));
   with DecButton^ do begin
-    TextAlign := taCenter;
+    TextAlign := haCenter;
     VertAlign := vaCenter;
     CanFocus := false;
     Tag := 0;
@@ -282,7 +284,7 @@ begin
   ActiveBackColor := Desktop^.Colors^.WindowActiveTitleBack;
   BorderStyle := bsNone;
   VertAlign := vaCenter;
-  TextAlign := taCenter;
+  TextAlign := haCenter;
   ParentView := nil;
   Font := Desktop^.Font;
   Margin := 1;
@@ -312,12 +314,8 @@ begin
 end;
 
 procedure TView.Init;
-var
-  oldDrawEnabled: boolean;
 begin
   inherited Init;
-  oldDrawEnabled := VeridianApp^.DrawEnabled;
-  VeridianApp^.DrawEnabled := false;
   CanFocus := false;
   IsMouseOver := false;
   ForeColor := Desktop^.Colors^.Window;
@@ -337,7 +335,6 @@ begin
   AutoSize := false;
   ScrollX := 0;
   ScrollY := 0;
-  VeridianApp^.DrawEnabled := oldDrawEnabled;
 end;
 
 function TView.GetAutoWidth: longint;
@@ -537,12 +534,12 @@ begin
   parentView := PView(Parent);
   if mouseCoord < sliderCoord then begin
     newPos := CurrentPos - PageIncrement;
-    newPos := EnsureLongRange(newPos, Min, Max);
+    newPos := ClampL(newPos, Min, Max);
     SetCurrentPos(newPos);
   end
   else if mouseCoord > sliderCoord + Slider^.Height  then begin
     newPos := CurrentPos + PageIncrement;
-    newPos := EnsureLongRange(newPos, Min, Max);
+    newPos := ClampL(newPos, Min, Max);
     SetCurrentPos(newPos);
   end;
 end;
@@ -621,7 +618,7 @@ procedure TScrollbar.ScrollByPixels(ADelta: integer);
 var
   pos: longint;
 begin
-  pos := EnsureLongRange(CurrentPos + ADelta, Min, Max);
+  pos := ClampL(CurrentPos + ADelta, Min, Max);
   SetCurrentPos(pos);
 end;
 
@@ -634,13 +631,13 @@ begin
   minCoord := Size - 2 * BorderWidth;
   if Orientation = soHorizontal then begin
     maxCoord := Width - 2 * Size + BorderWidth;
-    slider^.X := EnsureRange(slider^.X + ADelta, minCoord, maxCoord);
+    slider^.X := Clamp(slider^.X + ADelta, minCoord, maxCoord);
     scrollSize := Width - 3 * Size + 3 * BorderWidth;
     pos := Round(((slider^.X - Size + 2 * BorderWidth) / scrollSize) * Max);
   end
   else begin
     maxCoord := Height - 2 * Size + BorderWidth;
-    slider^.Y := EnsureRange(slider^.Y + ADelta, minCoord, maxCoord);
+    slider^.Y := Clamp(slider^.Y + ADelta, minCoord, maxCoord);
     scrollSize := Height - 3 * Size + 3 * BorderWidth;
     pos := Round(((slider^.Y - Size + 2 * BorderWidth) / scrollSize) * Max);
   end;

@@ -6,6 +6,7 @@ interface
 uses
   AplObj,
   AplTypes,
+  VTypes,
   Lists,
   {$IFDEF DOS}
   Strings,
@@ -39,7 +40,7 @@ type
     FBinding: PChar;
   public
     Width: integer;
-    Align: TTextAlign;
+    Align: THorzAlign;
     VertAlign: TVertAlign;
     Index: integer;
     Visible: boolean;
@@ -92,7 +93,7 @@ procedure TTableColumn.Init;
 begin
   inherited Init;
   FHeader := nil;
-  Align := taCenter;
+  Align := haCenter;
   VertAlign := vaCenter;
   FBinding := nil;
   Index := -1;

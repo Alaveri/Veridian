@@ -9,6 +9,7 @@ uses
   {$ENDIF}
   AplObj,
   AplTypes,
+  AplApps,
   Lists,
   AplConst,
   Drawing,
@@ -18,53 +19,15 @@ uses
   Files,
   Common,
   Actions,
+  UndoStk,
   MouseDrv,
-  VeriType,
+  VTypes,
   KeyDrv,
   GraphDrv,
+  Errors,
   GrDrv8;
 
 type
-  TBorderStyle =
-  (
-    bsNone,
-    bsSingle,
-    bsDouble
-  );
-
-  TScrollStyle =
-  (
-    ssVert,
-    ssHorz
-  );
-
-  TScrollButtonStyle =
-  (
-    sbInc,
-    sbDec,
-    sbSlider
-  );
-
-  TTextAlign =
-  (
-    taLeft,
-    taRight,
-    taCenter
-  );
-
-  TVertAlign =
-  (
-    vaTop,
-    vaBottom,
-    vaCenter
-  );
-
-  TScreenPosition =
-  (
-    spAbsolute,
-    spRelative
-  );
-
   TBorderStyles = set of TBorderStyle;
 
   PActionControl = ^TActionControl;
@@ -82,6 +45,7 @@ type
   PKeyEventProc = ^TKeyEventProc;
   PDragEventProc = ^TDragEventProc;
   PScrollEventProc = ^TScrollEventProc;
+  PControlListProc = ^TControlListProc;
 
   TKeyEvent = object(TEvent)
   private
@@ -118,23 +82,28 @@ type
   TKeyEventProc = procedure(ASender: PObject; var AEvent: TKeyEvent);
   TDragEventProc = procedure(ASender: PObject; var AEvent: TDragEvent);
   TScrollEventProc = procedure(ASender: PObject; var AEvent: TScrollEvent);
+  TControlListProc = procedure(ASender: PControlList; AControl: PControl);
 
-  TControl = object(TIdentifiable)
+  TControl = object(TMessageObject)
   private
     procedure InternalPaintRegion(ARegion: PRegion; AScreenRect: TRect; AExclude: PControl);
   public
     X, Y: integer;
     Width, Height: word;
     Visible: boolean;
+
     BorderColor: byte;
     ForeColor: byte;
     BackColor: byte;
+    BorderStyle: TBorderStyle;
     FocusedForeColor: byte;
     FocusedBackColor: byte;
     HoverForeColor: byte;
     HoverBackColor: byte;
-    CanDrag: boolean;
     HoverHighlightColor: byte;
+    Font: PFont;
+    CanDrag: boolean;
+    CanUndo: boolean;
     OnMouseMove: PMouseEventProc;
     OnMouseUp: PMouseEventProc;
     OnMouseDown: PMouseEventProc;
@@ -146,9 +115,11 @@ type
     OnKeyPress: PKeyEventProc;
     OnDragStart: PDragEventProc;
     OnDragEnd: PDragEventProc;
+    OnEnter: PEventProc;
+    OnExit: PEventProc;
     Controls: PControlList;
     Parent: PControl;
-    BorderStyle: TBorderStyle;
+    UndoStack: PUndoStack;
     Modal: boolean;
     IsLeftMouseDown: boolean;
     IsRightMouseDown: boolean;
@@ -165,7 +136,6 @@ type
     UsesCursor: boolean;
     AcceptEnter: boolean;
     AcceptTab: boolean;
-    Font: PFont;
     Tag: integer;
     MouseCursor: PMouseCursor;
     constructor Create(const AId: string);
@@ -195,6 +165,7 @@ type
     procedure GetClientScreenRect(var ARect: TRect); virtual;
     {Get editor cursor rect in absolute screen coordinates}
     procedure GetCursorRect(var ARect: TRect); virtual;
+    procedure GetScreenBoundsClipped(var ARect: TRect); virtual;
     procedure DrawControls; virtual;
     procedure SetupControls; virtual;
     procedure MouseMove(var AEvent: TMouseEvent); virtual;
@@ -209,7 +180,7 @@ type
     procedure DragEnd(var AEvent: TDragEvent); virtual;
     procedure Focus; virtual;
     procedure Unfocus; virtual;
-    procedure SetFocus(AFocused, ARedraw: boolean);
+    procedure SetFocus(AFocused, ARedraw: boolean); virtual;
     procedure KeyPress(var AEvent: TKeyEvent); virtual;
     procedure StartDrawing; virtual;
     procedure StartDrawingEx(ASetupControls: boolean); virtual;
@@ -224,6 +195,10 @@ type
     function GetModal: boolean; virtual;
     function GetCursorForeColor: byte; virtual;
     function GetCursorBackColor: byte; virtual;
+    procedure InvokeSender(AEventProc: pointer; ASender: PObject; var AEvent: TEvent); virtual;
+    procedure Invoke(AEventProc: pointer; var AEvent: TEvent); virtual;
+    procedure Undo; virtual;
+    procedure Redo; virtual;
   end;
 
   TControlList = Object(TIdentifiableList)
@@ -235,6 +210,7 @@ type
     function GetItem(AIndex: integer): PControl;
     function Add(AItem: pointer): integer; virtual;
     procedure Insert(AIndex: integer; AItem: pointer); virtual;
+    procedure ForEach(AProc: PControlListProc);
     procedure Init; virtual;
     procedure Remove(AControl: PControl);
   end;
@@ -269,7 +245,7 @@ type
   private
   public
     Text: PChar;
-    TextAlign: TTextAlign;
+    TextAlign: THorzAlign;
     VertAlign: TVertAlign;
     Margin: integer;
     HighlightColor: byte;
@@ -316,6 +292,7 @@ type
     constructor CreateText(const AId, AText: string; AParent: PControl);
     procedure Init; virtual;
     procedure Paint; virtual;
+    procedure SetText(const AText: string); virtual;
     procedure Clear; virtual;
     procedure SetupControls; virtual;
     destructor Free; virtual;
@@ -341,7 +318,9 @@ type
 
   TPopUp = object(TPanel)
   private
+    FBackBuffer: PMemoryStream;
   public
+    UseBackBuffer: boolean;
     destructor Free; virtual;
     procedure Init; virtual;
     procedure Show; virtual;
@@ -352,7 +331,6 @@ implementation
 
 uses
   GraphApp,
-
   Veridian,
   Desk;
 
@@ -366,6 +344,11 @@ procedure TControlList.Init;
 begin
   inherited Init;
   Parent := nil;
+end;
+
+procedure TControlList.ForEach(AProc: PControlListProc);
+begin
+  TList.ForEach(PListProc(AProc));
 end;
 
 function TControlList.GetItem(AIndex: integer): PControl;
@@ -418,11 +401,14 @@ end;
 
 procedure TControl.Init;
 begin
+  VeridianApp^.PushState;
+  VeridianApp^.State.DrawEnabled := false;
   inherited Init;
   Controls := New(PControlList, CreateParent(@self));
   SetBounds(0, 0, 0, 0);
   Tag := 0;
   CanDrag := false;
+  CanUndo := false;
   Visible := true;
   Position := spRelative;
   BorderStyle := bsNone;
@@ -445,6 +431,9 @@ begin
   OnMouseClick := nil;
   OnDragStart := nil;
   OnDragEnd := nil;
+  OnEnter := nil;
+  OnExit := nil;
+  UndoStack := nil;
   Enabled := true;
   Modal := false;
   IsLeftMouseDown := false;
@@ -459,10 +448,22 @@ begin
   CanFocus := false;
   UsesCursor := false;
   AcceptEnter := false;
-  AcceptTab := false;
+  AcceptTab := true;
   Parent := nil;
   Font := Desktop^.Font;
   MouseCursor := VeridianApp^.MouseCursors^.GetItemById('Default');
+  VeridianApp^.PopState;
+end;
+
+procedure TControl.InvokeSender(AEventProc: pointer; ASender: PObject; var AEvent: TEvent);
+begin
+  if Assigned(AEventProc) then
+    TEventProc(AEventProc)(ASender, AEvent);
+end;
+
+procedure TControl.Invoke(AEventProc: pointer; var AEvent: TEvent);
+begin
+  InvokeSender(AEventProc, @self, AEvent);
 end;
 
 function TControl.IsActionControl: boolean;
@@ -557,24 +558,74 @@ begin
     TDragEventProc(OnDragEnd)(@self, AEvent);
 end;
 
+procedure TControl.Undo;
+var
+  action: PUndoAction;
+  item: PUndoItem;
+  index: integer;
+begin
+  if not (Assigned(UndoStack) and CanUndo) then
+    exit;
+  if UndoStack^.Count = 0 then
+    exit;
+  if UndoStack^.RedoIndex = 0 then
+    exit;
+  item := UndoStack^.GetItem(UndoStack^.RedoIndex);
+  Dec(UndoStack^.RedoIndex);
+  action := UndoStack^.Actions^.GetItemByType(item^.ActionType);
+  if not Assigned(action) then
+    exit;
+  if not Assigned(action^.OnUndo) then
+    exit;
+  TUndoEventProc(action^.OnUndo)(@self, item);
+  FreeAndNil(item);
+end;
+
+procedure TControl.Redo;
+var
+  action: PUndoAction;
+  item: PUndoItem;
+begin
+  if not (Assigned(UndoStack) and CanUndo) then
+    exit;
+  if UndoStack^.RedoIndex = UndoStack^.Count then
+    exit;
+  item := UndoStack^.GetItem(UndoStack^.RedoIndex);
+  Inc(UndoStack^.RedoIndex);
+  action := UndoStack^.Actions^.GetItemByType(item^.ActionType);
+  if not Assigned(action) then
+    exit;
+  if not Assigned(action^.OnRedo) then
+    exit;
+  TUndoEventProc(action^.OnRedo)(@self, item);
+end;
+
 procedure TControl.Focus;
 begin
   SetFocus(true, true);
 end;
 
 procedure TControl.SetFocus(AFocused, ARedraw: boolean);
+var
+  event: TEvent;
 begin
   if not (CanFocus and GetVisible and GetEnabled) then
     exit;
+  event.Create;
   Focused := AFocused;
   if AFocused then begin
     if Desktop^.ActiveControl = @self then
       exit;
-    if Assigned(Desktop^.ActiveControl) and Desktop^.ActiveControl^.Focused then
+    if Assigned(Desktop^.ActiveControl) and Desktop^.ActiveControl^.Focused then begin
+      if Assigned(Desktop^.ActiveControl^.OnExit) then
+        TEventProc(Desktop^.ActiveControl^.OnExit)(Desktop^.ActiveControl, event);
       Desktop^.ActiveControl^.Unfocus;
+    end;
     Desktop^.ActiveControl := @self;
     if ARedraw then
       Draw;
+    if Assigned(OnEnter) then
+      TEventProc(OnEnter)(@self, event);
     if UsesCursor then begin
       VeridianApp^.CursorOn;
     end;
@@ -595,7 +646,7 @@ end;
 
 procedure TControl.GetBounds(var ARect: TRect);
 begin
-  ARect.CreateDims(X, Y, Width, Height);
+   ARect.CreateDims(X, Y, Width, Height);
 end;
 
 procedure TControl.SetBounds(AX, AY, AWidth, AHeight: integer);
@@ -620,6 +671,13 @@ begin
     exit;
   Parent^.GetScreenBounds(parentRect);
   ARect.Translate(parentRect.X, parentRect.Y);
+end;
+
+procedure TControl.GetScreenBoundsClipped(var ARect: TRect);
+begin
+  GetScreenBounds(ARect);
+  ARect.Intersect(Graph^.State.ViewPort);
+  ARect.Intersect(Graph^.Mode^.Bounds);
 end;
 
 procedure TControl.GetClientRect(var ARect: TRect);
@@ -667,6 +725,7 @@ end;
 destructor TControl.Free;
 begin
   FreeAndNil(Controls);
+  FreeAndNil(UndoStack);
   inherited Free;
 end;
 
@@ -741,7 +800,8 @@ begin
   end;
   Visible := false;
   GetScreenBounds(rect);
-  Desktop^.PaintRegion(rect, @self);
+  if Assigned(Parent) then
+    Parent^.PaintRegion(rect, @self);
   EndDrawing;
 end;
 
@@ -769,10 +829,11 @@ end;
 procedure TControl.InternalPaintRegion(ARegion: PRegion; AScreenRect: TRect; AExclude: PControl);
 var
   index: integer;
-  control: PControl;
+  par, control: PControl;
   rect: TRect;
   controlRect: TRect;
   regionRect: PRect;
+  ptr: pointer;
 begin
   if AExclude = @self then
     exit;
@@ -785,8 +846,26 @@ begin
   VeridianApp^.CursorOff;
   rect.Intersect(AScreenRect);
   Graph^.State.ViewPort := rect;
+  Paint;
 
-  if Controls^.Count > 0 then begin
+  VeridianApp^.PopState;
+  for index := Controls^.Count - 1 downto 0 do begin
+    control := Controls^.Items^[index];
+    if control = AExclude then
+      continue;
+    if not control^.GetVisible then
+      continue;
+
+    control^.GetScreenBounds(controlRect);
+    controlRect.Intersect(rect);
+    if controlRect.IsEmpty then
+      continue;
+    control^.PaintRegion(controlRect, nil);
+  end;
+
+
+
+{  if Controls^.Count > 0 then begin
     for index := Controls^.Count - 1 downto 0 do begin
       control := Controls^.GetItem(index);
       if control = AExclude then
@@ -794,18 +873,17 @@ begin
       if not control^.GetVisible then
         continue;
       control^.GetScreenBounds(controlRect);
-      controlRect.Intersect(AScreenRect);
+      controlRect.Intersect(rect);
       if not controlRect.IsEmpty then begin
-        control^.InternalPaintRegion(ARegion, controlRect, @self);
+        control^.PaintRegion(controlRect, nil);
         regionRect := New(PRect, CreateRect(controlRect));
-        ARegion^.Add(regionRect);
+        if not ARegion^.HasRect(regionRect^) then
+          ARegion^.Add(regionRect);
         continue;
       end;
     end;
   end;
 
-  GetScreenBounds(rect);
-  rect.Intersect(AScreenRect);
   if (ARegion^.Count > 0) and ARegion^.IntersectsRect(rect) then begin
     Graph^.State.RegionMode := rmExclude;
     Graph^.State.Region := ARegion;
@@ -813,12 +891,12 @@ begin
   end;
   Paint;
   Graph^.State.Region := nil;
-  VeridianApp^.PopState;
+  VeridianApp^.PopState;}
 end;
 
 procedure TControl.DrawSelf;
 begin
-  if not VeridianApp^.DrawEnabled then
+  if not VeridianApp^.State.DrawEnabled then
     exit;
   if not GetVisible then
     exit;
@@ -829,7 +907,7 @@ end;
 
 procedure TControl.Draw;
 begin
-  if not VeridianApp^.DrawEnabled then
+  if not VeridianApp^.State.DrawEnabled then
    exit;
   if not GetVisible then
     exit;
@@ -844,6 +922,8 @@ var
   index: integer;
   control: PControl;
 begin
+  if not VeridianApp^.State.DrawEnabled then
+   exit;
   for index := Controls^.Count - 1 downto 0 do begin
     control := Controls^.GetItem(index);
     control^.Draw;
@@ -1058,10 +1138,10 @@ begin
   if Assigned(Action) then
     VeridianApp^.UpdateActionControl(@self);
   GetScreenBounds(rect);
-  rect.Intersect(Graph^.State.ViewPort);
   TPanel.Paint;
   txt := GetText;
   GetTextAlign(rect, textXPos, textYPos);
+  rect.Intersect(Graph^.State.ViewPort);
   textIndex := 1;
   while textIndex <= Length(txt) do begin
     SetForeColorEnabled(ForeColor);
@@ -1211,7 +1291,7 @@ procedure TTextControl.Init;
 begin
   inherited Init;
   Text := nil;
-  TextAlign := taLeft;
+  TextAlign := haLeft;
   VertAlign := vaCenter;
   Margin := 0;
   TextOffsetX := 0;
@@ -1227,9 +1307,9 @@ begin
   txt := GetText;
   textWidth := TrueTextWidth(txt);
   case TextAlign of
-    taLeft: AXPos := ARect.X + Margin + BorderWidth;
-    taRight: AXPos := ARect.X + ARect.Width - textWidth - Margin - BorderWidth;
-    taCenter: AXPos := ARect.X + (ARect.Width - textWidth) div 2 + 1;
+    haLeft: AXPos := ARect.X + Margin + BorderWidth;
+    haRight: AXPos := ARect.X + ARect.Width - textWidth - Margin - BorderWidth;
+    haCenter: AXPos := ARect.X + (ARect.Width - textWidth) div 2 + 1;
   end;
   case VertAlign of
     vaTop: AYPos := ARect.Y + Margin;
@@ -1284,7 +1364,7 @@ begin
   Down := false;
   Toggle := false;
   Grouped := false;
-  TextAlign := taCenter;
+  TextAlign := haCenter;
   BorderStyle := bsSingle;
   ForeColor := Desktop^.Colors^.Button;
   BackColor := Desktop^.Colors^.ButtonBack;
@@ -1345,8 +1425,8 @@ begin
     Graph^.SetForeColor(DownLightColor)
   else
     Graph^.SetForeColor(LightColor);
-  Graph^.HLine(rect.X, rect.Y, rect.Width);
-  Graph^.VLine(rect.X, rect.Y, rect.Height);
+  Graph^.HLine(rect.X, rect.Y, rect.Width - 1);
+  Graph^.VLine(rect.X, rect.Y, rect.Height - 1);
   if Down and Clickable then
     Graph^.SetForeColor(DownShadowColor)
   else
@@ -1391,13 +1471,14 @@ end;
 procedure TPopUp.Init;
 begin
   inherited Init;
+  UseBackBuffer := true;
+  FBackBuffer := nil;
 end;
 
 destructor TPopUp.Free;
-var
-  rect: TRect;
 begin
-  GetBounds(rect);
+  if Assigned(FBackBuffer) then
+    FreeAndNil(FBackBuffer);
   inherited Free;
 end;
 
@@ -1406,12 +1487,57 @@ var
   rect: TRect;
 begin
   Visible := true;
+  if not GetVisible then
+    exit;
+  if not UseBackBuffer then begin
+    inherited Show;
+    exit;
+  end;
+  SetupControls;
+  GetScreenBounds(rect);
+  if Assigned(FBackBuffer) then
+    FreeAndNil(FBackBuffer);
+  FBackBuffer := New(PMemoryStream, Create(rect.Width * rect.Height));
+  if FBackBuffer = nil then begin
+    VeridianApp^.Error(self, ecNotEnoughMemory);
+    exit;
+  end;
+  StartDrawing;
+  Graph^.GetImageStreamRect(rect, FBackBuffer);
+  EndDrawing;
   Draw;
 end;
 
 procedure TPopUp.Hide;
+var
+  rect: TRect;
+  index: integer;
+  control: PControl;
 begin
-  inherited Hide;
+  if not UseBackBuffer then begin
+    StartDrawing;
+    for index := 0 to Controls^.Count - 1 do begin
+      control := Controls^.GetItem(index);
+      control^.IsMouseOver := false;
+      control^.IsLeftMouseDown := false;
+      control^.IsRightMouseDown := false;
+      if Desktop^.ActiveControl = control then
+        Desktop^.ActiveControl := nil;
+    end;
+    Visible := false;
+    GetScreenBounds(rect);
+    Desktop^.PaintRegion(rect, @self);
+    EndDrawing;
+    exit;
+  end;
+  StartDrawing;
+  SetupControls;
+  GetScreenBounds(rect);
+  Visible := false;
+  FBackBuffer^.Seek(0, soFromBeginning);
+  Graph^.DrawImageStreamRect(rect, FBackBuffer);
+  FreeAndNil(FBackBuffer);
+  EndDrawing;
 end;
 
 procedure TButton.MouseDown(var AEvent: TMouseEvent);
@@ -1445,6 +1571,17 @@ begin
   inherited CreateParent(AId, AParent);
   SetText(AText);
 end;
+procedure TLabel.SetText(const AText: string);
+var
+  isVisible: boolean;
+begin
+  isVisible := GetVisible;
+  if isVisible then
+    Hide;
+  TString.Assign(Text, AText);
+  if isVisible then
+    Show;
+end;
 
 procedure TLabel.Clear;
 var
@@ -1462,13 +1599,13 @@ end;
 procedure TLabel.Init;
 begin
   inherited Init;
-  Drawbackground := false;
+  Drawbackground := true;
   Autosize := true;
   ForeColor := Desktop^.Colors^.Window;
   BackColor := Desktop^.Colors^.WindowBack;
   BorderColor := Desktop^.Colors^.Border;
   BorderStyle := bsNone;
-  TextAlign := taLeft;
+  TextAlign := haLeft;
   Margin := 0;
   HighlightColor := Desktop^.Colors^.ButtonHighlight;
 end;

@@ -5,7 +5,7 @@ interface
 uses
   AplObj,
   AplTypes,
-  Views,
+  View,
   Controls;
 
 type
