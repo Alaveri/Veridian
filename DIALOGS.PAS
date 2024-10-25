@@ -461,7 +461,7 @@ begin
   Desktop^.Controls^.Remove(@self);
   Desktop^.StartDrawing;
   GetScreenBounds(rect);
-  Graph^.State.ViewPort.Assign(rect);
+  Graph^.State^.ViewPort.Assign(rect);
   if Assigned(Parent) then
     Parent^.PaintRegion(rect, @self);
   Desktop^.EndDrawing;

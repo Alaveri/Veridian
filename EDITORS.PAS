@@ -303,7 +303,7 @@ begin
     VeridianApp^.Error(self, ecNotEnoughMemory);
     exit;
   end;
-  Graph^.State.Font := Font;
+  Graph^.State^.Font := Font;
   Graph^.SetForeColor(ForeColor);
   Graph^.SetBackColor(BackColor);
   if CanFocus and Focused then
@@ -327,7 +327,7 @@ begin
     if xPos > drawRect.Right then
       break;
     charRect.SetDims(xPos, yPos - 1, charWidth, Font^.Height + 1);
-    charRect.Intersect(Graph^.State.ViewPort);
+    charRect.Intersect(Graph^.State^.ViewPort);
     if selected and (index >= SelectStart) and (index < SelectEnd) then begin
       Graph^.SetForeColor(SelectForeColor);
       Graph^.SetBackColor(SelectBackColor);

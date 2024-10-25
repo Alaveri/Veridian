@@ -217,7 +217,7 @@ begin
     exit;
   if (AIndex < 0) or (AIndex > Items^.Count - 1) then
     exit;
-  Graph^.State.Font := Font;
+  Graph^.State^.Font := Font;
   GetContentScreenBounds(rect);
   item := Items^.GetItem(AIndex);
   GetItemRect(AIndex, itemRect);

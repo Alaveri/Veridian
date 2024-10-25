@@ -177,8 +177,8 @@ begin
   inherited Paint;
   if not Assigned(DataSource) then
     exit;
-  Graph^.State.ForeColor := ForeColor;
-  Graph^.State.BackColor := BackColor;
+  Graph^.State^.ForeColor := ForeColor;
+  Graph^.State^.BackColor := BackColor;
   FillChar(info, SizeOf(info), 0);
   with info do begin
     RowType := trHeader;

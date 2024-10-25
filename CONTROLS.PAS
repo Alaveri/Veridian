@@ -187,6 +187,8 @@ type
     procedure EndDrawing; virtual;
     procedure BringToFront; virtual;
     procedure SendToBack; virtual;
+    procedure SendMessage(ATarget: PObject; ACode: integer);
+    procedure PostMessage(ATarget: PObject; ACode: integer);
     function CenterX: integer; virtual;
     function CenterY: integer; virtual;
     function TrueTextWidth(AText: string): integer;
@@ -676,7 +678,7 @@ end;
 procedure TControl.GetScreenBoundsClipped(var ARect: TRect);
 begin
   GetScreenBounds(ARect);
-  ARect.Intersect(Graph^.State.ViewPort);
+  ARect.Intersect(Graph^.State^.ViewPort);
   ARect.Intersect(Graph^.Mode^.Bounds);
 end;
 
@@ -716,6 +718,16 @@ begin
     exit;
   Parent^.Controls^.Remove(@self);
   Parent^.Controls^.Add(@self);
+end;
+
+procedure TControl.SendMessage(ATarget: PObject; ACode: integer);
+begin
+  VeridianApp^.SendMessage(@self, ATarget, ACode);
+end;
+
+procedure TControl.PostMessage(ATarget: PObject; ACode: integer);
+begin
+  VeridianApp^.PostMessage(@self, ATarget, ACode);
 end;
 
 procedure TControl.SetupControls;
@@ -813,7 +825,7 @@ end;
 
 procedure TControl.Paint;
 begin
-  Graph^.State.Font := Font;
+  Graph^.State^.Font := Font;
 end;
 
 procedure TControl.PaintRegion(AScreenRect: TRect; AExclude: PControl);
@@ -821,7 +833,7 @@ var
   region: PRegion;
 begin
   region := New(PRegion, Create);
-  Graph^.State.ViewPort := AScreenRect;
+  Graph^.State^.ViewPort := AScreenRect;
   InternalPaintRegion(region, AScreenRect, AExclude);
   FreeAndNil(region);
 end;
@@ -845,7 +857,7 @@ begin
   VeridianApp^.PushState;
   VeridianApp^.CursorOff;
   rect.Intersect(AScreenRect);
-  Graph^.State.ViewPort := rect;
+  Graph^.State^.ViewPort := rect;
   Paint;
 
   VeridianApp^.PopState;
@@ -961,8 +973,8 @@ begin
     Graph8^.HideMouseCursor;
   Graph^.SetForeColor(ForeColor);
   Graph^.SetBackColor(BackColor);
-  Graph^.State.Font := font;
-  Graph^.State.ViewPort := rect;
+  Graph^.State^.Font := font;
+  Graph^.State^.ViewPort := rect;
 end;
 
 procedure TControl.EndDrawing;
@@ -1141,7 +1153,7 @@ begin
   TPanel.Paint;
   txt := GetText;
   GetTextAlign(rect, textXPos, textYPos);
-  rect.Intersect(Graph^.State.ViewPort);
+  rect.Intersect(Graph^.State^.ViewPort);
   textIndex := 1;
   while textIndex <= Length(txt) do begin
     SetForeColorEnabled(ForeColor);
@@ -1442,7 +1454,7 @@ begin
     Graph^.SetForeColor(Parent^.BackColor);
   rect.Grow(2, 2);
   rect.Translate(-1, -1);
-  Graph^.State.ViewPort := rect;
+  Graph^.State^.ViewPort := rect;
   Graph^.Rectangle(rect);
 end;
 
@@ -1497,7 +1509,7 @@ begin
   GetScreenBounds(rect);
   if Assigned(FBackBuffer) then
     FreeAndNil(FBackBuffer);
-  FBackBuffer := New(PMemoryStream, Create(rect.Width * rect.Height));
+  FBackBuffer := New(PMemoryStream, Create(longint(rect.Width) * rect.Height));
   if FBackBuffer = nil then begin
     VeridianApp^.Error(self, ecNotEnoughMemory);
     exit;
