@@ -7,7 +7,6 @@ uses
   AplTypes,
   AplObj,
   Drawing,
-  Images,
   Lists,
   VTypes,
   Math,
@@ -66,7 +65,6 @@ type
     procedure PaintItem(AIndex: integer);
   public
     Items: PListItems;
-    ImageList: PImageList;
     Margin: integer;
     SelectedIndex: integer;
     UnfocusedSelectForeColor: byte;
@@ -154,7 +152,6 @@ begin
   ScrollType := scVertical;
   CanFocus := true;
   Items := New(PListItems, Create(@self));
-  ImageList := new(PImageList, Create);
   OnSelectedIndexChanged := nil;
   SelectedIndex := -1;
   Margin := VeridianApp^.Scale(0.25);
@@ -173,7 +170,6 @@ end;
 destructor TListBox.Free;
 begin
   FreeAndNil(Items);
-  FreeAndNil(ImageList);
   inherited Free;
 end;
 
