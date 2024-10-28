@@ -172,7 +172,7 @@ begin
   if not GetVisible then
     exit;
   GetScreenBounds(rect);
-  Graph^.State.Font := Font;
+  Graph^.State^.Font := Font;
   Graph^.SetForeColor(ForeColor);
   Graph^.SetBackColor(BackColor);
   txt := GetText;
@@ -219,7 +219,7 @@ begin
   FList^.GetScreenBounds(rect);
   rect.Grow(0, -1);
   rect.Translate(0, 1);
-  rect.Intersect(Graph^.State.ViewPort);
+  rect.Intersect(Graph^.State^.ViewPort);
   Dec(Height, FList^.Height);
   FList^.Visible := false;
   Parent^.StartDrawingEx(false);

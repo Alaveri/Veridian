@@ -27,6 +27,7 @@ const
   vmKeyDown = vmVeridian + 1;
   vmKeyPressed = vmVeridian + 2;
   vmKeyUp = vmVeridian + 3;
+  vmClose = vmVeridian + 4;
 
   DefaultDoubleClickDelay: double = 1;
   DefaultCursorBlinkRate = 0.4;
@@ -390,7 +391,7 @@ begin
   if not activeControl^.Focused then
     exit;
   activeControl^.GetCursorRect(rect);
-  rect.Intersect(Graph^.State.ViewPort);
+  rect.Intersect(Graph^.State^.ViewPort);
   if rect.IsEmpty then
     exit;
   if FCursorBlinkVisible then
@@ -432,13 +433,20 @@ var
     index: integer;
     control: PControl;
   begin
-    for index := 0 to AControl^.Controls^.Count - 1 do begin
-      control := AControl^.Controls^.GetItem(index);
+    if message^.Processed then
+      exit;
+    for index := AControl^.Controls^.Count - 1 downto 0 do begin
+      control := AControl^.Controls^.Items^[index];
       if pointer(control) <> AMessage^.Target then
         continue;
       Process(control, message);
       if message^.Processed then
         exit;
+    end;
+    if message^.Code = vmClose then begin
+      FreeAndNil(AControl);
+      message^.Processed := true;
+      Desktop^.Draw;
     end;
     AControl^.ProcessMessage(message);
   end;
@@ -836,7 +844,7 @@ begin
   Graph^.PushState;
   Graph^.SetForeColor(Desktop^.ForeColor);
   Graph^.SetBackColor(Desktop^.BackColor);
-  Graph^.State.Font := SystemFont;
+  Graph^.State^.Font := SystemFont;
   yPos := Desktop^.Height - Desktop^.StatusBar^.Height - 2 * Desktop^.Font^.Height + 3;
   xPos := 2;
   txt := 'MemAvail: ' + FormatLong(FMemAvail);

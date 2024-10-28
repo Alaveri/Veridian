@@ -26,6 +26,16 @@ type
   PTitlebar = ^TTitlebar;
   PScrollSlider = ^TScrollSlider;
 
+  TViewClosingEvent = object(TEvent)
+  private
+  public
+    CanClose: boolean;
+    procedure Init; virtual;
+  end;
+
+  TViewClosingEventProc = procedure(ASender: PObject; var AEvent: TViewClosingEvent);
+  TViewClosedEventProc = procedure(ASender: PObject; var AEvent: TEvent);
+
   TViewScrollType = (
     scNone,
     scVertical,
@@ -98,6 +108,12 @@ type
     AutoSize: boolean;
     ScrollX: longint;
     ScrollY: longint;
+    constructor Create(const AId, ATitle: string; AParent: PControl);
+    function GetAutoWidth: longint; virtual;
+    function GetAutoHeight: longint; virtual;
+    function TitleVisible: boolean;
+    procedure Close; virtual;
+    procedure SetTitleVisible(AVisible: boolean);
     procedure Activate;
     procedure Deactivate;
     procedure Init; virtual;
@@ -106,8 +122,6 @@ type
     procedure SetTitle(const ATitle: string);
     procedure GetContentScreenBounds(var ARect: TRect);
     procedure GetContentBounds(var ARect: TRect);
-    function GetAutoWidth: longint; virtual;
-    function GetAutoHeight: longint; virtual;
     procedure ScrollVert(ADelta: integer); virtual;
     procedure ScrollHorz(ADelta: integer); virtual;
     destructor Free; virtual;
@@ -168,6 +182,12 @@ var
 begin
   with PScrollBar(ASender)^ do begin
   end;
+end;
+
+procedure TViewClosingEvent.Init;
+begin
+  inherited Init;
+  CanClose := true;
 end;
 
 procedure TScrollSlider.Init;
@@ -313,6 +333,12 @@ begin
   Graph^.HLine(rect.X, rect.Bottom, rect.Width);
 end;
 
+constructor TView.Create(const AId, ATitle: string; AParent: PControl);
+begin
+  inherited CreateParent(AId, AParent);
+  SetTitle(ATitle);
+end;
+
 procedure TView.Init;
 begin
   inherited Init;
@@ -343,6 +369,31 @@ end;
 
 function TView.GetAutoHeight: longint;
 begin
+end;
+
+function TView.TitleVisible: boolean;
+begin
+  TitleVisible := Titlebar^.Visible;
+end;
+
+procedure TView.SetTitleVisible(AVisible: boolean);
+begin
+  Titlebar^.Visible := AVisible;
+  Draw;
+end;
+
+procedure TView.Close;
+var
+  closingEvent: TViewClosingEvent;
+  closedEvent: TEvent;
+begin
+  closingEvent.Init;
+  Invoke(@self, closingEvent);
+  if not closingEvent.CanClose then
+    exit;
+  closedEvent.Init;
+  Invoke(@self, closedEvent);
+  SendMessage(@self, vmClose);
 end;
 
 procedure TView.Activate;
@@ -381,11 +432,11 @@ var
 begin
   viewRect.CreateDims(0, 0, Desktop^.Width, Desktop^.Height);
   if Desktop^.MenuBar^.GetVisible then begin
-    Dec(viewRect.Height, Desktop^.Menubar^.Height);
-    Inc(viewRect.Y, Desktop^.Menubar^.Height);
+    viewRect.Translate(-BorderWidth, Desktop^.MenuBar^.Height - BorderWidth);
+    viewRect.Grow(2 * BorderWidth, -Desktop^.MenuBar^.Height + 2 * BorderWidth);
   end;
   if Desktop^.StatusBar^.GetVisible then
-    Dec(viewRect.Height, Desktop^.Statusbar^.Height - 3);
+    viewRect.Grow(0, -Desktop^.StatusBar^.Height + 2 * BorderWidth + 1);
   SetBoundsRect(viewRect);
   Draw;
 end;
