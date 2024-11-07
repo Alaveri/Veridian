@@ -9,16 +9,15 @@ uses
   {$ENDIF}
   AplObj,
   AplTypes,
-  Lists,
-  Files,
-  Errors,
+  AplLists,
+  AplFiles,
+  AplUtils,
+  AplAct,
   VTypes,
-  Common,
   Veridian,
   Controls,
   Views,
   Tables,
-  Actions,
   Editors,
   ListBox;
 
@@ -136,13 +135,11 @@ function MessageBox(
 implementation
 
 uses
-  {$IFDEF DOS}
+  AplDraw,
+  AplStr,
+  AplGraph,
+  AplKeys,
   Strings,
-  {$ENDIF}
-  Drawing,
-  StrUtils,
-  GraphDrv,
-  KeyDrv,
   Desk;
 
 const

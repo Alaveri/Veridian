@@ -6,11 +6,9 @@ interface
 uses
   AplObj,
   AplTypes,
+  AplLists,
   VTypes,
-  Lists,
-  {$IFDEF DOS}
   Strings,
-  {$ENDIF}
   Views,
   Controls;
 
@@ -79,10 +77,10 @@ type
 implementation
 
 uses
-  Drawing,
-  StrUtils,
-  GraphDrv,
-  GrDrv8;
+  AplDraw,
+  AplStr,
+  AplGraph,
+  AplGrap8;
 
 function TTableColumn.Header: string;
 begin
@@ -102,12 +100,12 @@ end;
 
 procedure TTableColumn.SetHeader(const AHeader: string);
 begin
-  TString.Assign(FHeader, AHeader);
+  TString.AssignString(FHeader, AHeader);
 end;
 
 procedure TTableColumn.SetBinding(const ABinding: string);
 begin
-  TString.Assign(FBinding, ABinding);
+  TString.AssignString(FBinding, ABinding);
 end;
 
 function TTableColumn.Binding: string;

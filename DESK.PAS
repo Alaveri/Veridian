@@ -4,27 +4,24 @@ unit Desk;
 interface
 
 uses
-  {$IFDEF DOS}
-  Strings,
-  {$ENDIF}
   AplObj,
   AplTypes,
-  Common,
-  Lists,
-  Math,
-  Drawing,
+  AplUtils,
+  AplLists,
+  AplMath,
+  AplDraw,
+  AplStr,
+  AplApps,
+  AplGraph,
+  AplMouse,
+  AplKeys,
+  AplAct,
   Controls,
   Views,
   VTypes,
-  StrUtils,
-  AplApps,
-  Errors,
-  GraphDrv,
-  MouseDrv,
-  KeyDrv,
-  Actions,
   Colors,
-  Combos;
+  Combos,
+  Strings;
 
 type
   PDesktop = ^TDesktop;
@@ -143,8 +140,8 @@ implementation
 
 uses
   Veridian,
-  GraphApp,
-  GrDrv8;
+  AplGrApp,
+  AplGrap8;
 
 procedure TDesktop.DeactivateCurrentMenu;
 var
@@ -819,7 +816,7 @@ begin
     SetBounds(
       -BorderWidth,
       0,
-      Desktop^.ActionList^.GetHelpMaxWidth(result) + 2 * Margin + BorderWidth,
+      {Desktop^.ActionList^.GetHelpMaxWidth(result)}300 + 2 * Margin + BorderWidth,
       Desktop^.Font^.Height + Margin
     );
   end;

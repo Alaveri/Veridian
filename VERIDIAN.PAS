@@ -4,22 +4,22 @@ unit Veridian;
 interface
 
 uses
-  GraphApp,
+  AplGrApp,
   AplApps,
   AplTypes,
-  Lists,
-  DateTime,
-  Drawing,
-  Streams,
+  AplLists,
+  AplDates,
+  AplDraw,
+  AplStrms,
   AplObj,
-  GrDrv8,
-  GraphDrv,
-  GraphIni,
-  MouseDrv,
-  KeyDrv,
+  AplGrap8,
+  AplGraph,
+  AplGrIni,
+  AplMouse,
+  AplKeys,
+  AplAct,
   Controls,
-  Actions,
-  Errors,
+  Dos,
   Desk;
 
 const
@@ -149,12 +149,9 @@ var
 implementation
 
 uses
-  {$IFDEF DOS}
-  Dos,
-  {$ENDIF}
-  Common,
-  MemDrv,
-  StrUtils,
+  AplUtils,
+  AplMem,
+  AplStr,
   Views;
 
 var
@@ -292,8 +289,6 @@ destructor TVeridianApp.Free;
 begin
   StateStack.DisposeObjects := true;
   StateStack.Free;
-  MessageQueue.DisposeObjects := true;
-  MessageQueue.Free;
   FreeAndNil(Desktop);
   FreeAndNil(Fonts);
   FreeAndNil(MouseCursors);
@@ -304,16 +299,16 @@ end;
 
 constructor TVeridianApp.Create(ADriverId: TGraphDrivers; AWidth, AHeight, ABpp: integer);
 var
-  id: integer;
+  ident: integer;
 begin
   InitGraphics(ADriverId);
-  id := GetGraphicsModeId(AWidth, AHeight, ABpp);
-  if id = -1 then begin
+  ident := GetGraphicsModeId(AWidth, AHeight, ABpp);
+  if ident = -1 then begin
     WriteLn('Mode not found');
     exit;
   end;
-  if not SetMode(id) then begin
-    WriteLn('Could not set graphics mode.');
+  if not SetMode(ident) then begin
+    WriteLn('Could not set text mode.');
     exit;
   end;
   inherited Create;

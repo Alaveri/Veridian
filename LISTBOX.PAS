@@ -6,10 +6,10 @@ interface
 uses
   AplTypes,
   AplObj,
-  Drawing,
-  Lists,
+  AplDraw,
+  AplLists,
+  AplMath,
   VTypes,
-  Math,
   Controls,
   Views;
 
@@ -92,10 +92,10 @@ type
 implementation
 
 uses
-  StrUtils,
-  Common,
-  GraphDrv,
-  KeyDrv,
+  AplStr,
+  AplUtils,
+  AplGraph,
+  AplKeys,
   Veridian,
   Desk;
 
@@ -125,7 +125,7 @@ end;
 
 procedure TListItem.SetText(const AText: string);
 begin
-  TString.Assign(Text, AText);
+  TString.AssignString(Text, AText);
 end;
 
 procedure TListItem.Init;
@@ -361,7 +361,7 @@ begin
   VertScrollbar^.PageIncrement := Round(rect.Height / Font^.Height) * Font^.Height;
   max := GetAutoHeight;
   Dec(max, rect.Height);
-  VertScrollBar^.Max := Math.MaxL(0, max);
+  VertScrollBar^.Max := AplMath.MaxL(0, max);
 end;
 
 procedure TListBox.Clear;

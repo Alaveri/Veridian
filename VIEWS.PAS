@@ -6,14 +6,13 @@ interface
 uses
   AplObj,
   AplTypes,
-  Lists,
-  Errors,
+  AplLists,
+  AplGrApp,
+  AplMath,
+  AplDraw,
+  AplUtils,
+  AplMouse,
   VTypes,
-  GraphApp,
-  Math,
-  Drawing,
-  Common,
-  MouseDrv,
   Controls;
 
 const
@@ -138,9 +137,9 @@ implementation
 
 uses
   Veridian,
-  StrUtils,
-  GraphDrv,
-  GrDrv8,
+  AplStr,
+  AplGraph,
+  AplGrap8,
   Desk;
 
 procedure ScrollButtonClick(ASender: PObject; var AEvent: TMouseEvent); far;
@@ -409,7 +408,7 @@ end;
 
 procedure TView.SetTitle(const ATitle: string);
 begin
-  TString.Assign(Title, ATitle);
+  TString.AssignString(Title, ATitle);
   TitleBar^.Draw;
 end;
 

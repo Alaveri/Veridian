@@ -7,13 +7,13 @@ uses
   AplObj,
   AplTypes,
   AplConst,
-  Math,
-  Lists,
-  Drawing,
+  AplMath,
+  AplLists,
+  AplDraw,
+  AplUtils,
+  AplMem,
+  AplGrap8,
   VTypes,
-  Common,
-  MemDrv,
-  GrDrv8,
   Views,
   Controls;
 
@@ -110,17 +110,14 @@ type
 implementation
 
 uses
-  StrUtils,
-  GraphApp,
-  Errors,
-  {$IFDEF DOS}
-  Strings,
-  {$ENDIF}
-  KeyDrv,
-  MouseDrv,
-  GraphDrv,
+  AplStr,
+  AplGrApp,
+  AplKeys,
+  AplMouse,
+  AplGraph,
   Desk,
-  Veridian;
+  Veridian,
+  Strings;
 
 const
   DefaultEditorSize = 8;
@@ -297,6 +294,7 @@ begin
   drawRect.CreateRect(bounds);
 
   Graph^.PushState;
+  buffer := nil;
   Graph^.BeginDrawBuffer(buffer, drawRect);
   if Graph^.HasException then begin
     Graph^.ClearException;

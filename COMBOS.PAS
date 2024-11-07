@@ -6,11 +6,11 @@ interface
 uses
   AplTypes,
   AplObj,
-  Math,
-  Lists,
+  AplMath,
+  AplLists,
+  AplDraw,
   VTypes,
   ListBox,
-  Drawing,
   Editors,
   Controls;
 
@@ -69,16 +69,16 @@ type
 implementation
 
 uses
-  Common,
-  GraphApp,
+  AplUtils,
+  AplGrApp,
+  AplStr,
+  AplGraph,
+  AplKeys,
+  AplMouse,
   Veridian,
-  KeyDrv,
-  MouseDrv,
   Views,
   Desk,
-  Strings,
-  StrUtils,
-  GraphDrv;
+  Strings;
 
 procedure SelectedIndexChanged(ASender: PObject; var AEvent: TIndexChangedEvent); far;
 var

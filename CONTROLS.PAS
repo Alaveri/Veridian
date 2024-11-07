@@ -4,28 +4,25 @@ unit Controls;
 interface
 
 uses
-  {$IFDEF DOS}
-  Strings,
-  {$ENDIF}
   AplObj,
   AplTypes,
   AplApps,
-  Lists,
+  AplLists,
   AplConst,
-  Drawing,
-  Streams,
-  StrUtils,
-  DateTime,
-  Files,
-  Common,
-  Actions,
-  UndoStk,
-  MouseDrv,
+  AplDraw,
+  AplStrms,
+  AplStr,
+  AplDates,
+  AplFiles,
+  AplUtils,
+  AplAct,
+  AplMouse,
+  AplUndo,
   VTypes,
-  KeyDrv,
-  GraphDrv,
-  Errors,
-  GrDrv8;
+  AplKeys,
+  AplGraph,
+  AplGrap8,
+  Strings;
 
 type
   TBorderStyles = set of TBorderStyle;
@@ -332,7 +329,7 @@ type
 implementation
 
 uses
-  GraphApp,
+  AplGrApp,
   Veridian,
   Desk;
 
@@ -679,7 +676,7 @@ procedure TControl.GetScreenBoundsClipped(var ARect: TRect);
 begin
   GetScreenBounds(ARect);
   ARect.Intersect(Graph^.State^.ViewPort);
-  ARect.Intersect(Graph^.Mode^.Bounds);
+  ARect.Intersect(Graph^.State^.Bounds);
 end;
 
 procedure TControl.GetClientRect(var ARect: TRect);
@@ -1326,13 +1323,13 @@ begin
   case VertAlign of
     vaTop: AYPos := ARect.Y + Margin;
     vaBottom: AYPos := ARect.Y + ARect.Height - Font^.Height - Margin;
-    vaCenter: AYPos := ARect.Y + (ARect.Height - Font^.Height) div 2 + 1;
+    vaCenter: AYPos := ARect.Y + (ARect.Height - Font^.Height) div 2;
   end;
 end;
 
 procedure TTextControl.SetText(const AText: string);
 begin
-  TString.Assign(Text, AText);
+  TString.AssignString(Text, AText);
   Draw;
 end;
 
@@ -1590,7 +1587,7 @@ begin
   isVisible := GetVisible;
   if isVisible then
     Hide;
-  TString.Assign(Text, AText);
+  TString.AssignString(Text, AText);
   if isVisible then
     Show;
 end;
