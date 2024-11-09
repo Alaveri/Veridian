@@ -4,20 +4,20 @@ unit Veridian;
 interface
 
 uses
-  AplGrApp,
+  Graphics,
   AplApps,
   AplTypes,
-  AplLists,
-  AplDates,
-  AplDraw,
-  AplStrms,
+  Lists,
+  DateTime,
+  Drawing,
+  Streams,
   AplObj,
-  AplGrap8,
-  AplGraph,
-  AplGrIni,
-  AplMouse,
-  AplKeys,
-  AplAct,
+  GrDrv8,
+  GraphApp,
+  GraphIni,
+  MouseDrv,
+  KeyDrv,
+  Actions,
   Controls,
   Dos,
   Desk;
@@ -150,7 +150,7 @@ implementation
 
 uses
   AplUtils,
-  AplMem,
+  MemDrv,
   AplStr,
   Views;
 

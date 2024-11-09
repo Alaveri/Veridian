@@ -7,21 +7,21 @@ uses
   AplObj,
   AplTypes,
   AplApps,
-  AplLists,
+  Lists,
   AplConst,
-  AplDraw,
-  AplStrms,
+  Drawing,
+  Streams,
   AplStr,
-  AplDates,
-  AplFiles,
+  DateTime,
+  Files,
   AplUtils,
-  AplAct,
-  AplMouse,
-  AplUndo,
+  Actions,
+  MouseDrv,
+  Undo,
   VTypes,
-  AplKeys,
-  AplGraph,
-  AplGrap8,
+  KeyDrv,
+  Graphics,
+  GrDrv8,
   Strings;
 
 type
@@ -207,11 +207,9 @@ type
     constructor CreateParent(AParent: PControl);
     function GetItemById(AId: string): PControl;
     function GetItem(AIndex: integer): PControl;
-    function Add(AItem: pointer): integer; virtual;
+    function Add(AItem: PControl): integer; virtual;
     procedure Insert(AIndex: integer; AItem: pointer); virtual;
-    procedure ForEach(AProc: PControlListProc);
     procedure Init; virtual;
-    procedure Remove(AControl: PControl);
   end;
 
   TButtonList = Object(TIdentifiableList)
@@ -329,7 +327,6 @@ type
 implementation
 
 uses
-  AplGrApp,
   Veridian,
   Desk;
 
@@ -345,11 +342,6 @@ begin
   Parent := nil;
 end;
 
-procedure TControlList.ForEach(AProc: PControlListProc);
-begin
-  TList.ForEach(PListProc(AProc));
-end;
-
 function TControlList.GetItem(AIndex: integer): PControl;
 begin
   GetItem := PControl(inherited GetItem(AIndex));
@@ -361,7 +353,7 @@ begin
   PControl(AItem)^.Parent := Parent;
 end;
 
-function TControlList.Add(AItem: pointer): integer;
+function TControlList.Add(AItem: PControl): integer;
 begin
   inherited Add(AItem);
   PControl(AItem)^.Parent := Parent;
@@ -370,20 +362,6 @@ end;
 function TControlList.GetItemById(AId: string): PControl;
 begin
   GetItemById := PControl(inherited GetItemById(AId));
-end;
-
-procedure TControlList.Remove(AControl: PControl);
-var
-  index: integer;
-  oldDisposeObjects: boolean;
-begin
-  index := IndexOf(AControl);
-  if index < 0 then
-    exit;
-  oldDisposeObjects := DisposeObjects;
-  DisposeObjects := false;
-  Delete(index);
-  DisposeObjects := oldDisposeObjects;
 end;
 
 constructor TControl.Create(const AId: string);
@@ -703,7 +681,7 @@ begin
     exit;
   if Parent^.Controls^.IndexOf(@self) = 0 then
     exit;
-  Parent^.Controls^.Remove(@self);
+  Parent^.Controls^.RemoveItem(@self);
   Parent^.Controls^.Insert(0, @self);
 end;
 
@@ -713,7 +691,7 @@ begin
     exit;
   if Parent^.Controls^.IndexOf(@self) = Parent^.Controls^.Count - 1 then
     exit;
-  Parent^.Controls^.Remove(@self);
+  Parent^.Controls^.RemoveItem(@self);
   Parent^.Controls^.Add(@self);
 end;
 
@@ -1164,7 +1142,6 @@ begin
     Inc(textIndex);
   end;
   SetForeColorEnabled(ForeColor);
-
   if (GetShortcut >= 0) and ShowShortcut then begin
     shortcutDesc := Keyboard.KeyToShortcut(GetShortcut);
     textXPos := rect.Right - Font^.TextWidth(shortcutDesc) - Font^.Spacing + 1;

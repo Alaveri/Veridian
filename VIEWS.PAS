@@ -6,12 +6,12 @@ interface
 uses
   AplObj,
   AplTypes,
-  AplLists,
-  AplGrApp,
+  Lists,
+  Graphics,
   AplMath,
-  AplDraw,
+  Drawing,
   AplUtils,
-  AplMouse,
+  MouseDrv,
   VTypes,
   Controls;
 
@@ -138,8 +138,7 @@ implementation
 uses
   Veridian,
   AplStr,
-  AplGraph,
-  AplGrap8,
+  GrDrv8,
   Desk;
 
 procedure ScrollButtonClick(ASender: PObject; var AEvent: TMouseEvent); far;

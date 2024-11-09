@@ -7,8 +7,8 @@ uses
   AplTypes,
   AplObj,
   AplMath,
-  AplLists,
-  AplDraw,
+  Lists,
+  Drawing,
   VTypes,
   ListBox,
   Editors,
@@ -70,13 +70,13 @@ implementation
 
 uses
   AplUtils,
-  AplGrApp,
+  Graphics,
   AplStr,
-  AplGraph,
-  AplKeys,
-  AplMouse,
+  KeyDrv,
+  MouseDrv,
   Veridian,
   Views,
+  GrDrv8,
   Desk,
   Strings;
 

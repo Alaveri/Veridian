@@ -9,10 +9,10 @@ uses
   {$ENDIF}
   AplObj,
   AplTypes,
-  AplLists,
-  AplFiles,
+  Lists,
+  Files,
   AplUtils,
-  AplAct,
+  Actions,
   VTypes,
   Veridian,
   Controls,
@@ -135,10 +135,10 @@ function MessageBox(
 implementation
 
 uses
-  AplDraw,
+  Drawing,
   AplStr,
-  AplGraph,
-  AplKeys,
+  Graphics,
+  KeyDrv,
   Strings,
   Desk;
 
@@ -455,7 +455,7 @@ begin
     oldActiveControl^.Focus;
   Desktop^.ActionList := desktopActions;
   GetScreenBounds(rect);
-  Desktop^.Controls^.Remove(@self);
+  Desktop^.Controls^.RemoveItem(@self);
   Desktop^.StartDrawing;
   GetScreenBounds(rect);
   Graph^.State^.ViewPort.Assign(rect);
@@ -536,7 +536,7 @@ begin
   FreeAndNil(ActionList);
   FreeAndNil(FDialogButtons);
   if Assigned(Parent) then
-    PControl(Parent)^.Controls^.Remove(@self);
+    PControl(Parent)^.Controls^.RemoveItem(@self);
   inherited Free;
 end;
 

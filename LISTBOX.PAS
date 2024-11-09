@@ -6,8 +6,8 @@ interface
 uses
   AplTypes,
   AplObj,
-  AplDraw,
-  AplLists,
+  Drawing,
+  Lists,
   AplMath,
   VTypes,
   Controls,
@@ -94,8 +94,8 @@ implementation
 uses
   AplStr,
   AplUtils,
-  AplGraph,
-  AplKeys,
+  Graphics,
+  KeyDrv,
   Veridian,
   Desk;
 

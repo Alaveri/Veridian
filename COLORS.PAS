@@ -62,9 +62,9 @@ type
 implementation
 
 uses
-  AplGraph,
-  AplPal,
-  AplGrap8;
+  Graphics,
+  Palettes,
+  GrDrv8;
 
 procedure TColors.Init;
 begin

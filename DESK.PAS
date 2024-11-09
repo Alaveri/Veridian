@@ -7,15 +7,15 @@ uses
   AplObj,
   AplTypes,
   AplUtils,
-  AplLists,
+  Lists,
   AplMath,
-  AplDraw,
+  Drawing,
   AplStr,
   AplApps,
-  AplGraph,
-  AplMouse,
-  AplKeys,
-  AplAct,
+  Graphics,
+  MouseDrv,
+  KeyDrv,
+  Actions,
   Controls,
   Views,
   VTypes,
@@ -140,8 +140,7 @@ implementation
 
 uses
   Veridian,
-  AplGrApp,
-  AplGrap8;
+  GrDrv8;
 
 procedure TDesktop.DeactivateCurrentMenu;
 var

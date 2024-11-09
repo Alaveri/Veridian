@@ -8,11 +8,11 @@ uses
   AplTypes,
   AplConst,
   AplMath,
-  AplLists,
-  AplDraw,
+  Lists,
+  Drawing,
   AplUtils,
-  AplMem,
-  AplGrap8,
+  MemDrv,
+  GrDrv8,
   VTypes,
   Views,
   Controls;
@@ -111,10 +111,9 @@ implementation
 
 uses
   AplStr,
-  AplGrApp,
-  AplKeys,
-  AplMouse,
-  AplGraph,
+  Graphics,
+  KeyDrv,
+  MouseDrv,
   Desk,
   Veridian,
   Strings;

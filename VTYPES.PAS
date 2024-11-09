@@ -6,7 +6,7 @@ interface
 uses
   AplObj,
   AplTypes,
-  AplLists;
+  Lists;
 
 type
   PDragEventProc = ^TDragEventProc;

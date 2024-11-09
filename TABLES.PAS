@@ -6,7 +6,7 @@ interface
 uses
   AplObj,
   AplTypes,
-  AplLists,
+  Lists,
   VTypes,
   Strings,
   Views,
@@ -77,10 +77,10 @@ type
 implementation
 
 uses
-  AplDraw,
+  Drawing,
   AplStr,
-  AplGraph,
-  AplGrap8;
+  Graphics,
+  GrDrv8;
 
 function TTableColumn.Header: string;
 begin
