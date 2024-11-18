@@ -4,18 +4,15 @@ unit Colors;
 interface
 
 uses
-  AplObj;
+  AplObj,
+  Palettes;
 
 type
   PColors = ^TColors;
 
-  TColors = object(TObject)
-  public
+  TColors = record
     Desktop: byte;
     DesktopBack: byte;
-    Window: byte;
-    WindowBack: byte;
-    Border: byte;
     Button: byte;
     ButtonBack: byte;
     ButtonShadow: byte;
@@ -25,26 +22,32 @@ type
     ButtonDownLight: byte;
     ButtonDisabled: byte;
     ButtonHighlight: byte;
-    Tab: byte;
-    TabBack: byte;
-    TabDisabled: byte;
-    TabView: byte;
-    TabViewBack: byte;
-    TabInactive: byte;
+    Window: byte;
+    WindowBack: byte;
     WindowTitle: byte;
     WindowTitleBack: byte;
-    WindowActiveTitle: byte;
-    WindowActiveTitleBack: byte;
+    WindowBorder: byte;
+    WindowTitleActive: byte;
+    WindowTitleActiveBack: byte;
+    WindowBorderActive: byte;
+    Shortcut: byte;
     Menu: byte;
     MenuBack: byte;
-    MenuActive: byte;
-    MenuHighlight: byte;
-    MenuActiveBack: byte;
-    MenuActiveHighlight: byte;
-    Shortcut: byte;
-    ScrollBack: byte;
+    MenuBorder: byte;
+    MenuSelected: byte;
+    MenuSelectedBack: byte;
+    MenuSelectedShortcut: byte;
+    MenuSelectedShortcutBack: byte;
+    MenuDisabled: byte;
+    MenuDisabledBack: byte;
+    Scrollbar: byte;
+    ScrollbarBack: byte;
     Editor: byte;
     EditorBack: byte;
+    EditorDisabled: byte;
+    EditorDisabledBack: byte;
+    EditorFocused: byte;
+    EditorFocusedBack: byte;
     Dialog: byte;
     DialogBack: byte;
     Select: byte;
@@ -53,69 +56,59 @@ type
     ListUnfocusedSelectBack: byte;
     Focused: byte;
     FocusedBack: byte;
-    Cursor: byte;
-    CursorBack: byte;
-    EditorDisabled: byte;
-    procedure Init; virtual;
   end;
+
+const
+  LightColors: TColors =
+  (
+    Desktop: egaWhite;
+    DesktopBack: egaCyan;
+    Button: egaBlack;
+    ButtonBack: egaLightGray;
+    ButtonShadow: egaDarkGray;
+    ButtonLight: egaWhite;
+    ButtonDownBack: egaDarkGray;
+    ButtonDownShadow: egaWhite;
+    ButtonDownLight: egaDarkGray;
+    ButtonDisabled: egaDarkGray;
+    ButtonHighlight: egaBlue;
+    Window: egaBlack;
+    WindowBack: egaWhite;
+    WindowTitle: egaBlack;
+    WindowTitleBack: egaLightGray;
+    WindowBorder: egaLightGray;
+    WindowTitleActive: egaWhite;
+    WindowTitleActiveBack: egaBlue;
+    WindowBorderActive: egaBlack;
+    Shortcut: egaLightBlue;
+    Menu: egaBlack;
+    MenuBack: egaWhite;
+    MenuBorder: egaBlack;
+    MenuSelected: egaWhite;
+    MenuSelectedBack: egaBlue;
+    MenuSelectedShortcut: egaLightBlue;
+    MenuSelectedShortcutBack: egaWhite;
+    MenuDisabled: egaDarkGray;
+    MenuDisabledBack: egaWhite;
+    Scrollbar: egaBlack;
+    ScrollbarBack: egaLightGray;
+    Editor: egaBlack;
+    EditorBack: egaLightGray;
+    EditorDisabled: egaDarkGray;
+    EditorDisabledBack: egaLightGray;
+    EditorFocused: egaWhite;
+    EditorFocusedBack: egaCyan;
+    Dialog: egaWhite;
+    DialogBack: egaDarkGray;
+    Select: egaWhite;
+    SelectBack: egaBlue;
+    ListUnfocusedSelect: egaLightGray;
+    ListUnfocusedSelectBack: egaDarkGray;
+    Focused: egaBlack;
+    FocusedBack: egaLightGray
+  );
 
 implementation
 
-uses
-  AplGraph,
-  AplPal,
-  AplGrap8;
-
-procedure TColors.Init;
 begin
-  inherited Init;
-  with Graph8^ do begin
-    Desktop := egaWhite;
-    DesktopBack := egaCyan;
-    Window := 0;
-    WindowBack := egaWhite;
-    Border := 0;
-    Button := 0;
-    ButtonBack := egaLightGray;
-    ButtonShadow := egaDarkGray;
-    ButtonLight := egaWhite;
-    ButtonDownBack := egaDarkGray;
-    ButtonDownShadow := egaWhite;
-    ButtonDownLight := egaDarkGray;
-    ButtonDisabled := egaDarkGray;
-    ButtonHighlight := egaBlue;
-    Tab := 0;
-    TabBack := egaWhite;
-    TabDisabled := egaDarkGray;
-    TabInactive := egaLightGray;
-    TabView := 0;
-    TabViewBack := egaLightGray;
-    WindowTitle := 0;
-    WindowTitleBack := egaWhite;
-    WindowActiveTitle := egaWhite;
-    WindowActiveTitleBack := egaBlue;
-    Menu := 0;
-    MenuBack := egaWhite;
-    MenuActive := egaWhite;
-    MenuHighlight := egaBlue;
-    MenuActiveBack := egaBlue;
-    MenuActiveHighLight := egaWhite;
-    Shortcut := egaRed;
-    ScrollBack := egaLightGray;
-    Editor := 0;
-    EditorBack := egaWhite;
-    Dialog := 0;
-    DialogBack := egaWhite;
-    Select := 0;
-    SelectBack := egaWhite;
-    CursorBack := 0;
-    Cursor := egaWhite;
-    Focused := egaWhite;
-    FocusedBack := egaBlue;
-    EditorDisabled := egaWhite;
-    ListUnfocusedSelect := 0;
-    ListUnfocusedSelectBack := egaWhite;
-  end;
-end;
-
 end.
