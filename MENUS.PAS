@@ -327,7 +327,8 @@ begin
   BorderColor := VeridianApp^.Colors.MenuBorder;
   BorderStyle := bsNone;
   FIsMainMenuItem := false;
-{  Padding.CreateAll(0, 1, 0, 1)}
+  AutoSize := false;
+  Padding.CreateAll(3, 1, 3, 1);
 end;
 
 procedure TMenuItem.OpenMenu;
@@ -517,7 +518,7 @@ end;
 
 procedure TMenuBar.Layout;
 var
-  xPos, currentHeight, maxHeight, index: integer;
+  txtWidth, xPos, currentHeight, maxHeight, index: integer;
   item: PMenuItem;
   itemRect: TRect;
   pos: TPoint;
@@ -530,22 +531,25 @@ begin
   maxHeight := 0;
   currentHeight := 0;
   for index := 0 to MenuItems^.Count - 1 do begin
+    item := MenuItems^.GetItem(index);
     currentHeight := item^.Font^.Height + item^.SpacingHeight;
     if currentHeight > maxHeight then
       maxHeight := currentHeight;
   end;
   for index := 0 to MenuItems^.Count - 1 do begin
     item := MenuItems^.GetItem(index);
+    txt := item^.GetCaption;
+    txtWidth := item^.TrueTextWidth(txt);
     if not item^.IsVisible then
       continue;
-    txt := item^.GetCaption;
-    itemRect.SetDims(xPos, 0, item^.TrueTextWidth(txt) + SpacingWidth, maxHeight);
-    size.CreateDims(itemRect.Width, maxHeight);
+    itemRect.SetDims(xPos, 0, txtWidth + item^.SpacingWidth, maxHeight);
+    size.CreateDims(txtWidth, Font^.Height);
     item^.GetAlign(itemRect, size, pos);
-    itemRect.SetXY(pos.X, pos.Y);
+    itemRect.SetXY(xPos, 0);
     item^.SetBoundsRect(itemRect);
+    Inc(xPos, itemRect.Width);
   end;
-  SetBounds(0, 0, Desktop^.Width, maxHeight + BorderWidth);
+  SetBounds(0, 0, Desktop^.Width, maxHeight + 1);
 end;
 
 procedure TMenuBar.KeyPress(var AEvent: TKeyEvent);

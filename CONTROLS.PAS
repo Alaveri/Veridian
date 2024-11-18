@@ -781,6 +781,7 @@ begin
   Parent^.GetScreenBounds(parentRect);
   ARect.Translate(parentRect.X, parentRect.Y);
   ARect.Translate(Margins.Left, Margins.Top);
+  ARect.Grow(padding.Width, padding.Height);
 end;
 
 procedure TControl.SetBounds(APX, APY: integer; AWidth, AHeight: word);
@@ -1193,8 +1194,6 @@ begin
     pos.X := rect.Right - Length(desc) - Margins.Right - BorderWidth;
     Graph^.DrawText(pos.X, pos.Y, desc);
   end;
-  Graph^.State^.ViewPort.Translate(BorderWidth, BorderWidth);
-  Graph^.State^.ViewPort.Grow(-2 * BorderWidth, -2 * BorderWidth);
 end;
 
 procedure TButton.Init;
@@ -1238,16 +1237,8 @@ begin
 end;
 
 procedure TLabel.Clear;
-{var
-  rect: TRect;}
 begin
-{  BeginDrawing;
-  GetScreenBounds(rect);
-  Text^.SetForeColor(ForeColor);
-  Text^.SetBackColor(BackColor);
-  Text^.FillRect(rect, ' ');
   SetCaption('');
-  EndDrawing;}
 end;
 
 procedure TLabel.Layout;
