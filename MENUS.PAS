@@ -175,15 +175,15 @@ begin
   ADims.CreateDims(0, 0);
   for index := 0 to MenuItems^.Count - 1 do begin
     item := MenuItems^.GetItem(index);
-    itemHeight := Font^.Height + item^.Margins.Height;
     if not item^.Visible then
       continue;
-    Inc(ADims.Height, itemHeight);
+    itemHeight := item^.Font^.Height + item^.SpacingHeight;
     if item^.IsSeparator then
-      continue;
-    full := Trim(item^.GetCaption + '  ' + item^.GetShortcutDesc);
-    currentWidth := item^.TrueTextWidth(full);
-    menuWidth := currentWidth + item^.Margins.Width;
+      itemHeight := itemHeight div 2;
+    Inc(ADims.Height, itemHeight);
+    full := Trim(item^.GetCaption + item^.GetShortcutDesc);
+    currentWidth := item^.TrueTextWidth(full) + item^.ShortcutSpacing;
+    menuWidth := currentWidth + item^.SpacingWidth;
     if menuWidth > ADims.Width then
       ADims.Width := menuWidth;
   end;
@@ -196,35 +196,38 @@ var
   menuDims: TSize;
   item: PMenuItem;
   itemHeight, index: integer;
-  pos: TPoint;
+  xPos, yPos: integer;
 begin
   inherited Layout;
   GetMenuDims(menuDims);
-  menuRect.CreateDims(X, Y, menuDims.Width, menuDims.Height);
+  menuRect.CreateDims(0, 0, menuDims.Width, menuDims.Height);
   if Assigned(ParentMenuItem) then begin
     ParentMenuItem^.GetScreenBounds(parentItemRect);
     if MenuLocation = mlBelow then begin
-      menuRect.X := Max(0, parentItemRect.X);
-      menuRect.Y := Min(Graph^.Mode^.Bounds.Right - menuDims.Width,
-        parentItemRect.Y + ParentMenuItem^.Height);
-    end else begin
       menuRect.X := parentItemRect.X;
-      menuRect.Y := parentItemRect.Y;
+      menuRect.Y := parentItemRect.Bottom + 1;
+    end else begin
+      menuRect.X := parentItemRect.X + parentItemRect.Width;
+      menuRect.Y := parentItemRect.Y - BorderWidth;
       if menuRect.Right > Graph^.Mode^.Bounds.Right then
         menuRect.X := parentItemRect.X - menuDims.Width;
     end;
-    SetBoundsRect(menuRect);
   end;
   itemRect.Create;
+  yPos := BorderWidth;
+  xPos := BorderWidth;
   for index := 0 to MenuItems^.Count - 1 do begin
     item := MenuItems^.GetItem(index);
-    itemHeight := Font^.Height + item^.Margins.Height;
-    itemRect.SetDims(0, index * itemHeight,
-      menuDims.Width - 2 * BorderWidth, itemHeight);
-    item^.GetTextAlign(itemRect, pos);
-    itemRect.Translate(pos.X, Pos.Y);
+    if not item^.Visible then
+      continue;
+    itemHeight := item^.Font^.Height + item^.SpacingHeight;
+    if item^.IsSeparator then
+      itemHeight := itemHeight div 2;
+    itemRect.SetDims(xPos, yPos, menuDims.Width - 2 * BorderWidth, itemHeight);
     item^.SetBoundsRect(itemRect);
+    Inc(yPos, itemHeight);
   end;
+  SetBoundsRect(menuRect);
 end;
 
 procedure TMenu.KeyPress(var AEvent: TKeyEvent);
@@ -328,7 +331,7 @@ begin
   BorderStyle := bsNone;
   FIsMainMenuItem := false;
   AutoSize := false;
-  Padding.CreateAll(3, 1, 3, 1);
+  Padding.CreateAll(3, 2, 3, 1);
 end;
 
 procedure TMenuItem.OpenMenu;
@@ -370,6 +373,7 @@ var
   oldBackColor: byte;
   rect, viewPort: TRect;
   bwidth: integer;
+  pos: TPoint;
 begin
   oldForeColor := ForeColor;
   oldBackColor := BackColor;
@@ -377,35 +381,28 @@ begin
     ForeColor := VeridianApp^.Colors.MenuSelected;
     BackColor := VeridianApp^.Colors.MenuSelectedBack;
   end;
+  GetScreenBounds(rect);
   if IsSeparator then begin
-    GetScreenBounds(rect);
-    viewPort.CreateRect(rect);
-    Graph^.State^.ViewPort := viewPort;
     Graph^.SetForeColor(BorderColor);
-    Graph^.HLine(viewPort.X, viewPort.Y, viewPort.Width);
+    Graph^.HLine(rect.X, rect.Y + rect.Height div 2, rect.Width);
     exit;
   end;
   inherited Paint;
   if Assigned(Menu) and not IsMainMenuItem then begin
-    GetScreenBounds(rect);
     bwidth  := 0;
     if Assigned(Parent) then
       bwidth := Parent^.BorderWidth;
-    Graph^.DrawText(rect.X + rect.Width - bwidth, rect.Y, #16);
+    GetTextAlign(rect, pos);
+    Graph^.DrawText(pos.X + rect.Right - bwidth - TrueTextWidth(#16) - Padding.Right,
+      pos.Y, #16);
   end;
   ForeColor := oldForeColor;
   BackColor := oldBackColor;
 end;
 
 procedure TMenuItem.Layout;
-var
-  full: string;
 begin
   inherited Layout;
-  full := Trim(GetCaption + '  ' + GetShortcutDesc);
-  if IsMainMenuItem then
-    SetBounds(X, Y, TrueTextWidth(full) + Margins.Width,
-      Font^.Height + Margins.Width);
 end;
 
 function TMenuItem.CloseMenu: boolean;
@@ -473,7 +470,6 @@ begin
   end;
   MenuManager.OpenMenu(Menu);
   ParentContainer^.SelectedItem := @self;
-  DrawSelf;
 end;
 
 procedure TMenuItem.MouseUp(var AEvent: TMouseEvent);
@@ -536,6 +532,7 @@ begin
     if currentHeight > maxHeight then
       maxHeight := currentHeight;
   end;
+  Inc(maxHeight);
   for index := 0 to MenuItems^.Count - 1 do begin
     item := MenuItems^.GetItem(index);
     txt := item^.GetCaption;
@@ -543,9 +540,7 @@ begin
     if not item^.IsVisible then
       continue;
     itemRect.SetDims(xPos, 0, txtWidth + item^.SpacingWidth, maxHeight);
-    size.CreateDims(txtWidth, Font^.Height);
-    item^.GetAlign(itemRect, size, pos);
-    itemRect.SetXY(xPos, 0);
+    size.CreateDims(txtWidth, maxHeight);
     item^.SetBoundsRect(itemRect);
     Inc(xPos, itemRect.Width);
   end;
@@ -853,8 +848,8 @@ begin
   if not AMenu^.IsVisible then begin
     parentContainer := nil;
     parentMenuItem := AMenu^.ParentMenuItem;
-    if Assigned(parentMenuItem) then begin
-      parentContainer := parentMenuItem^.ParentContainer;
+    parentContainer := parentMenuItem^.ParentContainer;
+    if Assigned(parentMenuItem) and (parentContainer^.SelectedItem <> parentMenuItem) then begin
       parentContainer^.SelectedItem := parentMenuItem;
       parentMenuItem^.DrawSelf;
     end;

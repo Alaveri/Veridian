@@ -31,9 +31,9 @@ const
 
 type
   PVeridianApp = ^TVeridianApp;
-  PVeridianAppState = ^TVeridianAppState;
   PVeridianAction = ^TVeridianAction;
   PVeridianAppSettings = ^TVeridianAppSettings;
+  PAppState = ^TAppState;
 
   TVeridianAppSettings = object(TObject)
   private
@@ -48,7 +48,7 @@ type
     procedure LoadFromStream(AStream: PStream);
   end;
 
-  TVeridianAppState = object(TAppState)
+  TAppState = object(TObject)
   private
   public
     CursorOn: boolean;
@@ -69,7 +69,6 @@ type
     FDoubleClickStart: TDateTime;
     function LoadFont(const AFilename: string): PFont;
     function CreateDesktop: PDesktop; virtual;
-    function CreateAppState: PAppState; virtual;
     procedure CreateObjects;
     procedure LoadFonts;
     procedure HandleKeyEvent(AControl: PControl; var AEvent: TKeyEvent);
@@ -93,7 +92,7 @@ type
     procedure ApplySettings;
     procedure SetMouseSensitivity(ASens: real);
   public
-    State: PVeridianAppState;
+    State: TAppState;
     StateStack: TObjectStack;
     Colors: TColors;
     ActiveControl: PFocusControl;
@@ -259,12 +258,12 @@ begin
   StateStack.Create;
   Settings.Create;
   Colors := LightColors;
+  State.Create;
 end;
 
 procedure TVeridianApp.Init;
 begin
   inherited Init;
-  State := PVeridianAppState(Appstate);
   Memory.OnAllocError := @OnAllocError;
   FCursorBlinkVisible := false;
   CreateObjects;
@@ -412,7 +411,7 @@ begin
     exit;
   if not ActiveControl^.UsesCursor then
     exit;
-  if State^.CursorOn then begin
+  if State.CursorOn then begin
     FBlinkCurrentTime.SetNow;
     FBlinkElapsed.Ticks := FBlinkCurrentTime.Ticks - CursorBlinkTime.Ticks;
     seconds := FBlinkElapsed.TotalSeconds;
@@ -640,9 +639,9 @@ end;
 
 procedure TVeridianApp.CursorOn;
 begin
-  if State^.CursorOn then
+  if State.CursorOn then
     exit;
-  State^.CursorOn := true;
+  State.CursorOn := true;
   FCursorBlinkVisible := true;
   CursorBlinkTime.SetNow;
   DrawCursor;
@@ -650,9 +649,9 @@ end;
 
 procedure TVeridianApp.CursorOff;
 begin
-  if not State^.CursorOn then
+  if not State.CursorOn then
     exit;
-  State^.CursorOn := false;
+  State.CursorOn := false;
   FCursorBlinkVisible := false;
   DrawCursor;
 end;
@@ -663,7 +662,7 @@ var
   mouseRect: TRect;
   cursorColor: byte;
 begin
-  if not State^.DrawEnabled then
+  if not State.DrawEnabled then
     exit;
   activeControl := ActiveControl;
   if not Assigned(ActiveControl) then
@@ -702,7 +701,7 @@ begin
     MenuBar^.BringToFront;
 
 {$IFDEF debug}
-  if Assigned(MenuBar) and State^.DrawEnabled then begin
+  if Assigned(MenuBar) and State.DrawEnabled then begin
     MenuBar^.GetScreenBounds(rect);
     rect.Grow(0, -1);
     Graph^.SetForeColor(MenuBar^.ForeColor);
@@ -717,7 +716,7 @@ begin
 {$ENDIF}
   if not FMouseState.Equals(FOldMouseState) then begin
     MoveMouseCursor(FMouseState, FOldMouseState);
-    if State^.CursorOn then
+    if State.CursorOn then
       DrawCursor;
     FMouseEvent.NewMouseState.Assign(FMouseState);
     FMouseEvent.OldMouseState.Assign(FOldMouseState);
@@ -735,22 +734,22 @@ end;
 
 procedure TVeridianApp.PushState;
 var
-  newState: PVeridianAppState;
+  newState: PAppState;
 begin
-  newState := New(PVeridianAppState, Create);
-  newState^.Assign(State^);
+  newState := New(PAppState, Create);
+  newState^.Assign(State);
   StateStack.Push(newState);
 end;
 
 procedure TVeridianApp.PopState;
 var
-  oldState: PVeridianAppState;
+  oldState: PAppState;
 begin
-  oldState := PVeridianAppState(StateStack.Pop);
+  oldState := PAppState(StateStack.Pop);
   if not Assigned(oldState) then
     exit;
-  State^.Assign(oldState^);
-  if State^.CursorOn then
+  State.Assign(oldState^);
+  if State.CursorOn then
     CursorOn
   else
     CursorOff;
@@ -794,11 +793,6 @@ begin
   SetMouseSensitivity(Settings.MouseSensitivity);
 end;
 
-function TVeridianApp.CreateAppState: PAppState;
-begin
-  CreateAppState := New(PVeridianAppState, Create);
-end;
-
 procedure TVeridianApp.Run;
   procedure DoRun(AControl: PControl);
   var
@@ -813,7 +807,7 @@ procedure TVeridianApp.Run;
   end;
 begin
   ApplySettings;
-  State^.DrawEnabled := true;
+  State.DrawEnabled := true;
   Desktop^.Draw;
   Mouse.SetMousePosition(Graph^.Mode^.Width div 2, Graph^.Mode^.Height div 2);
   Mouse.ShowMouse;
@@ -821,26 +815,25 @@ begin
   FMouseState.Assign(Mouse.State);
   FOldMouseState.Assign(FMouseState);
   DoRun(Desktop);
-  if State^.CursorOn then
+  if State.CursorOn then
     CursorOn;
   inherited Run;
 end;
 
-procedure TVeridianAppState.Init;
+procedure TAppState.Init;
 begin
   inherited Init;
   CursorOn := false;
   MouseVisible := false;
-  MouseCursor := nil;
   DrawEnabled := false;
 end;
 
-procedure TVeridianAppState.Assign(var ASource: TObject);
+procedure TAppState.Assign(var ASource: TObject);
 var
-  source: PVeridianAppState;
+  source: PAppState;
 begin
   inherited Assign(ASource);
-  source := PVeridianAppState(@ASource);
+  source := PAppState(@ASource);
   CursorOn := source^.CursorOn;
   DrawEnabled := source^.DrawEnabled;
   MouseVisible := source^.MouseVisible;

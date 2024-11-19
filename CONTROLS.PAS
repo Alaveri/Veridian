@@ -13,6 +13,7 @@ uses
   Graphics,
   GraphApp,
   Lists,
+  Streams,
   Actions,
   KeyDrv,
   VeriCons,
@@ -275,6 +276,7 @@ type
     ShowShortcut: boolean;
     ShortcutDisplayName: PChar;
     Shortcut: word;
+    ShortcutSpacing: integer;
     DisabledColor, DisabledBackColor: byte;
     constructor CreateId(AId: string; AAction: PAction);
     constructor CreateParent(AId: string; AAction: PAction; AParent: PControl);
@@ -325,8 +327,7 @@ type
 
   TPopUp = object(TPanel)
   private
-    FBackBuffer: PByte;
-    FBackBufferSize: word;
+    FBackBuffer: PMemoryStream;
   public
     procedure Init; virtual;
     procedure Show; virtual;
@@ -676,7 +677,7 @@ procedure TControl.DrawControl(ADrawControls: boolean);
 begin
   if not IsVisible then
     exit;
-  if not VeridianApp^.State^.DrawEnabled then
+  if not VeridianApp^.State.DrawEnabled then
     exit;
   BeginDrawing;
   Paint;
@@ -724,8 +725,7 @@ begin
     end;
   end;
   MouseCursor^.GetBounds(mouseRect);
-  if rect.IntersectsRect(mouseRect) then
-    VeridianApp^.HideMouseCursor;
+  VeridianApp^.HideMouseCursor;
   Graph^.SetForeColor(ForeColor);
   Graph^.SetBackColor(BackColor);
   Graph^.State^.Font := Font;
@@ -740,15 +740,14 @@ begin
   Graph^.PopState;
   Mouse.PopState;
   VeridianApp^.PopState;
-  cursor := VeridianApp^.State^.MouseCursor;
+  cursor := VeridianApp^.MouseCursor;
   cursor^.X := Mouse.State.X;
   cursor^.Y := Mouse.State.Y;
   GetScreenBounds(rect);
   cursor^.GetBounds(mouseRect);
   if Mouse.State.Visible then begin
     cursor^.Visible := Mouse.State.Visible;
-    if rect.IntersectsRect(mouseRect) then
-      VeridianApp^.DrawMouseCursor(Mouse.State);
+    VeridianApp^.DrawMouseCursor(Mouse.State);
   end else begin
     cursor^.Visible := false;
   end;
@@ -778,10 +777,11 @@ begin
   GetBounds(ARect);
   if (Position = spAbsolute) or not Assigned(Parent) then
     exit;
-  Parent^.GetScreenBounds(parentRect);
-  ARect.Translate(parentRect.X, parentRect.Y);
-  ARect.Translate(Margins.Left, Margins.Top);
-  ARect.Grow(padding.Width, padding.Height);
+  if Assigned(Parent) then begin
+    Parent^.GetScreenBounds(parentRect);
+    ARect.Translate(parentRect.X, parentRect.Y);
+    ARect.Translate(Margins.Left, Margins.Top);
+  end;
 end;
 
 procedure TControl.SetBounds(APX, APY: integer; AWidth, AHeight: word);
@@ -945,6 +945,7 @@ begin
   DisabledColor := 0;
   DisabledBackColor := 0;
   Enabled := true;
+  ShortcutSpacing := 10;
 end;
 
 procedure TContentControl.Init;
@@ -1191,7 +1192,7 @@ begin
   end;
   if GetShortcut > 0 then begin
     desc := GetShortcutDesc;
-    pos.X := rect.Right - Length(desc) - Margins.Right - BorderWidth;
+    pos.X := rect.Right - TrueTextWidth(desc) - Margins.Right - BorderWidth;
     Graph^.DrawText(pos.X, pos.Y, desc);
   end;
 end;
@@ -1548,59 +1549,46 @@ procedure TPopUp.Init;
 begin
   inherited Init;
   FBackBuffer := nil;
-  FBackBufferSize := 0;
 end;
 
 procedure TPopUp.Show;
 var
   rect: TRect;
+  size: longint;
 begin
-{  Layout;
+  BeginDrawing;
   GetScreenBounds(rect);
-  if Assigned(FBackBuffer) then begin
-    FreeMem(FBackBuffer, FBackBufferSize);
-    FBackBuffer := nil;
-  end;
-  Text^.PushState;
-  Text^.CursorOff;
-  VeridianApp^.PushState;
-  VeridianApp^.HideMouse;
-  FBackBufferSize := rect.Width * rect.Height * 2;
-  GetMem(FBackBuffer, FBackBufferSize);
+  FreeAndNil(FBackBuffer);
+  VeridianApp^.HideMouseCursor;
+  size := longint(rect.Width) * rect.Height;
+  FBackBuffer := New(PMemoryStream, Create(size));
   if VeridianApp^.CheckNilPtr(FBackBuffer) then
     exit;
-  Text^.GetImageRect(rect, FBackBuffer);
-  VeridianApp^.PopState;
-  Text^.PopState;
+  Graph^.GetImageStreamRect(rect, FBackBuffer);
   Visible := true;
-  Draw;}
+  EndDrawing;
+  Draw;
 end;
 
 procedure TPopUp.Hide;
-{var
-  rect: TRect;}
+var
+  rect: TRect;
 begin
-{  GetScreenBounds(rect);
+  GetScreenBounds(rect);
   if not Assigned(FBackBuffer) then
     exit;
-  Text^.PushState;
-  Text^.CursorOff;
-  VeridianApp^.PushState;
-  VeridianApp^.HideMouse;
-  Layout;
-  Text^.DrawImageRect(rect, FBackBuffer);
-  VeridianApp^.PopState;
-  Text^.PopState;
-  if Assigned(FBackBuffer) then
-    FreeMem(FBackBuffer, FBackBufferSize);
-  FBackBufferSize := 0;
-  Visible := false;}
+  BeginDrawing;
+  VeridianApp^.HideMouseCursor;
+  FBackBuffer^.Seek(0, soFromBeginning);
+  Graph^.DrawImageStreamRect(rect, FBackBuffer);
+  FreeAndNil(FBackBuffer);
+  Visible := false;
+  EndDrawing;
 end;
 
 destructor TPopUp.Free;
 begin
-  if Assigned(FBackBuffer) then
-    FreeMem(FBackBuffer, FBackBufferSize);
+  FreeAndNil(FBackBuffer);
   inherited Free;
 end;
 
