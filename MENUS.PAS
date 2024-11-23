@@ -43,6 +43,9 @@ type
     IsSeparator: boolean;
     ParentContainer: PMenuItemContainer;
     Menu: PMenu;
+    SelectedColor: byte;
+    SelectedBackColor: byte;
+    SelectedShortcutColor: byte;
     constructor Create(const AId: string; AActionId: integer; AParent: PMenuItemContainer);
     constructor CreateSeparator(AParent: PMenu);
     function NewMenu(const AId: string): PMenu;
@@ -328,6 +331,9 @@ begin
   ForeColor := VeridianApp^.Colors.Menu;
   BackColor := VeridianApp^.Colors.MenuBack;
   BorderColor := VeridianApp^.Colors.MenuBorder;
+  SelectedColor := VeridianApp^.Colors.MenuSelected;
+  SelectedBackColor := VeridianApp^.Colors.MenuSelectedBack;
+  SelectedShortcutColor := VeridianApp^.Colors.SelectedShortcut;
   BorderStyle := bsNone;
   FIsMainMenuItem := false;
   AutoSize := false;
@@ -371,15 +377,18 @@ procedure TMenuItem.Paint;
 var
   oldForeColor: byte;
   oldBackColor: byte;
+  oldShortcutColor: byte;
   rect, viewPort: TRect;
   bwidth: integer;
   pos: TPoint;
 begin
   oldForeColor := ForeColor;
   oldBackColor := BackColor;
+  oldShortcutColor := ShortcutColor;
   if Selected then begin
-    ForeColor := VeridianApp^.Colors.MenuSelected;
-    BackColor := VeridianApp^.Colors.MenuSelectedBack;
+    ForeColor := SelectedColor;
+    BackColor := SelectedBackColor;
+    ShortcutColor := SelectedShortcutColor;
   end;
   GetScreenBounds(rect);
   if IsSeparator then begin
@@ -393,11 +402,12 @@ begin
     if Assigned(Parent) then
       bwidth := Parent^.BorderWidth;
     GetTextAlign(rect, pos);
-    Graph^.DrawText(pos.X + rect.Right - bwidth - TrueTextWidth(#16) - Padding.Right,
-      pos.Y, #16);
+    pos.X := rect.Right - TrueTextWidth(#16) - Padding.Right;
+    Graph^.DrawText(pos.X, pos.Y, #16);
   end;
   ForeColor := oldForeColor;
   BackColor := oldBackColor;
+  ShortcutColor := oldShortcutColor;
 end;
 
 procedure TMenuItem.Layout;
@@ -435,7 +445,9 @@ begin
   showMenu := false;
   if Assigned(selectedItem) and (selectedItem <> @self) then begin
     showMenu := MenuManager.MenuOpen(selectedItem^.Menu);
-    MenuManager.CloseAllMenus;
+    selectedItem^.CloseMenu;
+    ParentContainer^.SelectedItem := nil;
+    selectedItem^.DrawSelf;
   end;
   ParentContainer^.SelectedItem := @self;
   if showMenu then
@@ -510,6 +522,7 @@ begin
   BorderColor := VeridianApp^.Colors.MenuBorder;
   MenuItems := New(PMenuItemList, Create(@self));
   VeridianApp^.MenuBar := @self;
+  Padding.Left := 5;
 end;
 
 procedure TMenuBar.Layout;
@@ -523,7 +536,7 @@ var
 begin
   inherited Layout;
   itemRect.Create;
-  xPos := 0;
+  xPos := Padding.Left;
   maxHeight := 0;
   currentHeight := 0;
   for index := 0 to MenuItems^.Count - 1 do begin

@@ -44,7 +44,7 @@ type
   TMouseProc = procedure(ASender: PControl; var AEvent: TMouseEvent);
   TScrollEventProc = procedure(ASender: PObject; var AEvent: TScrollEvent);
 
-  TBorderStyle = (bsNone, bsSingle);
+  TBorderStyle = (bsNone, bsSingle, bsRaised, bsLowered);
 
   THorzAlign =
   (
@@ -207,6 +207,8 @@ type
     procedure DragStart(var AEvent: TMouseEvent); virtual;
     procedure DragMove(var AEvent: TMouseEvent); virtual;
     procedure DragEnd(var AEvent: TMouseEvent); virtual;
+    procedure InvokeSender(AEventProc: pointer; ASender: PObject; var AEvent: TEvent);
+    procedure Invoke(AEventProc: pointer; var AEvent: TEvent);
   end;
 
   TPanel = object(TControl)
@@ -215,6 +217,8 @@ type
     TransparentBack: boolean;
     BorderColor: byte;
     BorderStyle: TBorderStyle;
+    ShadowColor: byte;
+    LightColor: byte;
     function BorderWidth: byte; virtual;
     procedure Init; virtual;
     procedure SetBorderColor(AColor: byte);
@@ -276,6 +280,7 @@ type
     ShowShortcut: boolean;
     ShortcutDisplayName: PChar;
     Shortcut: word;
+    ShortcutColor: byte;
     ShortcutSpacing: integer;
     DisabledColor, DisabledBackColor: byte;
     constructor CreateId(AId: string; AAction: PAction);
@@ -306,6 +311,7 @@ type
     AcceptsTab: boolean;
     AcceptsEnter: boolean;
     FocusedColor, FocusedBackColor: byte;
+    CanFocus: boolean;
     constructor CreateId(AId: string);
     constructor CreateParent(AId: string; AParent: PControl);
     constructor CreateAction(AId: string; AAction: PAction; AParent: PControl);
@@ -350,12 +356,9 @@ type
   public
     Down: boolean;
     Toggle: boolean;
-    ShadowColor: byte;
-    LightColor: byte;
     DownBackColor: byte;
-    DownShadowColor: byte;
-    DownLightColor: byte;
     HighlightColor: byte;
+    Clickable: boolean;
     procedure Init; virtual;
     procedure Paint; virtual;
   end;
@@ -526,6 +529,18 @@ begin
   Draw;
 end;
 
+procedure TControl.InvokeSender(AEventProc: pointer; ASender: PObject;
+  var AEvent: TEvent);
+begin
+  if Assigned(AEventProc) then
+    TEventProc(AEventProc)(ASender, AEvent);
+end;
+
+procedure TControl.Invoke(AEventProc: pointer; var AEvent: TEvent);
+begin
+  InvokeSender(AEventProc, @self, AEvent);
+end;
+
 procedure TControl.SetWidthHeight(AWidth, AHeight: word);
 begin
   Width := AWidth;
@@ -557,20 +572,17 @@ end;
 
 procedure TControl.DragStart(var AEvent: TMouseEvent);
 begin
-  if Assigned(OnDragStart) then
-    TEventProc(OnDragStart)(@self, AEvent);
+  Invoke(OnDragStart, AEvent);
 end;
 
 procedure TControl.DragMove(var AEvent: TMouseEvent);
 begin
-  if Assigned(OnDragMove) then
-    TEventProc(OnDragMove)(@self, AEvent);
+  Invoke(OnDragMove, AEvent);
 end;
 
 procedure TControl.DragEnd(var AEvent: TMouseEvent);
 begin
-  if Assigned(OnDragEnd) then
-    TEventProc(OnDragEnd)(@self, AEvent);
+  Invoke(OnDragEnd,  AEvent);
 end;
 
 function TControl.IsVisible: boolean;
@@ -868,56 +880,47 @@ end;
 
 procedure TControl.KeyPress(var AEvent: TKeyEvent);
 begin
-  if Assigned(OnKeyPress) then
-    TKeyEventProc(OnKeyPress)(@self, AEvent);
+  Invoke(OnKeyPress, AEvent);
 end;
 
 procedure TControl.MouseDown(var AEvent: TMouseEvent);
 begin
-  if Assigned(OnMouseDown) then
-    TMouseEventProc(OnMouseDown)(@self, AEvent);
+  Invoke(OnMouseDown, AEvent);
 end;
 
 procedure TControl.MouseUp(var AEvent: TMouseEvent);
 begin
-  if Assigned(OnMouseUp) then
-    TMouseEventProc(OnMouseUp)(@self, AEvent);
+  Invoke(OnMouseUp,  AEvent);
 end;
 
 procedure TControl.MouseMove(var AEvent: TMouseEvent);
 begin
-  if Assigned(OnMouseMove) then
-    TMouseEventProc(OnMouseMove)(@self, AEvent);
+  Invoke(OnMouseMove, AEvent);
 end;
 
 procedure TControl.MouseEnter(var AEvent: TMouseEvent);
 begin
-  if Assigned(OnMouseEnter) then
-    TMouseEventProc(OnMouseEnter)(@self, AEvent);
+  Invoke(OnMouseEnter, AEvent);
 end;
 
 procedure TControl.MouseLeave(var AEvent: TMouseEvent);
 begin
-  if Assigned(OnMouseLeave) then
-    TMouseEventProc(OnMouseLeave)(@self, AEvent);
+  Invoke(OnMouseLeave, AEvent);
 end;
 
 procedure TControl.MouseClick(var AEvent: TMouseEvent);
 begin
-  if Assigned(OnMouseClick) then
-    TMouseEventProc(OnMouseClick)(@self, AEvent);
+  Invoke(OnMouseClick, AEvent);
 end;
 
 procedure TControl.MouseDblClick(var AEvent: TMouseEvent);
 begin
-  if Assigned(OnMouseDblClick) then
-    TMouseEventProc(OnMouseDblClick)(@self, AEvent);
+  Invoke(OnMouseDblClick, AEvent);
 end;
 
 procedure TControl.MouseWheelChanged(var AEvent: TMouseEvent);
 begin
-  if Assigned(OnMouseWheelChanged) then
-    TMouseEventProc(OnMouseWheelChanged)(@self, AEvent);
+  Invoke(OnMouseWheelChanged, AEvent);
 end;
 
 procedure TControl.Run;
@@ -925,8 +928,7 @@ var
   event: TEvent;
 begin
   event.Create;
-  if Assigned(OnRun) then
-    TEventProc(OnRun)(@self, event);
+  Invoke(OnRun, event);
 end;
 
 destructor TControl.Free;
@@ -942,8 +944,9 @@ begin
   ShowShortcut := true;
   ShortcutDisplayName := nil;
   Shortcut := 0;
-  DisabledColor := 0;
-  DisabledBackColor := 0;
+  DisabledColor := VeridianApp^.Colors.ButtonDisabled;
+  DisabledBackColor := VeridianApp^.Colors.ButtonDisabledBack;
+  ShortcutColor := VeridianApp^.Colors.Shortcut;
   Enabled := true;
   ShortcutSpacing := 10;
 end;
@@ -1167,10 +1170,9 @@ begin
     currentBackColor := DisabledBackColor;
   end;
   index := 1;
+  TPanel.Paint;
   Graph^.SetForeColor(currentForeColor);
   Graph^.SetBackColor(currentBackColor);
-  if not TransparentBack then
-    Graph^.FillRect(rect);
   txt := GetCaption;
   while index <= Length(txt) do begin
     ch := txt[index];
@@ -1182,7 +1184,7 @@ begin
         break;
       ch := txt[index];
       if IsEnabled then begin
-        Graph^.SetForeColor(VeridianApp^.Colors.Shortcut);
+        Graph^.SetForeColor(ShortcutColor);
       end;
     end;
     charWidth := Font^.TextWidth(ch);
@@ -1207,13 +1209,12 @@ begin
   ShadowColor := VeridianApp^.Colors.ButtonShadow;
   LightColor := VeridianApp^.Colors.ButtonLight;
   DownBackColor := VeridianApp^.Colors.ButtonDownBack;
-  DownShadowColor := VeridianApp^.Colors.ButtonDownShadow;
-  DownLightColor := VeridianApp^.Colors.ButtonDownLight;
   DisabledColor := VeridianApp^.Colors.ButtonDisabled;
   HighlightColor := VeridianApp^.Colors.ButtonHighlight;
   Down := false;
-  BorderStyle := bsNone;
+  BorderStyle := bsRaised;
   Toggle := false;
+  Clickable := true;
 end;
 
 procedure TButton.Paint;
@@ -1298,6 +1299,8 @@ begin
   BackColor := VeridianApp^.Colors.WindowBack;
   BorderColor := VeridianApp^.Colors.WindowBorder;
   BorderStyle := bsNone;
+  ShadowColor := VeridianApp^.Colors.ButtonShadow;
+  LightColor := VeridianApp^.Colors.ButtonLight;
   TransParentBack := false;
 end;
 
@@ -1323,9 +1326,27 @@ begin
   Graph^.SetBackColor(BackColor);
   if not TransparentBack then
     Graph^.FillRect(rect);
-  if BorderStyle <> bsNone then begin
-    Graph^.SetForeColor(BorderColor);
-    Graph^.Rectangle(rect);
+  case BorderStyle of
+    bsSingle: begin
+      Graph^.SetForeColor(BorderColor);
+      Graph^.Rectangle(rect);
+    end;
+    bsRaised: begin
+      Graph^.SetForeColor(ShadowColor);
+      Graph^.VLine(rect.Right, rect.Y, rect.Height);
+      Graph^.HLine(rect.X, rect.Bottom, rect.Width);
+      Graph^.SetForeColor(LightColor);
+      Graph^.HLine(rect.X, rect.Y, rect.Width);
+      Graph^.VLine(rect.X, rect.Y, rect.Height);
+    end;
+    bsLowered: begin
+      Graph^.SetForeColor(LightColor);
+      Graph^.VLine(rect.Right, rect.Y, rect.Height);
+      Graph^.HLine(rect.X, rect.Bottom, rect.Width);
+      Graph^.SetForeColor(ShadowColor);
+      Graph^.HLine(rect.X, rect.Y, rect.Width);
+      Graph^.VLine(rect.X, rect.Y, rect.Height);
+    end;
   end;
 end;
 
@@ -1707,7 +1728,8 @@ end;
 
 procedure TFocusControl.Focus;
 begin
-  SetFocus(true, true);
+  if CanFocus then
+    SetFocus(true, true);
 end;
 
 procedure TFocusControl.Paint;
@@ -1744,7 +1766,8 @@ end;
 
 procedure TFocusControl.Unfocus;
 begin
-  SetFocus(false, true);
+  if CanFocus then
+    SetFocus(false, true);
 end;
 
 function TFocusControl.Focused: boolean;
@@ -1757,26 +1780,23 @@ var
   event: TEvent;
   rect: TRect;
 begin
-{  if not IsVisibleAndEnabled then
+  if not IsVisibleAndEnabled then
     exit;
-  if Focused then
+  if Focused or not CanFocus then
     exit;
   GetScreenBounds(rect);
   event.Create;
   if AFocus then begin
     if Assigned(VeridianApp^.ActiveControl) then begin
-      if Assigned(VeridianApp^.ActiveControl^.OnExit) then
-        TEventProc(VeridianApp^.ActiveControl^.OnExit)(VeridianApp^.ActiveControl, event);
+      InvokeSender(VeridianApp^.ActiveControl^.OnExit, VeridianApp^.ActiveControl, event);
       VeridianApp^.ActiveControl^.Unfocus;
     end;
     VeridianApp^.ActiveControl := @self;
     if ARedraw then
       Draw;
-    if Assigned(OnEnter) then
-      TEventProc(OnEnter)(@self, event);
+    Invoke(OnEnter, event);
     if UsesCursor then begin
       VeridianApp^.CursorOn;
-      Text^.SetXY(rect.X + FCursorX, rect.Y + FCursorY);
     end;
   end
   else begin
@@ -1785,7 +1805,7 @@ begin
       Draw;
     if UsesCursor then
       VeridianApp^.CursorOff;
-  end;}
+  end;
 end;
 
 constructor TFocusControl.CreateId(AId: string);
@@ -1813,6 +1833,7 @@ begin
   FocusedBackColor := VeridianApp^.Colors.EditorFocusedBack;
   FCursorX := 0;
   FCursorY := 0;
+  CanFocus := true;
 end;
 
 function TFocusControl.CursorX: integer;
@@ -1844,8 +1865,7 @@ begin
     exit;
   if not Focused then
     Focus;
-  if Assigned(OnMouseDown) then
-    TMouseEventProc(OnMouseDown)(@self, AEvent);
+  Invoke(OnMouseDown, AEvent);
 end;
 
 begin

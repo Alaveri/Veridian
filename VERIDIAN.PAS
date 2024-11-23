@@ -183,6 +183,8 @@ begin
   Desktop^.Font := SystemFont;
   InitActions;
   InitControls;
+  Desktop^.Layout;
+  Menubar^.Layout;
 end;
 
 destructor TVeridianApp.Free;
@@ -240,6 +242,7 @@ begin
     font := LoadFont('editor.fnt');
     EditorFont := font;
     font := LoadFont('symbol.fnt');
+    font^.SetId('symbol');
     SymbolFont := font;
     LoadFont('seattle.fnt');
   end;
@@ -567,22 +570,24 @@ var
 begin
   case AEvent.Key of
     kyTab: begin
-      if (Assigned(ActiveControl)
-        and not ActiveControl^.AcceptsTab) then begin
-        MenuManager.CloseAllMenus;
-        FocusNext(ActiveControl, false);
-        AEvent.Handled := true;
+      if not (Assigned(ActiveControl) or ActiveControl^.AcceptsTab) then
         exit;
-      end;
+      if not ActiveControl^.CanFocus then
+        exit;
+      MenuManager.CloseAllMenus;
+      FocusNext(ActiveControl, false);
+      AEvent.Handled := true;
+      exit;
     end;
     kyShiftTab: begin
-      if (Assigned(ActiveControl)
-        and not ActiveControl^.AcceptsTab) then begin
-        MenuManager.CloseAllMenus;
-        FocusNext(ActiveControl, true);
-        AEvent.Handled := true;
+      if not (Assigned(ActiveControl) or ActiveControl^.AcceptsTab) then
         exit;
-      end;
+      if not ActiveControl^.CanFocus then
+        exit;
+      MenuManager.CloseAllMenus;
+      FocusNext(ActiveControl, true);
+      AEvent.Handled := true;
+      exit;
     end;
     kyEsc: begin
       container := MenuManager.PopAndCloseMenu;
