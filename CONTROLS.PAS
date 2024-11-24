@@ -16,6 +16,7 @@ uses
   Streams,
   Actions,
   KeyDrv,
+  Events,
   VeriCons,
   Colors;
 
@@ -30,19 +31,6 @@ type
   PPopUp = ^TPopUp;
   PLabel = ^TLabel;
   PButton = ^TButton;
-  PKeyProc = ^TKeyProc;
-  PMouseProc = ^TMouseProc;
-  PScrollEventProc = ^TScrollEventProc;
-
-  TScrollEvent = object(TEvent)
-  private
-  public
-    CurrentPos: longint;
-  end;
-
-  TKeyProc = procedure(ASender: PControl; var AEvent: TKeyEvent);
-  TMouseProc = procedure(ASender: PControl; var AEvent: TMouseEvent);
-  TScrollEventProc = procedure(ASender: PObject; var AEvent: TScrollEvent);
 
   TBorderStyle = (bsNone, bsSingle, bsRaised, bsLowered);
 
@@ -127,13 +115,16 @@ type
     Position: TScreenPosition;
     Visible: boolean;
     ForeColor, BackColor: byte;
+    FillPattern: PFillPattern;
     Modal: boolean;
     Align: TAlign;
     Tag: integer;
+    CanDrag: boolean;
+    CanUndo: boolean;
     Margins: TSpacing;
     Padding: TSpacing;
-    OnKeyPress: PKeyProc;
-    OnMouseDown: PMouseProc;
+    OnKeyPress: PKeyEventProc;
+    OnMouseDown: PMouseEventProc;
     OnMouseMove: PMouseEventProc;
     OnMouseUp: PMouseEventProc;
     OnMouseClick: PMouseEventProc;
@@ -325,7 +316,7 @@ type
     procedure SetXY(AXPos, AYPos: integer); virtual;
     procedure Init; virtual;
     procedure Focus; virtual;
-    procedure Unfocus; virtual;
+    procedure UnFocus; virtual;
     procedure SetFocus(AFocus, ARedraw: boolean); virtual;
     procedure MouseDown(var AEvent: TMouseEvent); virtual;
     procedure Paint; virtual;
@@ -361,6 +352,10 @@ type
     Clickable: boolean;
     procedure Init; virtual;
     procedure Paint; virtual;
+    procedure MouseDown(var AEvent: TMouseEvent); virtual;
+    procedure MouseClick(var AEvent: TMouseEvent); virtual;
+    procedure MouseEnter(var AEvent: TMouseEvent); virtual;
+    procedure MouseLeave(var AEvent: TMouseEvent); virtual;
   end;
 
 var
@@ -372,6 +367,7 @@ uses
   AplStr,
   AplUtils,
   Veridian,
+  Gr8Drv,
   Strings;
 
 constructor TControl.Create(AId: string);
@@ -401,10 +397,13 @@ begin
   Position := spRelative;
   ForeColor := VeridianApp^.Colors.Window;
   BackColor := VeridianApp^.Colors.WindowBack;
+  FillPattern := nil;
   Modal := false;
   Margins.Create;
   Padding.Create;
   Tag := 0;
+  CanDrag := false;
+  CanUndo := false;
   OnDragEnd := nil;
   OnDragMove := nil;
   OnDragStart := nil;
@@ -967,6 +966,7 @@ begin
     Height := ContentHeight + Padding.Height;
   end;
 end;
+
 procedure TContentControl.GetAlign(const ABounds: TRect; const ASize: TSize;
   var AResult: TPoint);
 begin
@@ -1218,8 +1218,72 @@ begin
 end;
 
 procedure TButton.Paint;
+var
+  oldShadowColor, oldLightColor: byte;
 begin
+  if not (IsVisible and VeridianApp^.State.DrawEnabled) then
+    exit;
+  oldShadowColor := ShadowColor;
+  oldLightColor := LightColor;
+  if Down then begin
+    ShadowColor := oldLightColor;
+    LightColor := oldShadowColor;
+  end;
   inherited Paint;
+  ShadowColor := oldShadowColor;
+  LightColor := oldLightColor;
+end;
+
+procedure TButton.MouseDown(var AEvent: TMouseEvent);
+var
+  index: word;
+  control: PControl;
+  button: PButton;
+begin
+  if not IsVisibleAndEnabled then
+    exit;
+  if not Clickable then
+    exit;
+  if CanFocus then
+    Focus;
+  if bsLeft in AEvent.NewMouseState.ButtonState then
+    VeridianApp^.LeftMouseDownControl := @self
+  else if bsRight in AEvent.NewMouseState.ButtonState then
+    VeridianApp^.RightMouseDownControl := @self;
+  Down := true;
+  Draw;
+  inherited MouseDown(AEvent);
+end;
+
+procedure TButton.MouseClick(var AEvent: TMouseEvent);
+begin
+  if not IsVisibleAndEnabled then
+    exit;
+  if not Toggle then begin
+    Down := false;
+    Draw;
+  end;
+  inherited MouseClick(AEvent);
+end;
+
+procedure TButton.MouseEnter(var AEvent: TMouseEvent);
+begin
+  if not IsVisibleAndEnabled then
+    exit;
+  if VeridianApp^.LeftMouseDownControl = @self then begin
+    Down := true;
+    DrawSelf;
+  end;
+end;
+
+procedure TButton.MouseLeave(var AEvent: TMouseEvent);
+begin
+  if not IsVisibleAndEnabled then
+    exit;
+  if VeridianApp^.LeftMouseDownControl = @self then begin
+    Down := false;
+    DrawSelf;
+  end;
 end;
 
 procedure TLabel.Init;
@@ -1324,6 +1388,7 @@ begin
   GetScreenBounds(rect);
   Graph^.SetForeColor(ForeColor);
   Graph^.SetBackColor(BackColor);
+  Graph^.SetFillPattern(FillPattern);
   if not TransparentBack then
     Graph^.FillRect(rect);
   case BorderStyle of
@@ -1764,7 +1829,7 @@ begin
   GetCursorBackColor := 0;
 end;
 
-procedure TFocusControl.Unfocus;
+procedure TFocusControl.UnFocus;
 begin
   if CanFocus then
     SetFocus(false, true);
@@ -1789,7 +1854,7 @@ begin
   if AFocus then begin
     if Assigned(VeridianApp^.ActiveControl) then begin
       InvokeSender(VeridianApp^.ActiveControl^.OnExit, VeridianApp^.ActiveControl, event);
-      VeridianApp^.ActiveControl^.Unfocus;
+      VeridianApp^.ActiveControl^.UnFocus;
     end;
     VeridianApp^.ActiveControl := @self;
     if ARedraw then

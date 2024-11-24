@@ -91,12 +91,13 @@ type
     procedure HandleCursor;
     procedure ApplySettings;
     procedure SetMouseSensitivity(ASens: real);
+    procedure ParseParameters;
   public
     State: TAppState;
     StateStack: TObjectStack;
     Colors: TColors;
     ActiveControl: PFocusControl;
-    ActiveView: PView;
+    ActiveWindow: PWindow;
     MouseOverControl: PControl;
     LeftMouseDownControl: PControl;
     RightMouseDownControl: PControl;
@@ -109,6 +110,8 @@ type
     EditorFont: PFont;
     Settings: TVeridianAppSettings;
     CursorBlinkTime: TDateTime;
+    AppDir: string;
+    Parameters: TStringList;
     constructor Create(ADriver: TGraphDrivers; AWidth: integer;
       AHeight: integer; ABpp: integer);
     destructor Free; virtual;
@@ -145,6 +148,7 @@ implementation
 
 uses
   AplUtils,
+  Dos,
   KeyDrv;
 
 var
@@ -191,6 +195,7 @@ destructor TVeridianApp.Free;
 begin
   StateStack.DisposeObjects := true;
   StateStack.Free;
+  Parameters.Free;
   inherited Free;
 end;
 
@@ -267,12 +272,13 @@ end;
 procedure TVeridianApp.Init;
 begin
   inherited Init;
+  ParseParameters;
   Memory.OnAllocError := @OnAllocError;
   FCursorBlinkVisible := false;
   CreateObjects;
   MenuBar := nil;
   ActiveControl := nil;
-  ActiveView := nil;
+  ActiveWindow := nil;
   MouseOverControl := nil;
   LeftMouseDownControl := nil;
   RightMouseDownControl := nil;
@@ -280,6 +286,7 @@ begin
   DragControl := nil;
   Mouse.UseSystemCursor := false;
   Mouse.HideMouse;
+  Parameters.Create;
 end;
 
 function TVeridianApp.CreateDesktop: PDesktop;
@@ -320,6 +327,12 @@ end;
 
 procedure TVeridianApp.HandleMouseMove(AControl: PControl; var AEvent: TMouseEvent);
 begin
+  if (LeftMouseDownControl = AControl) and AControl^.CanDrag and not Assigned(DragControl) then begin
+    DragControl := AControl;
+    AControl^.DragStart(AEvent);
+  end
+  else if DragControl = AControl then
+    DragControl^.DragMove(AEvent);
   AControl^.MouseMove(AEvent);
 end;
 
@@ -343,17 +356,13 @@ begin
   if not (AButton in AEvent.OldMouseState.ButtonState) then
     exit;
 
-  if Assigned(DragControl)  then begin
+  if Assigned(DragControl) then begin
     DragControl^.DragEnd(AEvent);
     DragControl := nil;
   end;
 
-  {now.CreateNow;
   selecting := false;
-  selecting := SelectingControl = AControl;
-  CurrentScrollSlider := nil;
-  if Assigned(Desktop^.ActiveMenu) and (AControl = PControl(Desktop^.ActiveMenu^.ActiveItem)) then
-    selecting := true;
+{  selecting := SelectingControl = AControl;
   SelectingControl := nil;}
   if ((LeftMouseDownControl = AControl) and (AButton = bsLeft))
       or ((RightMouseDownControl = AControl) and (AButton = bsRight)) or selecting then begin
@@ -462,7 +471,7 @@ begin
     end;
   end;
   AControl^.GetScreenBounds(rect);
-  if (AControl^.Modal and (PControl(VeridianApp^.ActiveView) = AControl))
+  if (AControl^.Modal and (PControl(VeridianApp^.ActiveWindow) = AControl))
     or (VeridianApp^.SelectingControl = AControl)
     or (rect.Contains(AMouseState.X, AMouseState.Y)) then
     GetMouseControl := AControl;
@@ -639,7 +648,7 @@ begin
   if AEvent.Handled then
     exit;
   if Assigned(AControl^.OnKeyPress) then
-    TKeyProc(AControl^.OnKeyPress)(AControl, AEvent);
+    TKeyEventProc(AControl^.OnKeyPress)(AControl, AEvent);
 end;
 
 procedure TVeridianApp.CursorOn;
@@ -759,6 +768,17 @@ begin
   else
     CursorOff;
   FreeAndNil(oldState);
+end;
+
+procedure TVeridianApp.ParseParameters;
+var
+  index: integer;
+  dir, name, ext: string;
+begin
+  FSplit(ParamStr(0), dir, name, ext);
+  AppDir := dir;
+  for index := 1 to ParamCount do
+    Parameters.AddString(ParamStr(index));
 end;
 
 function TVeridianApp.CheckNilPtr(APtr: pointer): boolean;
