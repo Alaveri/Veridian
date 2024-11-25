@@ -116,6 +116,7 @@ type
     Visible: boolean;
     ForeColor, BackColor: byte;
     FillPattern: PFillPattern;
+    LinePattern: PLinePattern;
     Modal: boolean;
     Align: TAlign;
     Tag: integer;
@@ -151,8 +152,6 @@ type
     function GetWidth: word;
     function GetHeight: word;
     function BorderWidth: byte; virtual;
-    function CalculatedWidth: integer;
-    function CalculatedHeight: integer;
     function SpacingWidth: integer;
     function SpacingHeight: integer;
     procedure GetXY(var APX, APY: integer);
@@ -398,6 +397,7 @@ begin
   ForeColor := VeridianApp^.Colors.Window;
   BackColor := VeridianApp^.Colors.WindowBack;
   FillPattern := nil;
+  LinePattern := nil;
   Modal := false;
   Margins.Create;
   Padding.Create;
@@ -809,16 +809,6 @@ begin
   Y := ARect.Y;
   Width := ARect.Width;
   Height := ARect.Height;
-end;
-
-function TControl.CalculatedWidth: integer;
-begin
-  CalculatedWidth := Width + SpacingWidth;
-end;
-
-function TControl.CalculatedHeight: integer;
-begin
-  CalculatedHeight := Height + SpacingHeight;
 end;
 
 function TControl.SpacingWidth: integer;
@@ -1389,6 +1379,7 @@ begin
   Graph^.SetForeColor(ForeColor);
   Graph^.SetBackColor(BackColor);
   Graph^.SetFillPattern(FillPattern);
+  Graph^.SetLinePattern(LinePattern);
   if not TransparentBack then
     Graph^.FillRect(rect);
   case BorderStyle of

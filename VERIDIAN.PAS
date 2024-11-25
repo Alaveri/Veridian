@@ -35,7 +35,7 @@ type
   PVeridianAppSettings = ^TVeridianAppSettings;
   PAppState = ^TAppState;
 
-  TVeridianAppSettings = object(TObject)
+  TVeridianAppSettings = object(TPersistent)
   private
   public
     CursorBlinkRate: double;
@@ -44,8 +44,8 @@ type
     MouseSensitivity: real;
     procedure Init; virtual;
     procedure Assign(var ASource: TObject); virtual;
-    procedure SaveToStream(AStream: PStream);
-    procedure LoadFromStream(AStream: PStream);
+    procedure SaveToStream(AStream: PStream); virtual;
+    procedure LoadFromStream(AStream: PStream); virtual;
   end;
 
   TAppState = object(TObject)
