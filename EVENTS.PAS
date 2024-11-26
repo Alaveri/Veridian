@@ -13,6 +13,7 @@ type
   PSizeEvent = ^TSizeEvent;
   PScrollEvent = ^TScrollEvent;
   PClosingEvent = ^TClosingEvent;
+  PDragEvent = ^TDragEvent;
 
   PClosingEventProc = ^TClosingEventProc;
   PMoveEventProc = ^TMoveEventProc;
@@ -20,6 +21,7 @@ type
   PScrollEventProc = ^TScrollEventProc;
   PKeyEventProc = ^TKeyEventProc;
   PMouseEventProc = ^TMouseEventProc;
+  PDragEventProc = ^TDragEventProc;
 
   TClosingEvent = object(TEvent)
   private
@@ -50,12 +52,24 @@ type
     procedure Init; virtual;
   end;
 
+  TDragEvent = object(TEvent)
+  private
+  public
+    InitialX: integer;
+    InitialY: integer;
+    X: integer;
+    Y: integer;
+    procedure Init; virtual;
+    procedure Clear; virtual;
+  end;
+
   TClosingEventProc = procedure(ASender: PObject; var AEvent: TClosingEvent);
   TScrollEventProc = procedure(ASender: PObject; var AEvent: TScrollEvent);
   TMoveEventProc = procedure(ASender: PObject; var AEvent: TMoveEvent);
   TSizeEventProc = procedure(ASender: PObject; var AEvent: TSizeEvent);
   TKeyEventProc = procedure(ASender: PObject; var AEvent: TKeyEvent);
   TMouseEventProc = procedure(ASender: PObject; var AEvent: TMouseEvent);
+  TDragEventProc = procedure(ASender: PObject; var AEvent: TDragEvent);
 
 implementation
 
@@ -77,6 +91,21 @@ procedure TClosingEvent.Init;
 begin
   inherited Init;
   CanClose := true;
+end;
+
+procedure TDragEvent.Init;
+begin
+  inherited Init;
+  Clear;
+end;
+
+procedure TDragEvent.Clear;
+begin
+  inherited Clear;
+  X := 0;
+  Y := 0;
+  InitialX := 0;
+  InitialY := 0;
 end;
 
 end.

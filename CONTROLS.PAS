@@ -197,9 +197,9 @@ type
     procedure MouseClick(var AEvent: TMouseEvent); virtual;
     procedure MouseDblClick(var AEvent: TMouseEvent); virtual;
     procedure MouseWheelChanged(var AEvent: TMouseEvent); virtual;
-    procedure DragStart(var AEvent: TMouseEvent); virtual;
-    procedure DragMove(var AEvent: TMouseEvent); virtual;
-    procedure DragEnd(var AEvent: TMouseEvent); virtual;
+    procedure DragStart(var AEvent: TDragEvent); virtual;
+    procedure DragMove(var AEvent: TDragEvent); virtual;
+    procedure DragEnd(var AEvent: TDragEvent); virtual;
     procedure InvokeSender(AEventProc: pointer; ASender: PObject; var AEvent: TEvent);
     procedure Invoke(AEventProc: pointer; var AEvent: TEvent);
   end;
@@ -574,17 +574,17 @@ begin
   SetVisible(true);
 end;
 
-procedure TControl.DragStart(var AEvent: TMouseEvent);
+procedure TControl.DragStart(var AEvent: TDragEvent);
 begin
   Invoke(OnDragStart, AEvent);
 end;
 
-procedure TControl.DragMove(var AEvent: TMouseEvent);
+procedure TControl.DragMove(var AEvent: TDragEvent);
 begin
   Invoke(OnDragMove, AEvent);
 end;
 
-procedure TControl.DragEnd(var AEvent: TMouseEvent);
+procedure TControl.DragEnd(var AEvent: TDragEvent);
 begin
   Invoke(OnDragEnd,  AEvent);
 end;

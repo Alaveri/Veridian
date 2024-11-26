@@ -22,6 +22,7 @@ uses
   Colors,
   Controls,
   Views,
+  Events,
   Menus;
 
 const
@@ -102,6 +103,7 @@ type
     LeftMouseDownControl: PControl;
     RightMouseDownControl: PControl;
     DragControl: PControl;
+    DragInitialPos: TPoint;
     SelectingControl: PControl;
     MenuBar: PMenubar;
     Fonts: PFontList;
@@ -284,6 +286,7 @@ begin
   RightMouseDownControl := nil;
   SelectingControl := nil;
   DragControl := nil;
+  DragInitialPos.Create;
   Mouse.UseSystemCursor := false;
   Mouse.HideMouse;
   Parameters.Create;
@@ -326,14 +329,20 @@ begin
 end;
 
 procedure TVeridianApp.HandleMouseMove(AControl: PControl; var AEvent: TMouseEvent);
+var
+  dragEvent: TDragEvent;
 begin
+  AControl^.MouseMove(AEvent);
   if (LeftMouseDownControl = AControl) and AControl^.CanDrag and not Assigned(DragControl) then begin
     DragControl := AControl;
-    AControl^.DragStart(AEvent);
-  end
-  else if DragControl = AControl then
-    DragControl^.DragMove(AEvent);
-  AControl^.MouseMove(AEvent);
+    DragInitialPos.SetCoords(AEvent.NewMouseState.X, AEvent.NewMouseState.Y);
+    dragEvent.Create;
+    dragEvent.InitialX := DragInitialPos.X;
+    dragEvent.InitialY := DragInitialPos.Y;
+    dragEvent.X := DragInitialPos.X;
+    dragEvent.Y := DragInitialPos.Y;
+    AControl^.DragStart(dragEvent);
+  end;
 end;
 
 procedure TVeridianApp.HandleMouseWheelChanged(AControl: PControl; var AEvent: TMouseEvent);
@@ -350,6 +359,7 @@ procedure TVeridianApp.HandleMouseUp(AControl: PControl; var AEvent: TMouseEvent
   AButton: TButtonState);
 var
   selecting: boolean;
+  dragEvent: TDragEvent;
 begin
   if AButton in AEvent.NewMouseState.ButtonState then
     exit;
@@ -357,7 +367,12 @@ begin
     exit;
 
   if Assigned(DragControl) then begin
-    DragControl^.DragEnd(AEvent);
+    dragEvent.Create;
+    dragEvent.InitialX := DragInitialPos.X;
+    dragEvent.InitialY := DragInitialPos.Y;
+    dragEvent.X := AEvent.NewMouseState.X;
+    dragEvent.Y := AEvent.NewMouseState.Y;
+    DragControl^.DragEnd(dragEvent);
     DragControl := nil;
   end;
 
@@ -481,6 +496,7 @@ procedure TVeridianApp.HandleMouseEvent(AControl: PControl;  var AEvent: TMouseE
 var
   index: integer;
   control: PControl;
+  dragEvent: TDragEvent;
 begin
   if AEvent.Handled then
     exit;
@@ -492,6 +508,14 @@ begin
       PScrollSlider(CurrentScrollSlider)^.ProcessMouseMove(FMouseEvent);}
     HandleMouseEnter(control, FMouseEvent);
     HandleMouseMove(control, FMouseEvent);
+    if Assigned(DragControl) then begin
+      dragEvent.Create;
+      dragEvent.InitialX := DragInitialPos.X;
+      dragEvent.InitialY := DragInitialPos.Y;
+      dragEvent.X := AEvent.NewMouseState.X;
+      dragEvent.Y := AEvent.NewMouseState.Y;
+      DragControl^.DragMove(dragEvent);
+    end;
   end;
   InitMouseEvent(control, FMouseEvent);
   if (FMouseState.WheelCounter <> FOldMouseState.WheelCounter) then

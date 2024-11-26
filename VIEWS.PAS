@@ -76,12 +76,11 @@ type
 
   TScrollSlider = object(TButton)
   private
-    DownX, DownY: integer;
   public
     procedure Init; virtual;
-    procedure DragStart(var AEvent: TMouseEvent); virtual;
-    procedure DragMove(var AEvent: TMouseEvent); virtual;
-    procedure DragEnd(var AEvent: TMouseEvent); virtual;
+    procedure DragStart(var AEvent: TDragEvent); virtual;
+    procedure DragMove(var AEvent: TDragEvent); virtual;
+    procedure DragEnd(var AEvent: TDragEvent); virtual;
   end;
 
   TScrollBar = object(TPanel)
@@ -155,6 +154,7 @@ type
 
   TWindow = object(TView)
   private
+    FLastGripRect: TRect;
   public
     Title: PChar;
     TitleBar: PTitleBar;
@@ -181,9 +181,9 @@ type
     procedure Init; virtual;
     procedure Paint; virtual;
     procedure MouseDown(var AEvent: TMouseEvent); virtual;
-    procedure DragStart(var AEvent: TMouseEvent); virtual;
-    procedure DragMove(var AEvent: TMouseEvent); virtual;
-    procedure DragEnd(var AEvent: TMouseEvent); virtual;
+    procedure DragStart(var AEvent: TDragEvent); virtual;
+    procedure DragMove(var AEvent: TDragEvent); virtual;
+    procedure DragEnd(var AEvent: TDragEvent); virtual;
     destructor Free; virtual;
   end;
 
@@ -227,8 +227,6 @@ procedure TScrollSlider.Init;
 begin
   inherited Init;
   Clickable := false;
-  DownX := 0;
-  DownY := 0;
 end;
 
 constructor TScrollBar.CreateParent(const AId: string; AParent: PControl);
@@ -429,11 +427,14 @@ begin
 end;
 
 procedure TTitleBar.MouseMove(var AEvent: TMouseEvent);
+var
+  dragEvent: TDragEvent;
 begin
   inherited MouseMove(AEvent);
   if VeridianApp^.LeftMouseDownControl <> @self then
     exit;
-  DragStart(AEvent);
+  dragEvent.Create;
+  DragStart(dragEvent);
 end;
 
 procedure TView.Init;
@@ -564,7 +565,7 @@ begin
   SetTitle(ATitle);
 end;
 
-procedure GripDragStart(ASender: PObject; var AEvent: TMouseEvent); far;
+procedure GripDragStart(ASender: PObject; var AEvent: TDragEvent); far;
 var
   grip: PLabel;
   window: PWindow;
@@ -576,28 +577,64 @@ begin
   window := PWindow(grip^.Parent);
   AEvent.Handled := true;
   window^.GetScreenBounds(rect);
+  desktop^.BeginDrawing;
   Graph^.InverseRectangle(rect);
+  window^.FLastGripRect := rect;
+  desktop^.EndDrawing;
 end;
 
-procedure GripDragMove(ASender: PObject; var AEvent: TMouseEvent); far;
+procedure GripMouseDown(ASender: PObject; var AEvent: TMouseEvent); far;
+var
+  grip: PLabel;
+  window: PWindow;
+begin
+  if AEvent.Handled then
+    exit;
+  grip := PLabel(ASender);
+  window := PWindow(grip^.Parent);
+  if window^.Active then
+    exit;
+  window^.BringToFront;
+  window^.Activate;
+  AEvent.Handled := true;
+end;
+
+procedure GripDragMove(ASender: PObject; var AEvent: TDragEvent); far;
 var
   grip: PLabel;
   window: PWindow;
   rect: TRect;
   dx, dy: integer;
+  minSize: integer;
 begin
   if AEvent.Handled then
     exit;
   grip := PLabel(ASender);
   window := PWindow(grip^.Parent);
-  dx := AEvent.NewMouseState.X - AEvent.OldMouseState.X;
-  dy := AEvent.NewMouseState.Y - AEvent.OldMouseState.Y;
-  Inc(window^.X, dx);
-  Inc(window^.Y, dy);
+  window^.GetScreenBounds(rect);
+  dx := AEvent.X - AEvent.InitialX;
+  dy := AEvent.Y - AEvent.InitialY;
+  if (dx = 0) and (dy = 0) then
+    exit;
+  desktop^.BeginDrawing;
+  Graph^.State^.ViewPort := Graph^.Mode^.Bounds;
+  Graph^.InverseRectangle(window^.FLastGripRect);
+  rect.Grow(dx, dy);
+  minSize := 4 * (window^.HorzScrollBar^.Size + 2 * window^.HorzScrollBar^.OuterWidth
+   + 2 * window^.HorzScrollBar^.SpacingWidth) + window^.OuterWidth;
+  if rect.Width < minSize then
+    rect.Width := minSize;
+  minSize := 4 * (window^.VertScrollBar^.Size + 2 * window^.VertScrollBar^.OuterWidth
+    + 2 * window^.VertScrollBar^.SpacingWidth) + window^.OuterWidth + window^.TitleBar^.Height;
+  if rect.Height < minSize then
+    rect.Height := minSize;
+  window^.FLastGripRect := rect;
+  Graph^.InverseRectangle(rect);
+  desktop^.EndDrawing;
   AEvent.Handled := true;
 end;
 
-procedure GripDragEnd(ASender: PObject; var AEvent: TMouseEvent); far;
+procedure GripDragEnd(ASender: PObject; var AEvent: TDragEvent); far;
 var
   grip: PLabel;
   window: PWindow;
@@ -606,8 +643,12 @@ begin
   if AEvent.Handled then
     exit;
   grip := PLabel(ASender);
+  desktop^.BeginDrawing;
   window := PWindow(grip^.Parent);
-  window^.Draw;
+  window^.Hide;
+  window^.SetBoundsRect(window^.FLastGripRect);
+  window^.Show;
+  desktop^.EndDrawing;
   AEvent.Handled := true;
 end;
 
@@ -622,6 +663,7 @@ begin
   ShadowColor := VeridianApp^.Colors.WindowShadow;
   LightColor := VeridianApp^.Colors.WindowLight;
   CanDrag := true;
+  FLastGripRect.Create;
   TitleBar := New(PTitleBar, Create('TitleBar', '', @self));
   with TitleBar^ do begin
     HorzAlign := haCenter;
@@ -636,9 +678,11 @@ begin
     BackColor := BackColor;
     AutoSize := false;
     Font := VeridianApp^.Fonts^.GetItemById('Symbol');
+    CanDrag := true;
     OnDragStart := @GripDragStart;
     OnDragMove := @GripDragMove;
     OnDragEnd := @GripDragEnd;
+    OnMouseDown := @GripMouseDown;
   end;
   OnClosing := nil;
   OnClosed := nil;
@@ -807,21 +851,19 @@ begin
   end;
 end;
 
-procedure TWindow.DragStart(var AEvent: TMouseEvent);
+procedure TWindow.DragStart(var AEvent: TDragEvent);
 begin
   inherited DragStart(AEvent);
 end;
 
-procedure TWindow.DragMove(var AEvent: TMouseEvent);
+procedure TWindow.DragMove(var AEvent: TDragEvent);
 begin
   inherited DragMove(AEvent);
 end;
 
-procedure TWindow.DragEnd(var AEvent: TMouseEvent);
+procedure TWindow.DragEnd(var AEvent: TDragEvent);
 begin
   inherited DragEnd(AEvent);
-  if VeridianApp^.Settings.UpdateScrollContents then
-
 end;
 
 destructor TWindow.Free;
@@ -830,13 +872,11 @@ begin
   inherited Free;
 end;
 
-procedure TScrollSlider.DragStart(var AEvent: TMouseEvent);
+procedure TScrollSlider.DragStart(var AEvent: TDragEvent);
 begin
-  DownX := AEvent.NewMouseState.X;
-  DownY := AEvent.NewMouseState.Y;
 end;
 
-procedure TScrollSlider.DragEnd(var AEvent: TMouseEvent);
+procedure TScrollSlider.DragEnd(var AEvent: TDragEvent);
 var
   event: TScrollEvent;
   scrollBar: PScrollBar;
@@ -851,7 +891,7 @@ begin
   end;
 end;
 
-procedure TScrollSlider.DragMove(var AEvent: TMouseEvent);
+procedure TScrollSlider.DragMove(var AEvent: TDragEvent);
 var
   delta: integer;
   par: PScrollBar;
@@ -862,9 +902,9 @@ begin
     exit;
   GetScreenBounds(rect);
   if par^.Orientation = soHorizontal then
-    delta := AEvent.NewMouseState.X - rect.X - DownX
+    delta := AEvent.X - rect.X - AEvent.InitialX
   else
-    delta := AEvent.NewMouseState.Y - rect.Y - DownY;
+    delta := AEvent.Y - rect.Y - AEvent.InitialY;
   par^.ScrollBySlider(delta);
 end;
 
