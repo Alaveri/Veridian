@@ -32,7 +32,8 @@ type
   PLabel = ^TLabel;
   PButton = ^TButton;
 
-  TBorderStyle = (bsNone, bsSingle, bsRaised, bsLowered);
+  TBorderStyle = (bsNone, bsSingle);
+  TBevelStyle = (bvNone, bvLowered, bvRaised);
 
   THorzAlign =
   (
@@ -152,6 +153,8 @@ type
     function GetWidth: word;
     function GetHeight: word;
     function BorderWidth: byte; virtual;
+    function BevelWidth: byte; virtual;
+    function OuterWidth: byte;
     function SpacingWidth: integer;
     function SpacingHeight: integer;
     procedure GetXY(var APX, APY: integer);
@@ -207,9 +210,11 @@ type
     TransparentBack: boolean;
     BorderColor: byte;
     BorderStyle: TBorderStyle;
+    BevelStyle: TBevelStyle;
     ShadowColor: byte;
     LightColor: byte;
     function BorderWidth: byte; virtual;
+    function BevelWidth: byte; virtual;
     procedure Init; virtual;
     procedure SetBorderColor(AColor: byte);
     procedure SetBorderStyle(AStyle: TBorderStyle);
@@ -673,15 +678,15 @@ end;
 procedure TControl.GetClientBounds(var ARect: TRect);
 begin
   ARect.CreateDims(0, 0, Width, Height);
-  ARect.Grow(-2 * BorderWidth, -2 * BorderWidth);
-  ARect.Translate(BorderWidth, BorderWidth);
+  ARect.Grow(-2 * OuterWidth, -2 * OuterWidth);
+  ARect.Translate(OuterWidth, OuterWidth);
 end;
 
 procedure TControl.GetClientScreenBounds(var ARect: TRect);
 begin
   GetScreenBounds(ARect);
-  ARect.Grow(-2 * BorderWidth, -2 * BorderWidth);
-  ARect.Translate(BorderWidth, BorderWidth);
+  ARect.Grow(-2 * OuterWidth, -2 * OuterWidth);
+  ARect.Translate(OuterWidth, OuterWidth);
 end;
 
 procedure TControl.DrawControl(ADrawControls: boolean);
@@ -847,6 +852,16 @@ begin
   BorderWidth := 0;
 end;
 
+function TControl.BevelWidth: byte;
+begin
+  BevelWidth := 0;
+end;
+
+function TControl.OuterWidth: byte;
+begin
+  OuterWidth := BorderWidth + BevelWidth;
+end;
+
 procedure TControl.SendToBack;
 begin
   if (Parent = nil) or (Parent^.Controls^.Count < 2) then
@@ -962,14 +977,14 @@ procedure TContentControl.GetAlign(const ABounds: TRect; const ASize: TSize;
 begin
   AResult.Create;
   case HorzAlign of
-    haLeft: AResult.X := ABounds.X + BorderWidth + Padding.Left;
-    haRight: AResult.X := ABounds.Right - ASize.Width - BorderWidth - Padding.Right;
-    haCenter: AResult.X := ABounds.X + (ABounds.Width - ASize.Width) div 2 + BorderWidth;
+    haLeft: AResult.X := ABounds.X + Padding.Left;
+    haRight: AResult.X := ABounds.Right - ASize.Width - Padding.Right;
+    haCenter: AResult.X := ABounds.X + Round(ABounds.Width + Padding.Width - ASize.Width) div 2;
   end;
   case VertAlign of
-    vaTop: AResult.Y := ABounds.Y + BorderWidth + Padding.Top;
-    vaBottom: AResult.Y := ABounds.Bottom - ASize.Height - BorderWidth - Padding.Bottom;
-    vaCenter: AResult.Y := ABounds.Y + (ABounds.Height - ASize.Height) div 2 + BorderWidth;
+    vaTop: AResult.Y := ABounds.Y + Padding.Top;
+    vaBottom: AResult.Y := ABounds.Bottom - ASize.Height - Padding.Bottom;
+    vaCenter: AResult.Y := ABounds.Y + (ABounds.Height + Padding.Height - ASize.Height) div 2;
   end;
 end;
 
@@ -1151,7 +1166,7 @@ var
 begin
   if Assigned(Action) then
     VeridianApp^.UpdateActionControl(@self);
-  GetScreenBounds(rect);
+  GetClientScreenBounds(rect);
   GetTextAlign(rect, pos);
   currentForeColor := ForeColor;
   currentBackColor := BackColor;
@@ -1184,7 +1199,7 @@ begin
   end;
   if GetShortcut > 0 then begin
     desc := GetShortcutDesc;
-    pos.X := rect.Right - TrueTextWidth(desc) - Margins.Right - BorderWidth;
+    pos.X := rect.Right - TrueTextWidth(desc) - Margins.Right - OuterWidth;
     Graph^.DrawText(pos.X, pos.Y, desc);
   end;
 end;
@@ -1201,8 +1216,10 @@ begin
   DownBackColor := VeridianApp^.Colors.ButtonDownBack;
   DisabledColor := VeridianApp^.Colors.ButtonDisabled;
   HighlightColor := VeridianApp^.Colors.ButtonHighlight;
+  BorderColor := VeridianApp^.Colors.ButtonBorder;
   Down := false;
-  BorderStyle := bsRaised;
+  BorderStyle := bsSingle;
+  BevelStyle := bvRaised;
   Toggle := false;
   Clickable := true;
 end;
@@ -1353,6 +1370,7 @@ begin
   BackColor := VeridianApp^.Colors.WindowBack;
   BorderColor := VeridianApp^.Colors.WindowBorder;
   BorderStyle := bsNone;
+  BevelStyle := bvNone;
   ShadowColor := VeridianApp^.Colors.ButtonShadow;
   LightColor := VeridianApp^.Colors.ButtonLight;
   TransParentBack := false;
@@ -1386,8 +1404,12 @@ begin
     bsSingle: begin
       Graph^.SetForeColor(BorderColor);
       Graph^.Rectangle(rect);
+      rect.Translate(1, 1);
+      rect.Grow(-2, -2);
     end;
-    bsRaised: begin
+  end;
+  case BevelStyle of
+    bvRaised: begin
       Graph^.SetForeColor(ShadowColor);
       Graph^.VLine(rect.Right, rect.Y, rect.Height);
       Graph^.HLine(rect.X, rect.Bottom, rect.Width);
@@ -1395,7 +1417,7 @@ begin
       Graph^.HLine(rect.X, rect.Y, rect.Width);
       Graph^.VLine(rect.X, rect.Y, rect.Height);
     end;
-    bsLowered: begin
+    bvLowered: begin
       Graph^.SetForeColor(LightColor);
       Graph^.VLine(rect.Right, rect.Y, rect.Height);
       Graph^.HLine(rect.X, rect.Bottom, rect.Width);
@@ -1407,11 +1429,23 @@ begin
 end;
 
 function TPanel.BorderWidth: byte;
+var
+  result: byte;
 begin
-  if BorderStyle = bsNone then
-    BorderWidth := 0
-  else
-    BorderWidth := 1;
+  result := 0;
+  if BorderStyle <> bsNone then
+    Inc(result);
+  BorderWidth := result;
+end;
+
+function TPanel.BevelWidth: byte;
+var
+  result: byte;
+begin
+  result := 0;
+  if BevelStyle <> bvNone then
+    Inc(result, 1);
+  BevelWidth := result;
 end;
 
 procedure TDesktop.Init;
@@ -1419,6 +1453,7 @@ begin
   inherited Init;
   Visible := true;
   BorderStyle := bsNone;
+  BevelStyle := bvNone;
   ForeColor := VeridianApp^.Colors.Desktop;
   BackColor := VeridianApp^.Colors.DesktopBack;
   ActionList := New(PActionList, Create);
@@ -1518,7 +1553,7 @@ var
   size: TSize;
 begin
   txt := GetCaption;
-  size.CreateDims(TrueTextWidth(txt), Font^.Height);
+  size.CreateDims(TrueTextWidth(txt) - Font^.Spacing, Font^.Height);
   GetAlign(ABounds, size, AResult);
 end;
 
@@ -1576,7 +1611,7 @@ begin
   inherited Paint;
   if not Assigned(Caption) then
     exit;
-  GetScreenBounds(rect);
+  GetClientScreenBounds(rect);
   if rect.IsEmpty then
     exit;
   right := rect.Right;

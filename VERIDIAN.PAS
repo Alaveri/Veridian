@@ -167,7 +167,7 @@ var
 begin
   VeridianApp := @self;
   inherited Create(ADriver);
-  if CheckReraise(Graph) then begin
+  if CheckReRaise(Graph) then begin
     VeridianApp := nil;
     exit;
   end;

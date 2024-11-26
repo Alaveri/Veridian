@@ -68,7 +68,7 @@ type
   private
     FType: TScrollButtonType;
   public
-    constructor Create(AParent: PScrollBar; AType: TScrollButtonType);
+    constructor Create(const AId: string; AParent: PScrollBar; AType: TScrollButtonType);
     function ButtonType: TScrollButtonType;
     procedure Init; virtual;
     procedure MouseClick(var AEvent: TMouseEvent); virtual;
@@ -194,9 +194,9 @@ uses
   AplStr,
   Gr8Drv;
 
-constructor TScrollButton.Create(AParent: PScrollBar; AType: TScrollButtonType);
+constructor TScrollButton.Create(const AId: string; AParent: PScrollBar; AType: TScrollButtonType);
 begin
-  inherited CreateParent('', AParent);
+  inherited CreateParent(AId, AParent);
   FType := AType;
 end;
 
@@ -247,30 +247,28 @@ begin
   ForeColor := VeridianApp^.Colors.ScrollBar;
   BackColor := VeridianApp^.Colors.ScrollBarBack;
   FillPattern := @CheckerFillPattern;
-  IncButton := New(PScrollButton, Create(@self, btInc));
+  IncButton := New(PScrollButton, Create('IncButton', @self, btInc));
   with IncButton^ do begin
     HorzAlign := haCenter;
     VertAlign := vaCenter;
     CanFocus := false;
-    BorderStyle := bsRaised;
   end;
-  DecButton := New(PScrollButton, Create(@self, btDec));
+  DecButton := New(PScrollButton, Create('DecButton', @self, btDec));
   with DecButton^ do begin
     HorzAlign := haCenter;
     VertAlign := vaCenter;
     CanFocus := false;
-    BorderStyle := bsRaised;
   end;
   Slider := New(PScrollSlider, CreateParent('Slider', @self));
   with Slider^ do begin
     CanFocus := false;
     Clickable := false;
   end;
-  Size := 16;
+  Size := 17;
   Increment := 10;
   PageIncrement := 100;
   if Graph^.Mode^.Width <= 320 then
-    Size := 10;
+    Size := 11;
 end;
 
 procedure TScrollBar.GetSliderRect(var ARect: TRect);
@@ -353,7 +351,7 @@ var
   scrollSize, posOffset, sizeAdjust: integer;
 begin
   sizeAdjust := 3 * Size + 2 * BorderWidth;
-  posOffset := Size;
+  posOffset := Size - Slider^.BorderWidth;
   scrollSize := Height - sizeAdjust;
   if Max = 0 then
     pos := posOffset
@@ -368,7 +366,7 @@ var
   scrollSize, posOffset, sizeAdjust: integer;
 begin
   sizeAdjust := 3 * Size + 2 * BorderWidth;
-  posOffset := Size;
+  posOffset := Size - Slider^.BorderWidth;
   scrollSize := Width - sizeAdjust;
   if Max = 0 then
     pos := posOffset
@@ -551,13 +549,13 @@ begin
   bbs := VertScrollBar^.BorderWidth;
   if HorzScrollBar^.Visible then
     Dec(bh, HorzScrollBar^.Size);
-  VertScrollBar^.SetBounds(rect.Width - bw - bbs, rect.Y + 1, bw, bh - bbs - 2);
+  VertScrollBar^.SetBounds(rect.Right - bw - bbs, rect.Y + 1, bw, bh - bbs - BorderWidth);
   bw := rect.Width;
   bh := HorzScrollBar^.Size;
   bbs := HorzScrollBar^.BorderWidth;
   if VertScrollBar^.Visible then
     Dec(bw, VertScrollBar^.Size);
-  HorzScrollBar^.SetBounds(rect.X + 1, rect.Height - bh - bbs, bw - bbs - 2, bh);
+  HorzScrollBar^.SetBounds(rect.X + 1, rect.Height - bh - bbs + 1, bw - bbs - BorderWidth, bh);
 end;
 
 constructor TWindow.CreateTitle(const AId, ATitle: string; AParent: PControl);
@@ -566,10 +564,58 @@ begin
   SetTitle(ATitle);
 end;
 
+procedure GripDragStart(ASender: PObject; var AEvent: TMouseEvent); far;
+var
+  grip: PLabel;
+  window: PWindow;
+  rect: TRect;
+begin
+  if AEvent.Handled then
+    exit;
+  grip := PLabel(ASender);
+  window := PWindow(grip^.Parent);
+  AEvent.Handled := true;
+  window^.GetScreenBounds(rect);
+  Graph^.InverseRectangle(rect);
+end;
+
+procedure GripDragMove(ASender: PObject; var AEvent: TMouseEvent); far;
+var
+  grip: PLabel;
+  window: PWindow;
+  rect: TRect;
+  dx, dy: integer;
+begin
+  if AEvent.Handled then
+    exit;
+  grip := PLabel(ASender);
+  window := PWindow(grip^.Parent);
+  dx := AEvent.NewMouseState.X - AEvent.OldMouseState.X;
+  dy := AEvent.NewMouseState.Y - AEvent.OldMouseState.Y;
+  Inc(window^.X, dx);
+  Inc(window^.Y, dy);
+  AEvent.Handled := true;
+end;
+
+procedure GripDragEnd(ASender: PObject; var AEvent: TMouseEvent); far;
+var
+  grip: PLabel;
+  window: PWindow;
+  rect: TRect;
+begin
+  if AEvent.Handled then
+    exit;
+  grip := PLabel(ASender);
+  window := PWindow(grip^.Parent);
+  window^.Draw;
+  AEvent.Handled := true;
+end;
+
 procedure TWindow.Init;
 begin
   inherited Init;
-  BorderStyle := bsRaised;
+  BorderStyle := bsSingle;
+  BevelStyle := bvRaised;
   BackColor := VeridianApp^.Colors.WindowBack;
   ForeColor := VeridianApp^.Colors.Window;
   BorderColor := VeridianApp^.Colors.WindowBorder;
@@ -590,6 +636,9 @@ begin
     BackColor := BackColor;
     AutoSize := false;
     Font := VeridianApp^.Fonts^.GetItemById('Symbol');
+    OnDragStart := @GripDragStart;
+    OnDragMove := @GripDragMove;
+    OnDragEnd := @GripDragEnd;
   end;
   OnClosing := nil;
   OnClosed := nil;
