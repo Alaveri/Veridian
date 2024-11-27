@@ -61,6 +61,11 @@ type
 
   TVeridianApp = object(TGraphApp)
   private
+    {$IFDEF debug}
+    FMemAvail: longint;
+    FMemMaxAvail: longint;
+    FMemLabel: PLabel;
+    {$ENDIF}
     FKeyEvent: TKeyEvent;
     FMouseEvent: TMouseEvent;
     FMouseState, FOldMouseState: TMouseState;
@@ -93,6 +98,9 @@ type
     procedure ApplySettings;
     procedure SetMouseSensitivity(ASens: real);
     procedure ParseParameters;
+    {$IFDEF debug}
+    procedure UpdateDebugInfo;
+    {$ENDIF}
   public
     State: TAppState;
     StateStack: TObjectStack;
@@ -190,7 +198,7 @@ begin
   InitActions;
   InitControls;
   Desktop^.Layout;
-  Menubar^.Layout;
+  MenuBar^.Layout;
 end;
 
 destructor TVeridianApp.Free;
@@ -206,7 +214,16 @@ begin
 end;
 
 procedure TVeridianApp.InitControls;
+var
+  rect: TRect;
 begin
+  MenuBar := New(PMenuBar, CreateParent('MenuBar', Desktop));
+  {$IFDEF debug}
+  FMemLabel := New(PLabel, CreateParent('MemLabel', MenuBar));
+  FMemLabel^.TransparentBack := false;
+  FMemLabel^.SetForeColor(MenuBar^.ForeColor);
+  FMemLabel^.SetBackColor(MenuBar^.BackColor);
+  {$ENDIF}
 end;
 
 function TVeridianApp.LoadFont(const AFilename: string): PFont;
@@ -290,6 +307,11 @@ begin
   Mouse.UseSystemCursor := false;
   Mouse.HideMouse;
   Parameters.Create;
+  {$IFDEF debug}
+  FMemAvail := MemAvail;
+  FMemMaxAvail := MaxAvail;
+  FMemLabel := nil;
+  {$ENDIF}
 end;
 
 function TVeridianApp.CreateDesktop: PDesktop;
@@ -318,6 +340,8 @@ var
   index: integer;
   control: PControl;
 begin
+  if Assigned(DragControl) then
+    exit;
   if Assigned(MouseOverControl) and (MouseOverControl <> AControl) then begin
     MouseOverControl^.MouseLeave(AEvent);
     MouseOverControl := nil;
@@ -325,24 +349,17 @@ begin
   if AControl^.IsMouseOver then
     exit;
   MouseOverControl := AControl;
+  if (MouseCursor <> AControl^.MouseCursor) then begin
+    EraseMouseCursor(AEvent.NewMouseState);
+    MouseCursor := AControl^.MouseCursor;
+    DrawMouseCursor(AEvent.NewMouseState);
+  end;
   AControl^.MouseEnter(AEvent);
 end;
 
 procedure TVeridianApp.HandleMouseMove(AControl: PControl; var AEvent: TMouseEvent);
-var
-  dragEvent: TDragEvent;
 begin
   AControl^.MouseMove(AEvent);
-  if (LeftMouseDownControl = AControl) and AControl^.CanDrag and not Assigned(DragControl) then begin
-    DragControl := AControl;
-    DragInitialPos.SetCoords(AEvent.NewMouseState.X, AEvent.NewMouseState.Y);
-    dragEvent.Create;
-    dragEvent.InitialX := DragInitialPos.X;
-    dragEvent.InitialY := DragInitialPos.Y;
-    dragEvent.X := DragInitialPos.X;
-    dragEvent.Y := DragInitialPos.Y;
-    AControl^.DragStart(dragEvent);
-  end;
 end;
 
 procedure TVeridianApp.HandleMouseWheelChanged(AControl: PControl; var AEvent: TMouseEvent);
@@ -373,8 +390,8 @@ begin
     dragEvent.X := AEvent.NewMouseState.X;
     dragEvent.Y := AEvent.NewMouseState.Y;
     DragControl^.DragEnd(dragEvent);
-    DragControl := nil;
   end;
+  DragControl := nil;
 
   selecting := false;
 {  selecting := SelectingControl = AControl;
@@ -503,6 +520,15 @@ begin
   control := GetMouseControl(Desktop, AEvent.NewMouseState);
 
   InitMouseEvent(control, FMouseEvent);
+  InitMouseEvent(control, FMouseEvent);
+  if (FMouseState.WheelCounter <> FOldMouseState.WheelCounter) then
+    HandleMouseWheelChanged(control, FMouseEvent);
+  if (FMouseState.ButtonState <> FOldMouseState.ButtonState) then begin
+    HandleMouseDown(control, FMouseEvent, bsLeft);
+    HandleMouseDown(control, FMouseEvent, bsRight);
+    HandleMouseUp(control, FMouseEvent, bsLeft);
+    HandleMouseUp(control, FMouseEvent, bsRight);
+  end;
   if (FMouseState.X <> FOldMouseState.X) or (FMouseState.Y <> FOldMouseState.Y) then begin
 {    if Assigned(CurrentScrollSlider) then
       PScrollSlider(CurrentScrollSlider)^.ProcessMouseMove(FMouseEvent);}
@@ -516,15 +542,17 @@ begin
       dragEvent.Y := AEvent.NewMouseState.Y;
       DragControl^.DragMove(dragEvent);
     end;
-  end;
-  InitMouseEvent(control, FMouseEvent);
-  if (FMouseState.WheelCounter <> FOldMouseState.WheelCounter) then
-    HandleMouseWheelChanged(control, FMouseEvent);
-  if (FMouseState.ButtonState <> FOldMouseState.ButtonState) then begin
-    HandleMouseDown(control, FMouseEvent, bsLeft);
-    HandleMouseDown(control, FMouseEvent, bsRight);
-    HandleMouseUp(control, FMouseEvent, bsLeft);
-    HandleMouseUp(control, FMouseEvent, bsRight);
+    if Assigned(LeftMouseDownControl) and LeftMouseDownControl^.CanDrag
+      and not Assigned(DragControl) then begin
+      DragControl := LeftMouseDownControl;
+      DragInitialPos.SetCoords(AEvent.NewMouseState.X, AEvent.NewMouseState.Y);
+      dragEvent.Create;
+      dragEvent.InitialX := DragInitialPos.X;
+      dragEvent.InitialY := DragInitialPos.Y;
+      dragEvent.X := DragInitialPos.X;
+      dragEvent.Y := DragInitialPos.Y;
+      LeftMouseDownControl^.DragStart(dragEvent);
+    end;
   end;
 end;
 
@@ -724,13 +752,32 @@ begin
   MenuManager.CloseAllMenus;
 end;
 
+{$IFDEF debug}
+procedure TVeridianApp.UpdateDebugInfo;
+var
+  txt: string;
+  width: word;
+  rect: TRect;
+begin
+  if Assigned(FMemLabel) and Assigned(MenuBar) and
+    ((FMemAvail <> MemAvail) or (FMemMaxAvail <> MaxAvail)) then begin
+    MenuBar^.GetScreenBounds(rect);
+    txt := 'MemAvail: ' + FormatLong(MemAvail) + ' MaxAvail: ' + FormatLong(MaxAvail);
+    width := desktop^.Font^.AverageWidth * Length(txt);
+    rect.Height := Menubar^.Font^.Height;
+    rect.X := rect.Right - width;
+    rect.Y := rect.Y + (MenuBar^.Height - MenuBar^.Font^.Height) div 2 + 1;
+    FMemLabel^.SetBoundsRect(rect);
+    FMemAvail := MemAvail;
+    FMemMaxAvail := MaxAvail;
+    FMemLabel^.SetCaption(txt);
+  end;
+end;
+{$ENDIF}
+
 procedure TVeridianApp.ProcessEvents;
 var
   ch: word;
-{$IFDEF debug}
-  rect: TRect;
-  txt: string;
-{$ENDIF}
 begin
   Mouse.UpdateState;
   FMouseState.Assign(Mouse.State);
@@ -738,20 +785,6 @@ begin
   if Assigned(MenuBar) then
     MenuBar^.BringToFront;
 
-{$IFDEF debug}
-  if Assigned(MenuBar) and State.DrawEnabled then begin
-    MenuBar^.GetScreenBounds(rect);
-    rect.Grow(0, -1);
-    Graph^.SetForeColor(MenuBar^.ForeColor);
-    Graph^.SetBackColor(MenuBar^.BackColor);
-    txt := 'MemAvail: ' + FormatLong(MemAvail)
-      + ' MaxAvail: ' + FormatLong(MaxAvail)
-      + '         ';
-    rect.X := rect.Right - 170;
-    Graph^.FillRect(rect);
-    Graph^.DrawText(rect.X, 0, txt);
-  end;
-{$ENDIF}
   if not FMouseState.Equals(FOldMouseState) then begin
     MoveMouseCursor(FMouseState, FOldMouseState);
     if State.CursorOn then
@@ -768,6 +801,9 @@ begin
     FKeyEvent.Handled := false;
     HandleKeyEvent(Desktop, FKeyEvent);
   end;
+  {$IFDEF debug}
+  UpdateDebugInfo;
+  {$ENDIF}
 end;
 
 procedure TVeridianApp.PushState;
@@ -857,6 +893,9 @@ procedure TVeridianApp.Run;
 begin
   ApplySettings;
   State.DrawEnabled := true;
+  {$IFDEF debug}
+  UpdateDebugInfo;
+  {$ENDIF}
   Desktop^.Draw;
   Mouse.SetMousePosition(Graph^.Mode^.Width div 2, Graph^.Mode^.Height div 2);
   Mouse.ShowMouse;

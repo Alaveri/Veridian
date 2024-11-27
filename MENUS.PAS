@@ -417,7 +417,10 @@ end;
 
 function TMenuItem.CloseMenu: boolean;
 begin
-  MenuManager.CloseMenu(Menu)
+  if IsMainMenuItem then
+    MenuManager.CloseAllMenus
+  else
+    MenuManager.CloseMenu(Menu)
 end;
 
 procedure TMenuItem.KeyPress(var AEvent: TKeyEvent);

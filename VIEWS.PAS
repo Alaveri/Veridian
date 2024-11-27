@@ -27,6 +27,7 @@ type
   PScrollButton = ^TScrollButton;
   PVertScrollBar = ^TVertScrollBar;
   PHorzScrollBar = ^THorzScrollBar;
+  PWindowGrip = ^TWindowGrip;
 
   TViewScrollType = (
     scNone,
@@ -49,6 +50,20 @@ type
     vsMinimized
   );
 
+  TGripBorderType =
+  (
+    wpTopLeft,
+    wpTopRight,
+    wpBottomLeft,
+    wpBottomRight,
+    wbTop,
+    wbBottom,
+    wbLeft,
+    wbRight
+  );
+
+  TScrollButtonType = (btInc, btDec);
+
   TTitleBar = object(TCaptionControl)
   private
   public
@@ -59,10 +74,22 @@ type
     procedure Init; virtual;
     procedure Paint; virtual;
     procedure MouseDown(var AEvent: TMouseEvent); virtual;
-    procedure MouseMove(var AEvent: TMouseEvent); virtual;
+    procedure DragStart(var AEvent: TDragEvent); virtual;
+    procedure DragMove(var AEvent: TDragEvent); virtual;
+    procedure DragEnd(var AEvent: TDragEvent); virtual;
   end;
 
-  TScrollButtonType = (btInc, btDec);
+  TWindowGrip = object(TLabel)
+  private
+    ParentWindow: PWindow;
+  public
+    constructor Create(const AId: string; AParentWindow: PWindow);
+    procedure Init; virtual;
+    procedure MouseDown(var AEvent: TMouseEvent); virtual;
+    procedure DragStart(var AEvent: TDragEvent); virtual;
+    procedure DragMove(var AEvent: TDragEvent); virtual;
+    procedure DragEnd(var AEvent: TDragEvent); virtual;
+  end;
 
   TScrollButton = object(TButton)
   private
@@ -155,6 +182,7 @@ type
   TWindow = object(TView)
   private
     FLastGripRect: TRect;
+    FGripBorders: array[TGripBorderType] of PControl;
   public
     Title: PChar;
     TitleBar: PTitleBar;
@@ -187,12 +215,41 @@ type
     destructor Free; virtual;
   end;
 
+const
+  GripCursors: array[TGripBorderType] of string =
+  (
+    'NWSE',
+    'NESW',
+    'NESW',
+    'NWSE',
+    'EW',
+    'EW',
+    'NS',
+    'NS'
+  );
+
 implementation
 
 uses
   Veridian,
   AplStr,
   Gr8Drv;
+
+type
+  PWindowGripBorder = ^TGripBorder;
+
+  TGripBorder = object(TControl)
+  private
+  public
+    ParentWindow: PWindow;
+    BorderType: TGripBorderType;
+    constructor Create(const AId: string; AParentWindow: PWindow;
+      ABorderType: TGripBorderType);
+    procedure Init; virtual;
+    procedure DragStart(var AEvent: TDragEvent); virtual;
+    procedure DragMove(var AEvent: TDragEvent); virtual;
+    procedure DragEnd(var AEvent: TDragEvent); virtual;
+  end;
 
 constructor TScrollButton.Create(const AId: string; AParent: PScrollBar; AType: TScrollButtonType);
 begin
@@ -390,6 +447,7 @@ begin
   ActiveBackColor := VeridianApp^.Colors.WindowTitleActiveBack;
   VertAlign := vaCenter;
   HorzAlign := haCenter;
+  CanDrag := true;
   ParentWindow := nil;
   Font := Desktop^.Font;
 end;
@@ -424,17 +482,6 @@ begin
       ParentWindow^.Activate;
     end;
   end;
-end;
-
-procedure TTitleBar.MouseMove(var AEvent: TMouseEvent);
-var
-  dragEvent: TDragEvent;
-begin
-  inherited MouseMove(AEvent);
-  if VeridianApp^.LeftMouseDownControl <> @self then
-    exit;
-  dragEvent.Create;
-  DragStart(dragEvent);
 end;
 
 procedure TView.Init;
@@ -565,94 +612,162 @@ begin
   SetTitle(ATitle);
 end;
 
-procedure GripDragStart(ASender: PObject; var AEvent: TDragEvent); far;
+constructor TWindowGrip.Create(const AId: string; AParentWindow: PWindow);
+begin
+  inherited CreateCaption(AId, #5, AParentWindow);
+  ParentWindow := AParentWindow;
+end;
+
+procedure TWindowGrip.Init;
+begin
+  inherited Init;
+  HorzAlign := haCenter;
+  VertAlign := vaCenter;
+  ForeColor := ShadowColor;
+  BackColor := BackColor;
+  AutoSize := false;
+  Font := VeridianApp^.Fonts^.GetItemById('Symbol');
+  CanDrag := true;
+  MouseCursor := VeridianApp^.MouseCursors^.GetItemById('NWSE');
+end;
+
+procedure TWindowGrip.MouseDown(var AEvent: TMouseEvent);
+begin
+  if AEvent.Handled then
+    exit;
+  if not ParentWindow^.Active then begin
+    ParentWindow^.BringToFront;
+    ParentWindow^.Activate;
+  end;
+  AEvent.Handled := true;
+  inherited MouseDown(AEvent);
+end;
+
+procedure TWindowGrip.DragStart(var AEvent: TDragEvent);
 var
-  grip: PLabel;
-  window: PWindow;
   rect: TRect;
 begin
   if AEvent.Handled then
     exit;
-  grip := PLabel(ASender);
-  window := PWindow(grip^.Parent);
   AEvent.Handled := true;
-  window^.GetScreenBounds(rect);
+  ParentWindow^.GetScreenBounds(rect);
   desktop^.BeginDrawing;
   Graph^.InverseRectangle(rect);
-  window^.FLastGripRect := rect;
+  ParentWindow^.FLastGripRect := rect;
+  desktop^.MouseCursor := VeridianApp^.MouseCursors^.GetItemById('NWSE');
   desktop^.EndDrawing;
 end;
 
-procedure GripMouseDown(ASender: PObject; var AEvent: TMouseEvent); far;
+procedure TWindowGrip.DragMove(var AEvent: TDragEvent);
 var
-  grip: PLabel;
-  window: PWindow;
-begin
-  if AEvent.Handled then
-    exit;
-  grip := PLabel(ASender);
-  window := PWindow(grip^.Parent);
-  if window^.Active then
-    exit;
-  window^.BringToFront;
-  window^.Activate;
-  AEvent.Handled := true;
-end;
-
-procedure GripDragMove(ASender: PObject; var AEvent: TDragEvent); far;
-var
-  grip: PLabel;
-  window: PWindow;
   rect: TRect;
   dx, dy: integer;
   minSize: integer;
+  horzBar, vertBar: PScrollBar;
 begin
   if AEvent.Handled then
     exit;
-  grip := PLabel(ASender);
-  window := PWindow(grip^.Parent);
-  window^.GetScreenBounds(rect);
+  ParentWindow^.GetScreenBounds(rect);
   dx := AEvent.X - AEvent.InitialX;
   dy := AEvent.Y - AEvent.InitialY;
   if (dx = 0) and (dy = 0) then
     exit;
   desktop^.BeginDrawing;
   Graph^.State^.ViewPort := Graph^.Mode^.Bounds;
-  Graph^.InverseRectangle(window^.FLastGripRect);
+  Graph^.InverseRectangle(ParentWindow^.FLastGripRect);
   rect.Grow(dx, dy);
-  minSize := 4 * (window^.HorzScrollBar^.Size + 2 * window^.HorzScrollBar^.OuterWidth
-   + 2 * window^.HorzScrollBar^.SpacingWidth) + window^.OuterWidth;
+  horzBar := ParentWindow^.HorzScrollBar;
+  minSize :=
+    4 * (horzBar^.Size + 2 * horzBar^.OuterWidth + 2 * horzBar^.SpacingWidth)
+    + ParentWindow^.OuterWidth;
   if rect.Width < minSize then
     rect.Width := minSize;
-  minSize := 4 * (window^.VertScrollBar^.Size + 2 * window^.VertScrollBar^.OuterWidth
-    + 2 * window^.VertScrollBar^.SpacingWidth) + window^.OuterWidth + window^.TitleBar^.Height;
+  vertBar := ParentWindow^.VertScrollBar;
+  minSize :=
+    4 * (vertBar^.Size + 2 * vertBar^.OuterWidth  + 2 * vertBar^.SpacingWidth)
+    + ParentWindow^.OuterWidth
+    + ParentWindow^.TitleBar^.Height;
   if rect.Height < minSize then
     rect.Height := minSize;
-  window^.FLastGripRect := rect;
+  ParentWindow^.FLastGripRect := rect;
   Graph^.InverseRectangle(rect);
   desktop^.EndDrawing;
   AEvent.Handled := true;
 end;
 
-procedure GripDragEnd(ASender: PObject; var AEvent: TDragEvent); far;
+procedure TWindowGrip.DragEnd(var AEvent: TDragEvent);
 var
-  grip: PLabel;
-  window: PWindow;
   rect: TRect;
 begin
   if AEvent.Handled then
     exit;
-  grip := PLabel(ASender);
   desktop^.BeginDrawing;
-  window := PWindow(grip^.Parent);
-  window^.Hide;
-  window^.SetBoundsRect(window^.FLastGripRect);
-  window^.Show;
+  ParentWindow^.Hide;
+  ParentWindow^.SetBoundsRect(ParentWindow^.FLastGripRect);
+  ParentWindow^.Show;
+  desktop^.MouseCursor := VeridianApp^.MouseCursors^.GetItemById('default');
+  desktop^.EndDrawing;
+  AEvent.Handled := true;
+end;
+
+procedure TTitleBar.DragStart(var AEvent: TDragEvent);
+  var
+  rect: TRect;
+begin
+  if AEvent.Handled then
+    exit;
+  AEvent.Handled := true;
+  ParentWindow^.GetScreenBounds(rect);
+  desktop^.BeginDrawing;
+  Graph^.InverseRectangle(rect);
+  ParentWindow^.FLastGripRect := rect;
+  desktop^.EndDrawing;
+end;
+
+procedure TTitleBar.DragMove(var AEvent: TDragEvent);
+var
+  rect: TRect;
+  dx, dy: integer;
+  minSize: integer;
+  horzBar, vertBar: PScrollBar;
+begin
+  if AEvent.Handled then
+    exit;
+  ParentWindow^.GetScreenBounds(rect);
+  dx := AEvent.X - AEvent.InitialX;
+  dy := AEvent.Y - AEvent.InitialY;
+  if (dx = 0) and (dy = 0) then
+    exit;
+  if Assigned(VeridianApp^.MenuBar) and (VeridianApp^.MenuBar^.IsVisible) and
+    (rect.Y + dy < Height) then
+    dy := VeridianApp^.MenuBar^.Height - rect.Y;
+  desktop^.BeginDrawing;
+  Graph^.State^.ViewPort := Graph^.Mode^.Bounds;
+  Graph^.InverseRectangle(ParentWindow^.FLastGripRect);
+  rect.Translate(dx, dy);
+  ParentWindow^.FLastGripRect := rect;
+  Graph^.InverseRectangle(rect);
+  desktop^.EndDrawing;
+  AEvent.Handled := true;
+end;
+
+procedure TTitleBar.DragEnd(var AEvent: TDragEvent);
+var
+  rect: TRect;
+begin
+  if AEvent.Handled then
+    exit;
+  desktop^.BeginDrawing;
+  ParentWindow^.Hide;
+  ParentWindow^.SetBoundsRect(ParentWindow^.FLastGripRect);
+  ParentWindow^.Show;
   desktop^.EndDrawing;
   AEvent.Handled := true;
 end;
 
 procedure TWindow.Init;
+var
+  gripBorderIndex: TGripBorderType;
 begin
   inherited Init;
   BorderStyle := bsSingle;
@@ -665,24 +780,10 @@ begin
   CanDrag := true;
   FLastGripRect.Create;
   TitleBar := New(PTitleBar, Create('TitleBar', '', @self));
-  with TitleBar^ do begin
-    HorzAlign := haCenter;
-    VertAlign := vaCenter;
-    BorderStyle := bsNone;
-  end;
-  Grip := New(PLabel, CreateCaption('Grip', #5, @self));
-  with Grip^ do begin
-    HorzAlign := haCenter;
-    VertAlign := vaCenter;
-    ForeColor := ShadowColor;
-    BackColor := BackColor;
-    AutoSize := false;
-    Font := VeridianApp^.Fonts^.GetItemById('Symbol');
-    CanDrag := true;
-    OnDragStart := @GripDragStart;
-    OnDragMove := @GripDragMove;
-    OnDragEnd := @GripDragEnd;
-    OnMouseDown := @GripMouseDown;
+  Grip := New(PWindowGrip, Create('Grip', @self));
+  for gripBorderIndex := Low(TGripBorderType) to High(TGripBorderType) do begin
+    FGripBorders[gripBorderIndex] :=
+      New(PWindowGripBorder, Create('', @self, gripBorderIndex));
   end;
   OnClosing := nil;
   OnClosed := nil;
@@ -736,6 +837,7 @@ var
   barHeight: integer;
   barBorderSize: integer;
   titleHeight: integer;
+  index: TGripBorderType;
 begin
   inherited Layout;
   GetGripBounds(rect);
@@ -753,6 +855,14 @@ begin
   if not VertScrollBar^.Visible then
     Dec(HorzScrollBar^.Width, Grip^.Width);
   TitleBar^.SetBounds(rect.X, rect.Y, rect.Width, titleHeight);
+  FGripBorders[wbTop]^.SetBounds(3, 0, Width - 6, 3);
+  FGripBorders[wbBottom]^.SetBounds(3, Height - 3, Width - 6, 3);
+  FGripBorders[wbLeft]^.SetBounds(0, 3, 3, Height - 6);
+  FGripBorders[wbRight]^.SetBounds(Width - 3, 3, 3, Height - 6);
+  FGripBorders[wpTopLeft]^.SetBounds(0, 0, 3, 3);
+  FGripBorders[wpTopRight]^.SetBounds(Width - 3, 0, 3, 3);
+  FGripBorders[wpBottomLeft]^.SetBounds(0, Height - 3, 3, 3);
+  FGripBorders[wpBottomRight]^.SetBounds(Width - 3, Height - 3, 3, 3);
 end;
 
 procedure TWindow.Close;
@@ -1050,6 +1160,106 @@ end;
 procedure TView.ScrollHorz(ADelta: integer);
 begin
   HorzScrollBar^.ScrollByPixels(ADelta);
+end;
+
+constructor TGripBorder.Create(const AId: string; AParentWindow: PWindow;
+  ABorderType: TGripBorderType);
+begin
+  inherited CreateParent(AId, AParentWindow);
+  ParentWindow := AParentWindow;
+  BorderType := ABorderType;
+  MouseCursor := VeridianApp^.MouseCursors^.GetItemById(GripCursors[BorderType]);
+end;
+
+procedure TGripBorder.Init;
+begin
+  inherited Init;
+  BorderType := wbTop;
+  CanDrag := true;
+end;
+
+procedure TGripBorder.DragStart(var AEvent: TDragEvent);
+var
+  rect: TRect;
+begin
+  if AEvent.Handled then
+    exit;
+  AEvent.Handled := true;
+  ParentWindow^.GetScreenBounds(rect);
+  desktop^.BeginDrawing;
+  Graph^.InverseRectangle(rect);
+  ParentWindow^.FLastGripRect := rect;
+  desktop^.MouseCursor := MouseCursor;
+  desktop^.EndDrawing;
+end;
+
+procedure TGripBorder.DragMove(var AEvent: TDragEvent);
+var
+  rect: TRect;
+  dx, dy: integer;
+  minSize: integer;
+  horzBar, vertBar: PScrollBar;
+begin
+  if AEvent.Handled then
+    exit;
+  ParentWindow^.GetScreenBounds(rect);
+  dx := AEvent.X - AEvent.InitialX;
+  dy := AEvent.Y - AEvent.InitialY;
+  if (dx = 0) and (dy = 0) then
+    exit;
+  desktop^.BeginDrawing;
+  Graph^.State^.ViewPort := Graph^.Mode^.Bounds;
+  Graph^.InverseRectangle(ParentWindow^.FLastGripRect);
+
+  case BorderType of
+    wbTop: begin
+      rect.Translate(0, dy);
+      rect.Grow(0, -dy);
+    end;
+    wbBottom: begin
+      rect.Grow(0, dy);
+    end;
+    wbLeft: begin
+      rect.Translate(dx, 0);
+      rect.Grow(-dx, 0);
+    end;
+    wbRight: begin
+      rect.Grow(dx, 0);
+    end;
+    wpTopLeft: begin
+      rect.Translate(dx, dy);
+      rect.Grow(-dx, -dy);
+    end;
+    wpTopRight: begin
+      rect.Grow(dx, -dy);
+    end;
+    wpBottomLeft: begin
+      rect.Translate(dx, 0);
+      rect.Grow(-dx, dy);
+    end;
+    wpBottomRight: begin
+      rect.Grow(dx, dy);
+    end;
+  end;
+  ParentWindow^.FLastGripRect := rect;
+  Graph^.InverseRectangle(rect);
+  desktop^.EndDrawing;
+  AEvent.Handled := true;
+end;
+
+procedure TGripBorder.DragEnd(var AEvent: TDragEvent);
+var
+  rect: TRect;
+begin
+  if AEvent.Handled then
+    exit;
+  desktop^.BeginDrawing;
+  ParentWindow^.Hide;
+  ParentWindow^.SetBoundsRect(ParentWindow^.FLastGripRect);
+  ParentWindow^.Show;
+  desktop^.MouseCursor := VeridianApp^.MouseCursors^.GetItemById('default');
+  desktop^.EndDrawing;
+  AEvent.Handled := true;
 end;
 
 end.
