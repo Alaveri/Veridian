@@ -249,6 +249,7 @@ type
     procedure DragStart(var AEvent: TDragEvent); virtual;
     procedure DragMove(var AEvent: TDragEvent); virtual;
     procedure DragEnd(var AEvent: TDragEvent); virtual;
+    procedure MouseDown(var AEvent: TMouseEvent); virtual;
   end;
 
 constructor TScrollButton.Create(const AId: string; AParent: PScrollBar; AType: TScrollButtonType);
@@ -1195,7 +1196,7 @@ end;
 
 procedure TGripBorder.DragMove(var AEvent: TDragEvent);
 var
-  rect: TRect;
+  rect, originalRect: TRect;
   dx, dy: integer;
   minSize: integer;
   horzBar, vertBar: PScrollBar;
@@ -1203,6 +1204,7 @@ begin
   if AEvent.Handled then
     exit;
   ParentWindow^.GetScreenBounds(rect);
+  originalRect.CreateRect(rect);
   dx := AEvent.X - AEvent.InitialX;
   dy := AEvent.Y - AEvent.InitialY;
   if (dx = 0) and (dy = 0) then
@@ -1231,6 +1233,7 @@ begin
       rect.Grow(-dx, -dy);
     end;
     wpTopRight: begin
+      rect.Translate(0, dy);
       rect.Grow(dx, -dy);
     end;
     wpBottomLeft: begin
@@ -1240,6 +1243,25 @@ begin
     wpBottomRight: begin
       rect.Grow(dx, dy);
     end;
+  end;
+  horzBar := ParentWindow^.HorzScrollBar;
+  minSize :=
+    4 * (horzBar^.Size + 2 * horzBar^.OuterWidth + 2 * horzBar^.SpacingWidth)
+    + ParentWindow^.OuterWidth;
+  if rect.Width < minSize then begin
+    rect.Width := minSize;
+    if BorderType in [wbLeft, wpTopLeft, wpBottomLeft] then
+      rect.X := originalRect.Right - minSize;
+  end;
+  vertBar := ParentWindow^.VertScrollBar;
+  minSize :=
+    4 * (vertBar^.Size + 2 * vertBar^.OuterWidth  + 2 * vertBar^.SpacingWidth)
+    + ParentWindow^.OuterWidth
+    + ParentWindow^.TitleBar^.Height;
+  if rect.Height < minSize then begin
+    rect.Height := minSize;
+    if BorderType in [wbTop, wpTopLeft, wpTopRight] then
+      rect.Y := originalRect.Bottom - minSize;
   end;
   ParentWindow^.FLastGripRect := rect;
   Graph^.InverseRectangle(rect);
@@ -1260,6 +1282,17 @@ begin
   desktop^.MouseCursor := VeridianApp^.MouseCursors^.GetItemById('default');
   desktop^.EndDrawing;
   AEvent.Handled := true;
+end;
+
+procedure TGripBorder.MouseDown(var AEvent: TMouseEvent);
+begin
+  inherited MouseDown(AEvent);
+  if AEvent.NewMouseState.ButtonState = [bsLeft] then begin
+    if not ParentWindow^.Active then begin
+      ParentWindow^.BringToFront;
+      ParentWindow^.Activate;
+    end;
+  end;
 end;
 
 end.

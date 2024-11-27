@@ -532,7 +532,6 @@ begin
   if (FMouseState.X <> FOldMouseState.X) or (FMouseState.Y <> FOldMouseState.Y) then begin
 {    if Assigned(CurrentScrollSlider) then
       PScrollSlider(CurrentScrollSlider)^.ProcessMouseMove(FMouseEvent);}
-    HandleMouseEnter(control, FMouseEvent);
     HandleMouseMove(control, FMouseEvent);
     if Assigned(DragControl) then begin
       dragEvent.Create;
@@ -553,6 +552,7 @@ begin
       dragEvent.Y := DragInitialPos.Y;
       LeftMouseDownControl^.DragStart(dragEvent);
     end;
+    HandleMouseEnter(control, FMouseEvent);
   end;
 end;
 

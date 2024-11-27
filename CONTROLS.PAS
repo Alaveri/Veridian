@@ -812,7 +812,7 @@ procedure TControl.SetBoundsRect(const ARect: TRect);
 begin
   X := ARect.X;
   Y := ARect.Y;
-  Width := ARect.Width;
+   Width := ARect.Width;
   Height := ARect.Height;
 end;
 
