@@ -99,6 +99,7 @@ type
   TMenuBar = object(TMenuItemContainer)
   private
   public
+    constructor Create;
     procedure Init; virtual;
     procedure Layout; virtual;
     procedure Paint; virtual;
@@ -517,6 +518,11 @@ begin
   ParentContainer := AParent;
 end;
 
+constructor TMenuBar.Create;
+begin
+  inherited CreateParent('MenuBar', Desktop);
+end;
+
 procedure TMenuBar.Init;
 begin
   inherited Init;
@@ -525,6 +531,7 @@ begin
   BorderColor := VeridianApp^.Colors.MenuBorder;
   MenuItems := New(PMenuItemList, Create(@self));
   VeridianApp^.MenuBar := @self;
+  StayOnTop := true;
   Padding.Left := 5;
 end;
 

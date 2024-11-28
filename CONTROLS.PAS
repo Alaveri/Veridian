@@ -23,6 +23,7 @@ uses
 type
   PControl = ^TControl;
   PControlList = ^TControlList;
+  PDesktopControlList = ^TDesktopControlList;
   PButtonList = ^TButtonList;
   PDesktop = ^TDesktop;
   PCaptionControl = ^TCaptionControl;
@@ -31,6 +32,7 @@ type
   PPopUp = ^TPopUp;
   PLabel = ^TLabel;
   PButton = ^TButton;
+  PPanel = ^TPanel;
 
   TBorderStyle = (bsNone, bsSingle);
   TBevelStyle = (bvNone, bvLowered, bvRaised);
@@ -94,6 +96,12 @@ type
     procedure Init; virtual;
   end;
 
+  TDesktopControlList = object(TControlList)
+  private
+  public
+    constructor Create(AOwner: PControl);
+  end;
+
   TButtonList = object(TIdentifiableList)
   private
   public
@@ -108,7 +116,7 @@ type
   private
   public
     X, Y: integer;
-    Width, Height: word;
+    Width, Height: integer;
     Font: PFont;
     MouseCursor: PMouseCursor;
     Parent: PControl;
@@ -123,6 +131,7 @@ type
     Tag: integer;
     CanDrag: boolean;
     CanUndo: boolean;
+    StayOnTop: boolean;
     Margins: TSpacing;
     Padding: TSpacing;
     OnKeyPress: PKeyEventProc;
@@ -157,6 +166,9 @@ type
     function OuterWidth: byte;
     function SpacingWidth: integer;
     function SpacingHeight: integer;
+    function BringToFront: boolean;
+    function SendToBack: boolean;
+    function CreateControlList: PControlList; virtual;
     procedure GetXY(var APX, APY: integer);
     procedure SetVisible(AVisible: boolean);
     procedure SetForeColor(AForeColor: byte);
@@ -168,6 +180,7 @@ type
     procedure SetWidthHeight(AWidth, AHeight: word); virtual;
     procedure SetWidth(AWidth: word); virtual;
     procedure SetHeight(AHeight: word); virtual;
+    procedure SetStayOnTop(AStayOnTop: boolean);
     procedure GetBounds(var ARect: TRect);
     procedure GetScreenBounds(var ARect: TRect);
     procedure GetClientBounds(var ARect: TRect);
@@ -179,12 +192,10 @@ type
     procedure DrawControls;
     procedure Hide; virtual;
     procedure Show; virtual;
-    procedure BringToFront;
-    procedure SendToBack;
     procedure Run; virtual;
     procedure BeginDrawing; virtual;
     procedure EndDrawing; virtual;
-    procedure SetBounds(APX, APY: integer; AWidth, AHeight: word);
+    procedure SetBounds(APX, APY: integer; AWidth, AHeight: integer) ;
     procedure SetBoundsRect(const ARect: TRect);
     procedure Paint; virtual;
     procedure PaintRegion(const ARect: TRect; AExclude: PControl); virtual;
@@ -228,6 +239,7 @@ type
     procedure Init; virtual;
     procedure Layout; virtual;
     procedure GetClientBounds(var ARect: TRect); virtual;
+    function CreateControlList: PControlList; virtual;
     destructor Free; virtual;
   end;
 
@@ -391,7 +403,7 @@ procedure TControl.Init;
 begin
   inherited Init;
   Parent := nil;
-  Controls := New(PControlList, Create(@Self));
+  Controls := CreateControlList;
   X := 0;
   Y := 0;
   Width := 0;
@@ -409,6 +421,7 @@ begin
   Tag := 0;
   CanDrag := false;
   CanUndo := false;
+  StayOnTop := false;
   OnDragEnd := nil;
   OnDragMove := nil;
   OnDragStart := nil;
@@ -431,6 +444,11 @@ begin
   MouseCursor := VeridianApp^.MouseCursors^.GetItemById('Default');
 end;
 
+function TControl.CreateControlList: PControlList;
+begin
+  CreateControlList := New(PControlList, Create(@Self));
+end;
+
 procedure TControl.SetVisible(AVisible: boolean);
 var
   rect: TRect;
@@ -443,7 +461,7 @@ begin
     Graph^.PushState;
     VeridianApp^.CursorOff;
     Graph^.State^.ViewPort := rect;
-    Parent^.Paint;
+    Parent^.PaintRegion(rect, @self);
     Graph^.PopState;
     exit;
   end;
@@ -741,7 +759,8 @@ begin
     end;
   end;
   MouseCursor^.GetBounds(mouseRect);
-  VeridianApp^.HideMouseCursor;
+  if rect.IntersectsRect(mouseRect) then
+    VeridianApp^.HideMouseCursor;
   Graph^.SetForeColor(ForeColor);
   Graph^.SetBackColor(BackColor);
   Graph^.State^.Font := Font;
@@ -750,8 +769,10 @@ end;
 
 procedure TControl.EndDrawing;
 var
-  rect, mouseRect: TRect;
+  desktopItemRect, rect, mouseRect: TRect;
   cursor: PMouseCursor;
+  item: PControl;
+  index: integer;
 begin
   Graph^.PopState;
   Mouse.PopState;
@@ -763,9 +784,41 @@ begin
   cursor^.GetBounds(mouseRect);
   if Mouse.State.Visible then begin
     cursor^.Visible := Mouse.State.Visible;
-    VeridianApp^.DrawMouseCursor(Mouse.State);
+    if rect.IntersectsRect(mouseRect) then
+      VeridianApp^.DrawMouseCursor(Mouse.State);
   end else begin
     cursor^.Visible := false;
+  end;
+  if PControl(Parent) <> PControl(Desktop) then
+    exit;
+  for index := 0 to Desktop^.Controls^.Count - 1 do begin
+    item := Desktop^.Controls^.GetItem(index);
+    if item = @self then
+      continue;
+    if not (item^.IsVisible and item^.StayOnTop) then
+      continue;
+    item^.GetScreenBounds(desktopItemRect);
+    if desktopItemRect.IntersectsRect(rect) then
+      item^.PaintRegion(rect, @self);
+  end;
+end;
+
+procedure TControl.SetStayOnTop(AStayOnTop: boolean);
+begin
+  if StayOnTop = AStayOnTop then
+    exit;
+  if AStayOnTop then begin
+    if PControl(Parent) <> PControl(Desktop) then begin
+      Parent^.Controls^.RemoveItem(@self);
+      Desktop^.Controls^.Add(@self);
+      Parent := Desktop;
+    end;
+    BringToFront;
+    Draw
+  end
+  else begin
+    Parent^.Controls^.RemoveItem(@self);
+    Parent^.Controls^.Add(@self);
   end;
 end;
 
@@ -783,7 +836,7 @@ end;
 
 procedure TControl.GetBounds(var ARect: TRect);
 begin
-   ARect.CreateDims(X, Y, Width, Height);
+  ARect.CreateDims(X, Y, Width, Height);
 end;
 
 procedure TControl.GetScreenBounds(var ARect: TRect);
@@ -800,19 +853,21 @@ begin
   end;
 end;
 
-procedure TControl.SetBounds(APX, APY: integer; AWidth, AHeight: word);
+procedure TControl.SetBounds(APX, APY: integer; AWidth, AHeight: integer);
+var
+  rect: TRect;
 begin
-  X := APX;
-  Y := APY;
-  Width := AWidth;
-  Height := AHeight;
+  rect.CreateDims(APX, APY, AWidth, AHeight);
+  SetBoundsRect(rect);
 end;
 
 procedure TControl.SetBoundsRect(const ARect: TRect);
 begin
+  if ARect.IsEmpty then
+    ARect.CreateDims(0, 0, 0, 0);
   X := ARect.X;
   Y := ARect.Y;
-   Width := ARect.Width;
+  Width := ARect.Width;
   Height := ARect.Height;
 end;
 
@@ -831,20 +886,20 @@ begin
 end;
 
 procedure TControl.PaintRegion(const ARect: TRect; AExclude: PControl);
-{var
+var
   index: integer;
-  control: PControl;}
+  control: PControl;
 begin
-{  BeginDrawing;
-  Text^.State^.ViewPort := ARect;
+  BeginDrawing;
+  Graph^.State^.ViewPort := ARect;
   Paint;
   for index := 0 to Controls^.Count - 1 do begin
     control := Controls^.GetItem(index);
-    if control = AExclude then
+    if (control = AExclude) or not (control^.IsVisible) then
       continue;
     control^.PaintRegion(ARect, AExclude);
   end;
-  EndDrawing;}
+  EndDrawing;
 end;
 
 function TControl.BorderWidth: byte;
@@ -862,22 +917,31 @@ begin
   OuterWidth := BorderWidth + BevelWidth;
 end;
 
-procedure TControl.SendToBack;
+function TControl.SendToBack: boolean;
 begin
+  if StayOnTop then
+    exit;
+  SendToBack := false;
   if (Parent = nil) or (Parent^.Controls^.Count < 2) then
     exit;
   if Parent^.Controls^.IndexOf(@self) = 0 then
     exit;
+  SendToBack := true;
   Parent^.Controls^.RemoveItem(@self);
   Parent^.Controls^.Insert(0, @self);
 end;
 
-procedure TControl.BringToFront;
+function TControl.BringToFront: boolean;
+var
+  index: integer;
 begin
+  BringToFront := false;
   if (Parent = nil) or (Parent^.Controls^.Count < 2) then
     exit;
-  if Parent^.Controls^.IndexOf(@self) = Parent^.Controls^.Count - 1 then
+  index := Parent^.Controls^.IndexOf(@self);
+  if index = Parent^.Controls^.Count - 1 then
     exit;
+  BringToFront := true;
   Parent^.Controls^.RemoveItem(@self);
   Parent^.Controls^.Add(@self);
 end;
@@ -1459,6 +1523,11 @@ begin
   ActionList := New(PActionList, Create);
 end;
 
+function TDesktop.CreateControlList: PControlList;
+begin
+  CreateControlList := New(PDesktopControlList, Create(@self));
+end;
+
 procedure TDesktop.Layout;
 begin
   inherited Layout;
@@ -1622,6 +1691,7 @@ begin
   index := 0;
   ch := Caption^;
   tw := 0;
+  Graph^.State^.ViewPort := rect;
   while true do begin
     ch := Caption[index];
     cw := Font^.TextWidth(ch);
@@ -1957,6 +2027,26 @@ begin
   if not Focused then
     Focus;
   Invoke(OnMouseDown, AEvent);
+end;
+
+function CompareDesktopControls(AItem1, AItem2: pointer): integer; far;
+var
+  control1, control2: PControl;
+begin
+  control1 := PControl(AItem1);
+  control2 := PControl(AItem2);
+  if byte(control1^.StayOnTop) > byte(control2^.StayOnTop) then
+    CompareDesktopControls := 1
+  else if byte(control1^.StayOnTop) < byte(control2^.StayOnTop) then
+    CompareDesktopControls := -1
+  else
+    CompareDesktopControls := 0;
+end;
+
+constructor TDesktopControlList.Create(AOwner: PControl);
+begin
+  inherited CreateSorted(CompareDesktopControls);
+  Owner := AOwner;
 end;
 
 begin

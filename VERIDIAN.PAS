@@ -91,6 +91,8 @@ type
       AButton: TButtonState); virtual;
     procedure HandleMouseDown(AControl: PControl; var AEvent: TMouseEvent;
       AButton: TButtonState); virtual;
+    procedure HandleMouseCursor;
+    procedure HandleStayOnTopControls;
     procedure InitMouseEvent(AControl: PControl; var AEvent: TMouseEvent);
     procedure GetFocusList(AList: PObjectList; AControl: PControl);
     procedure DrawCursor;
@@ -107,6 +109,8 @@ type
     Colors: TColors;
     ActiveControl: PFocusControl;
     ActiveWindow: PWindow;
+    DragRect, LastDragRect: TRect;
+    DragRectVisible: boolean;
     MouseOverControl: PControl;
     LeftMouseDownControl: PControl;
     RightMouseDownControl: PControl;
@@ -114,6 +118,7 @@ type
     DragInitialPos: TPoint;
     SelectingControl: PControl;
     MenuBar: PMenubar;
+    Taskbar: PTaskbar;
     Fonts: PFontList;
     SystemFont: PFont;
     SymbolFont: PFont;
@@ -217,12 +222,14 @@ procedure TVeridianApp.InitControls;
 var
   rect: TRect;
 begin
-  MenuBar := New(PMenuBar, CreateParent('MenuBar', Desktop));
+  MenuBar := New(PMenuBar, Create);
+  Taskbar := New(PTaskbar, Create);
   {$IFDEF debug}
   FMemLabel := New(PLabel, CreateParent('MemLabel', MenuBar));
   FMemLabel^.TransparentBack := false;
   FMemLabel^.SetForeColor(MenuBar^.ForeColor);
   FMemLabel^.SetBackColor(MenuBar^.BackColor);
+  FMemLabel^.Font := Fonts^.GetItemById('editor');
   {$ENDIF}
 end;
 
@@ -250,25 +257,17 @@ var
 begin
   Fonts := New(PFontList, Create);
   if Graph^.Mode^.Width <= 320 then begin
-    font := LoadFont('syssmall.fnt');
-    font^.SetId('system');
-    SystemFont := font;
-    font := LoadFont('syssmall.fnt');
-    font^.SetId('editor');
-    EditorFont := font;
-    font := LoadFont('symbolsmall.fnt');
-    font^.SetId('symbol');
-    EditorFont := font;
   end
   else begin
     font := LoadFont('system.fnt');
+    font^.SetId('system');
     SystemFont := font;
-    font := LoadFont('editor.fnt');
+    font := LoadFont('seattle.fnt');
+    font^.SetId('editor');
     EditorFont := font;
     font := LoadFont('symbol.fnt');
     font^.SetId('symbol');
     SymbolFont := font;
-    LoadFont('seattle.fnt');
   end;
 end;
 
@@ -284,14 +283,18 @@ begin
   CursorBlinkTime.Create;
   StateStack.Create;
   Settings.Create;
+  DragRect.Create;
+  LastDragRect.Create;
   Colors := LightColors;
   State.Create;
+  DragInitialPos.Create;
+  Parameters.Create;
+  ParseParameters;
 end;
 
 procedure TVeridianApp.Init;
 begin
   inherited Init;
-  ParseParameters;
   Memory.OnAllocError := @OnAllocError;
   FCursorBlinkVisible := false;
   CreateObjects;
@@ -303,10 +306,9 @@ begin
   RightMouseDownControl := nil;
   SelectingControl := nil;
   DragControl := nil;
-  DragInitialPos.Create;
   Mouse.UseSystemCursor := false;
   Mouse.HideMouse;
-  Parameters.Create;
+  DragRectVisible := false;
   {$IFDEF debug}
   FMemAvail := MemAvail;
   FMemMaxAvail := MaxAvail;
@@ -565,7 +567,6 @@ begin
     action := Desktop^.ActionList^.GetItem(index);
     if (action^.Shortcut <> AEvent.Key) or not action^.Enabled then
       continue;
-    {Desktop^.DeactivateCurrentMenu;}
     ActionExecute(AControl, action);
     AEvent.Handled := true;
     break;
@@ -673,6 +674,8 @@ begin
     exit;
   end;
   {$ENDIF}
+  if Assigned(DragControl) then
+    exit;
   if not Assigned(Desktop) then
     exit;
   if AEvent.Handled then
@@ -775,6 +778,45 @@ begin
 end;
 {$ENDIF}
 
+procedure TVeridianApp.HandleMouseCursor;
+var
+  newRect, oldRect: TRect;
+begin
+  if not Assigned(DragControl) then
+    DragRectVisible := false;
+  if Assigned(DragControl) and not DragRectVisible then begin
+    DragRectVisible := true;
+    Graph^.WaitForVSync;
+    MoveMouseCursor(FMouseState, FOldMouseState, false);
+    Graph^.InverseRectangle(DragRect);
+    LastDragRect.Assign(DragRect);
+  end
+  else if Assigned(DragControl) then begin
+    newRect.CreateRect(DragRect);
+    oldRect.CreateRect(LastDragRect);
+    Graph^.WaitForVSync;
+    Graph^.InverseRectangle(oldRect);
+    MoveMouseCursor(FMouseState, FOldMouseState, false);
+    Graph^.InverseRectangle(newRect);
+    MouseCursor^.Draw;
+    LastDragRect.Assign(DragRect);
+  end
+  else
+    MoveMouseCursor(FMouseState, FOldMouseState, true);
+end;
+
+procedure TVeridianApp.HandleStayOnTopControls;
+var
+  index: integer;
+  control: PControl;
+begin
+  for index := 0 to Desktop^.Controls^.Count - 1 do begin
+    control := Desktop^.Controls^.GetItem(index);
+    if not control^.StayOnTop then begin
+    end;
+  end;
+end;
+
 procedure TVeridianApp.ProcessEvents;
 var
   ch: word;
@@ -782,11 +824,8 @@ begin
   Mouse.UpdateState;
   FMouseState.Assign(Mouse.State);
   HandleCursor;
-  if Assigned(MenuBar) then
-    MenuBar^.BringToFront;
-
   if not FMouseState.Equals(FOldMouseState) then begin
-    MoveMouseCursor(FMouseState, FOldMouseState);
+    HandleMouseCursor;
     if State.CursorOn then
       DrawCursor;
     FMouseEvent.NewMouseState.Assign(FMouseState);

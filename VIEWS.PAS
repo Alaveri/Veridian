@@ -28,6 +28,7 @@ type
   PVertScrollBar = ^TVertScrollBar;
   PHorzScrollBar = ^THorzScrollBar;
   PWindowGrip = ^TWindowGrip;
+  PTaskbar = ^TTaskbar;
 
   TViewScrollType = (
     scNone,
@@ -43,11 +44,11 @@ type
     soHorizontal
   );
 
-  TViewState =
+  TWindowState =
   (
-    vsNormal,
-    vsMaximized,
-    vsMinimized
+    wsNormal,
+    wsMaximized,
+    wsMinimized
   );
 
   TGripBorderType =
@@ -70,8 +71,13 @@ type
     ParentWindow: PWindow;
     ActiveForeColor: byte;
     ActiveBackColor: byte;
+    MinimizeLabel: PLabel;
+    MaximizeLabel: PLabel;
+    ButtonBox: PPanel;
+    CloseLabel: PLabel;
     constructor Create(const AId, ACaption: string; AParentWindow: PWindow);
     procedure Init; virtual;
+    procedure Layout; virtual;
     procedure Paint; virtual;
     procedure MouseDown(var AEvent: TMouseEvent); virtual;
     procedure DragStart(var AEvent: TDragEvent); virtual;
@@ -166,11 +172,9 @@ type
     AutoSize: boolean;
     ScrollX: longint;
     ScrollY: longint;
-    ViewState: TViewState;
     function GetAutoWidth: longint; virtual;
     function GetAutoHeight: longint; virtual;
     procedure Init; virtual;
-    procedure Maximize; virtual;
     procedure Layout; virtual;
     procedure GetContentScreenBounds(var ARect: TRect); virtual;
     procedure GetContentBounds(var ARect: TRect); virtual;
@@ -181,21 +185,24 @@ type
 
   TWindow = object(TView)
   private
-    FLastGripRect: TRect;
     FGripBorders: array[TGripBorderType] of PControl;
   public
     Title: PChar;
     TitleBar: PTitleBar;
     Grip: PLabel;
+    WindowState: TWindowState;
     OnClosing: PClosingEventProc;
     OnClosed: PEventProc;
     OnResizing: PSizeEventProc;
     OnResized: PSizeEventProc;
     OnMoving: PMoveEventProc;
     OnMoved: PMoveEventProc;
+    RestoredBounds: TRect;
     constructor CreateTitle(const AId, ATitle: string; AParent: PControl);
     function TitleVisible: boolean;
     function Active: boolean;
+    function MinWidth: integer; virtual;
+    function MinHeight: integer; virtual;
     procedure GetContentScreenBounds(var ARect: TRect); virtual;
     procedure GetContentBounds(var ARect: TRect); virtual;
     procedure GetGripBounds(var ARect: TRect); virtual;
@@ -206,6 +213,8 @@ type
     procedure Activate;
     procedure Deactivate;
     procedure Close; virtual;
+    procedure Maximize; virtual;
+    procedure Minimize; virtual;
     procedure Init; virtual;
     procedure Paint; virtual;
     procedure MouseDown(var AEvent: TMouseEvent); virtual;
@@ -213,6 +222,45 @@ type
     procedure DragMove(var AEvent: TDragEvent); virtual;
     procedure DragEnd(var AEvent: TDragEvent); virtual;
     destructor Free; virtual;
+  end;
+
+  TWindowList = object(TIdentifiableList)
+  private
+  public
+    procedure Init; virtual;
+    function Add(AItem: PWindow): integer;
+    function GetItem(AIndex: integer): PWindow;
+    function GetItemById(const AId: string): PWindow;
+    function IndexOf(AItem: PWindow): integer;
+    procedure SetItem(AIndex: integer; AItem: PWindow);
+    procedure Insert(AIndex: integer; AItem: PWindow);
+    procedure RemoveItem(AItem: PWindow);
+  end;
+
+  TTaskbarButton = object(TButton)
+  private
+  public
+    Window: PWindow;
+    ParentTaskbar: PTaskbar;
+    constructor Create(const AId: string; AParentTaskbar: PTaskbar; AWindow: PWindow);
+    function GetCaption: string; virtual;
+    procedure Init; virtual;
+  end;
+
+  TTaskbar = object(TPanel)
+  private
+  public
+    Windows: TWindowList;
+    constructor Create;
+    destructor Free; virtual;
+    procedure Init; virtual;
+    procedure Layout; virtual;
+    procedure AddWindow(AWindow: PWindow);
+    procedure RemoveWindow(AWindow: PWindow);
+    procedure SetWindow(AIndex: integer; AWindow: PWindow);
+    function IndexOfWindow(AWindow: PWindow): integer;
+    function GetWindow(AIndex: integer): PWindow;
+    function GetWindowById(const AId: string): PWindow;
   end;
 
 const
@@ -437,6 +485,66 @@ begin
   ParentWindow := AParentWindow;
 end;
 
+procedure CloseButtonClick(ASender: PObject; var AEvent: TMouseEvent);
+var
+  window: PWindow;
+  parent: PTitleBar;
+  button: PLabel;
+begin
+  if AEvent.Handled then
+    exit;
+  button := PLabel(ASender);
+  parent := PTitleBar(button^.Parent);
+  window := PWindow(parent^.ParentWindow);
+  if not window^.Active then begin
+    window^.BringToFront;
+    window^.Activate;
+  end;
+  if Assigned(window) then
+    window^.Close;
+  AEvent.Handled := true;
+end;
+
+procedure MinimizeButtonClick(ASender: PObject; var AEvent: TMouseEvent);
+var
+  window: PWindow;
+  parent: PTitleBar;
+  button: PLabel;
+begin
+  if AEvent.Handled then
+    exit;
+  button := PLabel(ASender);
+  parent := PTitleBar(button^.Parent);
+  window := PWindow(parent^.ParentWindow);
+  if not window^.Active then begin
+    window^.BringToFront;
+    window^.Activate;
+  end;
+  if Assigned(window) then
+    window^.Minimize;
+  AEvent.Handled := true;
+end;
+
+procedure MaximizeButtonClick(ASender: PObject; var AEvent: TMouseEvent);
+var
+  window: PWindow;
+  parent: PTitleBar;
+  button: PLabel;
+begin
+  if AEvent.Handled then
+    exit;
+  button := PLabel(ASender);
+  parent := PTitleBar(button^.Parent);
+  window := PWindow(parent^.ParentWindow);
+  if not window^.Active then begin
+    window^.BringToFront;
+    window^.Activate;
+  end;
+  if Assigned(window) then
+    window^.Maximize;
+  AEvent.Handled := true;
+end;
+
 procedure TTitleBar.Init;
 begin
   inherited Init;
@@ -447,10 +555,92 @@ begin
   ActiveForeColor := VeridianApp^.Colors.WindowTitleActive;
   ActiveBackColor := VeridianApp^.Colors.WindowTitleActiveBack;
   VertAlign := vaCenter;
-  HorzAlign := haCenter;
+  HorzAlign := haLeft;
+  Padding.CreateAll(4, 0, 0, 0);
   CanDrag := true;
   ParentWindow := nil;
   Font := Desktop^.Font;
+  ButtonBox := New(PPanel, CreateParent('ButtonBox', @self));
+  MinimizeLabel := New(PLabel, CreateCaption('MinLabel', #6, @self));
+  with MinimizeLabel^ do begin
+    Font := VeridianApp^.Fonts^.GetItemById('Symbol');
+    SetCaption(#6);
+    HorzAlign := haCenter;
+    VertAlign := vaCenter;
+    AutoSize := true;
+    OnMouseClick := @MinimizeButtonClick;
+  end;
+  MaximizeLabel := New(PLabel, CreateCaption('MaxLabel', #7, @self));
+  with MaximizeLabel^ do begin
+    Font := VeridianApp^.Fonts^.GetItemById('Symbol');
+    SetCaption(#7);
+    HorzAlign := haCenter;
+    VertAlign := vaCenter;
+    AutoSize := true;
+    OnMouseClick := @MaximizeButtonClick;
+  end;
+  CloseLabel := New(PLabel, CreateCaption('CloseLabel', #8, @self));
+  with CloseLabel^ do begin
+    Font := VeridianApp^.Fonts^.GetItemById('Symbol');
+    SetCaption(#8);
+    HorzAlign := haCenter;
+    VertAlign := vaCenter;
+    AutoSize := true;
+    OnMouseClick := @CloseButtonClick;
+  end;
+end;
+
+procedure TTitleBar.Layout;
+var
+  rect: TRect;
+  xPos: integer;
+  totalWidth: integer;
+begin
+  inherited Layout;
+  GetBounds(rect);
+  CloseLabel^.Layout;
+  MaximizeLabel^.Layout;
+  MinimizeLabel^.Layout;
+  xPos := rect.Right - OuterWidth;
+  totalWidth := 0;
+  if CloseLabel^.IsVisible then  begin
+    Dec(xPos, CloseLabel^.Width + 5);
+    Inc(totalWidth, CloseLabel^.Width + 5);
+    CloseLabel^.SetBounds(
+      xPos,
+      rect.Y + OuterWidth,
+      CloseLabel^.Width,
+      CloseLabel^.Height
+    );
+  end;
+  if MaximizeLabel^.IsVisible then begin
+    Dec(xPos, CloseLabel^.Width + 5);
+    Inc(totalWidth, CloseLabel^.Width + 5);
+    MaximizeLabel^.SetBounds(
+      xPos,
+      rect.Y + OuterWidth,
+      MaximizeLabel^.Width,
+      MaximizeLabel^.Height
+    );
+  end;
+  if MinimizeLabel^.IsVisible then begin
+    Dec(xPos, MinimizeLabel^.Width + 5);
+    Inc(totalWidth, MinimizeLabel^.Width + 5);
+    MinimizeLabel^.SetBounds(
+      xPos,
+      rect.Y + OuterWidth,
+      MinimizeLabel^.Width,
+      MinimizeLabel^.Height
+    );
+  end;
+  GetBounds(rect);
+  if MinimizeLabel^.IsVisible
+    or MaximizeLabel^.IsVisible
+    or CloseLabel^.IsVisible then begin
+    Inc(totalWidth, 5);
+    Dec(xPos, 5);
+  end;
+  ButtonBox^.SetBounds(xPos, 0, totalWidth, rect.Height);
 end;
 
 procedure TTitleBar.Paint;
@@ -468,6 +658,14 @@ begin
     ForeColor := ActiveForeColor;
     BackColor := ActiveBackColor;
   end;
+  CloseLabel^.ForeColor := ForeColor;
+  MaximizeLabel^.ForeColor := ForeColor;
+  MinimizeLabel^.ForeColor := ForeColor;
+  CloseLabel^.BackColor := BackColor;
+  MaximizeLabel^.BackColor := BackColor;
+  MinimizeLabel^.BackColor := BackColor;
+  ButtonBox^.ForeColor := ForeColor;
+  ButtonBox^.BackColor := BackColor;
   inherited Paint;
   ForeColor := fore;
   BackColor := back;
@@ -511,21 +709,6 @@ end;
 destructor TView.Free;
 begin
   inherited Free;
-end;
-
-procedure TView.Maximize;
-var
-  viewRect: TRect;
-begin
-  ViewState := vsMaximized;
-  SetBounds(0, 0, Desktop^.Width, Desktop^.Height);
-  GetBounds(viewRect);
-  if Assigned(VeridianApp^.MenuBar) and (VeridianApp^.MenuBar^.IsVisible) then begin
-    viewRect.Translate(-BorderWidth, VeridianApp^.MenuBar^.Height - BorderWidth);
-    viewRect.Grow(2 * BorderWidth, -VeridianApp^.MenuBar^.Height + 2 * BorderWidth);
-  end;
-  SetBoundsRect(viewRect);
-  Draw;
 end;
 
 procedure TView.GetContentRect(ABounds: TRect; AOX, AOY: integer; var ARect: TRect);
@@ -607,12 +790,6 @@ begin
   HorzScrollBar^.SetBounds(rect.X + 1, rect.Height - bh - bbs + 1, bw - bbs - BorderWidth, bh);
 end;
 
-constructor TWindow.CreateTitle(const AId, ATitle: string; AParent: PControl);
-begin
-  inherited CreateParent(AId, AParent);
-  SetTitle(ATitle);
-end;
-
 constructor TWindowGrip.Create(const AId: string; AParentWindow: PWindow);
 begin
   inherited CreateCaption(AId, #5, AParentWindow);
@@ -653,8 +830,7 @@ begin
   AEvent.Handled := true;
   ParentWindow^.GetScreenBounds(rect);
   desktop^.BeginDrawing;
-  Graph^.InverseRectangle(rect);
-  ParentWindow^.FLastGripRect := rect;
+  VeridianApp^.DragRect := rect;
   desktop^.MouseCursor := VeridianApp^.MouseCursors^.GetItemById('NWSE');
   desktop^.EndDrawing;
 end;
@@ -664,7 +840,6 @@ var
   rect: TRect;
   dx, dy: integer;
   minSize: integer;
-  horzBar, vertBar: PScrollBar;
 begin
   if AEvent.Handled then
     exit;
@@ -673,26 +848,14 @@ begin
   dy := AEvent.Y - AEvent.InitialY;
   if (dx = 0) and (dy = 0) then
     exit;
-  desktop^.BeginDrawing;
-  Graph^.State^.ViewPort := Graph^.Mode^.Bounds;
-  Graph^.InverseRectangle(ParentWindow^.FLastGripRect);
   rect.Grow(dx, dy);
-  horzBar := ParentWindow^.HorzScrollBar;
-  minSize :=
-    4 * (horzBar^.Size + 2 * horzBar^.OuterWidth + 2 * horzBar^.SpacingWidth)
-    + ParentWindow^.OuterWidth;
+  minSize := ParentWindow^.MinWidth;
   if rect.Width < minSize then
     rect.Width := minSize;
-  vertBar := ParentWindow^.VertScrollBar;
-  minSize :=
-    4 * (vertBar^.Size + 2 * vertBar^.OuterWidth  + 2 * vertBar^.SpacingWidth)
-    + ParentWindow^.OuterWidth
-    + ParentWindow^.TitleBar^.Height;
+  minSize := ParentWindow^.MinHeight;
   if rect.Height < minSize then
     rect.Height := minSize;
-  ParentWindow^.FLastGripRect := rect;
-  Graph^.InverseRectangle(rect);
-  desktop^.EndDrawing;
+  VeridianApp^.DragRect := rect;
   AEvent.Handled := true;
 end;
 
@@ -704,7 +867,7 @@ begin
     exit;
   desktop^.BeginDrawing;
   ParentWindow^.Hide;
-  ParentWindow^.SetBoundsRect(ParentWindow^.FLastGripRect);
+  ParentWindow^.SetBoundsRect(VeridianApp^.DragRect);
   ParentWindow^.Show;
   desktop^.MouseCursor := VeridianApp^.MouseCursors^.GetItemById('default');
   desktop^.EndDrawing;
@@ -720,8 +883,7 @@ begin
   AEvent.Handled := true;
   ParentWindow^.GetScreenBounds(rect);
   desktop^.BeginDrawing;
-  Graph^.InverseRectangle(rect);
-  ParentWindow^.FLastGripRect := rect;
+  VeridianApp^.DragRect := rect;
   desktop^.EndDrawing;
 end;
 
@@ -729,8 +891,6 @@ procedure TTitleBar.DragMove(var AEvent: TDragEvent);
 var
   rect: TRect;
   dx, dy: integer;
-  minSize: integer;
-  horzBar, vertBar: PScrollBar;
 begin
   if AEvent.Handled then
     exit;
@@ -740,15 +900,10 @@ begin
   if (dx = 0) and (dy = 0) then
     exit;
   if Assigned(VeridianApp^.MenuBar) and (VeridianApp^.MenuBar^.IsVisible) and
-    (rect.Y + dy < Height) then
+    (rect.Y + dy - ParentWindow^.OuterWidth < Height) then
     dy := VeridianApp^.MenuBar^.Height - rect.Y;
-  desktop^.BeginDrawing;
-  Graph^.State^.ViewPort := Graph^.Mode^.Bounds;
-  Graph^.InverseRectangle(ParentWindow^.FLastGripRect);
   rect.Translate(dx, dy);
-  ParentWindow^.FLastGripRect := rect;
-  Graph^.InverseRectangle(rect);
-  desktop^.EndDrawing;
+  VeridianApp^.DragRect := rect;
   AEvent.Handled := true;
 end;
 
@@ -760,7 +915,7 @@ begin
     exit;
   desktop^.BeginDrawing;
   ParentWindow^.Hide;
-  ParentWindow^.SetBoundsRect(ParentWindow^.FLastGripRect);
+  ParentWindow^.SetBoundsRect(VeridianApp^.DragRect);
   ParentWindow^.Show;
   desktop^.EndDrawing;
   AEvent.Handled := true;
@@ -778,8 +933,8 @@ begin
   BorderColor := VeridianApp^.Colors.WindowBorder;
   ShadowColor := VeridianApp^.Colors.WindowShadow;
   LightColor := VeridianApp^.Colors.WindowLight;
-  CanDrag := true;
-  FLastGripRect.Create;
+  RestoredBounds.Create;
+  CanDrag := false;
   TitleBar := New(PTitleBar, Create('TitleBar', '', @self));
   Grip := New(PWindowGrip, Create('Grip', @self));
   for gripBorderIndex := Low(TGripBorderType) to High(TGripBorderType) do begin
@@ -793,12 +948,90 @@ begin
   OnMoving := nil;
   OnMoved := nil;
   Title := nil;
-  ViewState := vsNormal;
+  WindowState := wsNormal;
+end;
+
+procedure TWindow.Maximize;
+var
+  viewRect: TRect;
+  rect: TRect;
+begin
+  if WindowState = wsMaximized then begin
+    WindowState := wsNormal;
+    Desktop^.BeginDrawing;
+    Hide;
+    SetBoundsRect(RestoredBounds);
+    TitleBar^.MaximizeLabel^.SetCaption(#7);
+    Show;
+    Desktop^.EndDrawing;
+    exit;
+  end;
+  TitleBar^.MaximizeLabel^.SetCaption(#9);
+  GetBounds(rect);
+  RestoredBounds := rect;
+  WindowState := wsMaximized;
+  SetBounds(0, 0, Desktop^.Width, Desktop^.Height);
+  GetBounds(viewRect);
+  if Assigned(VeridianApp^.MenuBar) and (VeridianApp^.MenuBar^.IsVisible) then begin
+    viewRect.Translate(-BorderWidth, VeridianApp^.MenuBar^.Height - BorderWidth);
+    viewRect.Grow(2 * BorderWidth, -VeridianApp^.MenuBar^.Height + 2 * BorderWidth);
+  end;
+  if Assigned(VeridianApp^.TaskBar) and (VeridianApp^.TaskBar^.IsVisible) then begin
+    viewRect.Grow(0, -VeridianApp^.TaskBar^.Height + 2 * VeridianApp^.TaskBar^.OuterWidth
+      + 2 * BorderWidth);
+  end;
+  Hide;
+  SetBoundsRect(viewRect);
+  Show;
 end;
 
 function TWindow.Active: boolean;
 begin
   Active := VeridianApp^.ActiveWindow = @self;
+end;
+
+constructor TWindow.CreateTitle(const AId, ATitle: string; AParent: PControl);
+begin
+  inherited CreateParent(AId, AParent);
+  SetTitle(ATitle);
+end;
+
+function TWindow.MinWidth: integer;
+var
+  minW: integer;
+  minTW: integer;
+  buttonSize: integer;
+begin
+  buttonSize := HorzScrollBar^.Size
+    + 2 * HorzScrollBar^.OuterWidth
+    + 2 * HorzScrollBar^.SpacingWidth;
+  if not HorzScrollBar^.Visible then
+    buttonSize := 0;
+  minW := 4 * buttonSize + OuterWidth;
+  if VertScrollBar^.Visible and not HorzScrollBar^.Visible then
+    Inc(minW, VertScrollBar^.Size + 2 * VertScrollBar^.OuterWidth);
+  minTW := 2 * OuterWidth + (Width - TitleBar^.ButtonBox^.X - 1);
+  MinWidth := Max(minW, minTW);
+end;
+
+function TWindow.MinHeight: integer;
+var
+  minH: integer;
+  buttonSize: integer;
+begin
+  buttonSize := VertScrollBar^.Size
+    + 2 * VertScrollBar^.OuterWidth
+    + 2 * VertScrollBar^.SpacingWidth;
+  if not VertScrollBar^.Visible then
+    buttonSize := 0;
+  minH := 4 * buttonSize + OuterWidth;
+  if TitleBar^.Visible then
+    Inc(minH, TitleBar^.Height + 2 * TitleBar^.OuterWidth + OuterWidth);
+  if HorzScrollBar^.Visible and not VertScrollBar^.Visible then
+    Inc(minH, HorzScrollBar^.Size + 2 * HorzScrollBar^.OuterWidth + OuterWidth - 1);
+  if VertScrollBar^.Visible then
+    Dec(minH, OuterWidth);
+  MinHeight := minH;
 end;
 
 procedure TWindow.Paint;
@@ -811,7 +1044,7 @@ var
 begin
   oldBorderColor := BorderColor;
   oldBorderStyle := BorderStyle;
-  if ViewState = vsMaximized then begin
+  if WindowState = wsMaximized then begin
     BorderColor := VeridianApp^.Colors.WindowBorderActive;
     BorderStyle := bsSingle;
   end;
@@ -864,6 +1097,7 @@ begin
   FGripBorders[wpTopRight]^.SetBounds(Width - 3, 0, 3, 3);
   FGripBorders[wpBottomLeft]^.SetBounds(0, Height - 3, 3, 3);
   FGripBorders[wpBottomRight]^.SetBounds(Width - 3, Height - 3, 3, 3);
+  Grip^.SendToBack;
 end;
 
 procedure TWindow.Close;
@@ -875,8 +1109,13 @@ begin
   Invoke(OnClosing, closingEvent);
   if not closingEvent.CanClose then
     exit;
+  Hide;
   closedEvent.Create;
   Invoke(OnClosed, closedEvent);
+end;
+
+procedure TWindow.Minimize;
+begin
 end;
 
 procedure TWindow.Activate;
@@ -1188,8 +1427,7 @@ begin
   AEvent.Handled := true;
   ParentWindow^.GetScreenBounds(rect);
   desktop^.BeginDrawing;
-  Graph^.InverseRectangle(rect);
-  ParentWindow^.FLastGripRect := rect;
+  VeridianApp^.DragRect := rect;
   desktop^.MouseCursor := MouseCursor;
   desktop^.EndDrawing;
 end;
@@ -1209,10 +1447,6 @@ begin
   dy := AEvent.Y - AEvent.InitialY;
   if (dx = 0) and (dy = 0) then
     exit;
-  desktop^.BeginDrawing;
-  Graph^.State^.ViewPort := Graph^.Mode^.Bounds;
-  Graph^.InverseRectangle(ParentWindow^.FLastGripRect);
-
   case BorderType of
     wbTop: begin
       rect.Translate(0, dy);
@@ -1244,28 +1478,19 @@ begin
       rect.Grow(dx, dy);
     end;
   end;
-  horzBar := ParentWindow^.HorzScrollBar;
-  minSize :=
-    4 * (horzBar^.Size + 2 * horzBar^.OuterWidth + 2 * horzBar^.SpacingWidth)
-    + ParentWindow^.OuterWidth;
+  minSize := ParentWindow^.MinWidth;
   if rect.Width < minSize then begin
     rect.Width := minSize;
     if BorderType in [wbLeft, wpTopLeft, wpBottomLeft] then
       rect.X := originalRect.Right - minSize;
   end;
-  vertBar := ParentWindow^.VertScrollBar;
-  minSize :=
-    4 * (vertBar^.Size + 2 * vertBar^.OuterWidth  + 2 * vertBar^.SpacingWidth)
-    + ParentWindow^.OuterWidth
-    + ParentWindow^.TitleBar^.Height;
+  minSize := ParentWindow^.MinHeight;
   if rect.Height < minSize then begin
     rect.Height := minSize;
     if BorderType in [wbTop, wpTopLeft, wpTopRight] then
       rect.Y := originalRect.Bottom - minSize;
   end;
-  ParentWindow^.FLastGripRect := rect;
-  Graph^.InverseRectangle(rect);
-  desktop^.EndDrawing;
+  VeridianApp^.DragRect := rect;
   AEvent.Handled := true;
 end;
 
@@ -1277,7 +1502,7 @@ begin
     exit;
   desktop^.BeginDrawing;
   ParentWindow^.Hide;
-  ParentWindow^.SetBoundsRect(ParentWindow^.FLastGripRect);
+  ParentWindow^.SetBoundsRect(VeridianApp^.DragRect);
   ParentWindow^.Show;
   desktop^.MouseCursor := VeridianApp^.MouseCursors^.GetItemById('default');
   desktop^.EndDrawing;
@@ -1294,5 +1519,135 @@ begin
     end;
   end;
 end;
+
+constructor TTaskBarButton.Create(const AId: string; AParentTaskBar: PTaskBar; AWindow: PWindow);
+begin
+  inherited CreateParent(AId, AParentTaskBar);
+  ParentTaskBar := AParentTaskBar;
+  Window := AWindow;
+end;
+
+procedure TTaskBarButton.Init;
+begin
+  inherited Init;
+  CanFocus := true;
+  CanDrag := true;
+  HorzAlign := haCenter;
+  VertAlign := vaCenter;
+end;
+
+function TTaskBarButton.GetCaption: string;
+begin
+  GetCaption := Window^.TitleBar^.GetCaption;
+end;
+
+constructor TTaskBar.Create;
+begin
+  inherited CreateParent('TaskBar', Desktop);
+end;
+
+procedure TTaskbar.Init;
+begin
+  inherited Init;
+  Windows.Create;
+  Padding.CreateValue(2);
+  Margins.CreateValue(1);
+  BorderStyle := bsSingle;
+  BevelStyle := bvRaised;
+  BorderColor := VeridianApp^.Colors.ButtonBorder;
+  BackColor := VeridianApp^.Colors.ButtonBack;
+  ForeColor := VeridianApp^.Colors.Button;
+  StayOnTop := true;
+  Font := VeridianApp^.Fonts^.GetItemById('editor');
+end;
+
+procedure TTaskBar.AddWindow(AWindow: PWindow);
+begin
+  Windows.Add(AWindow);
+end;
+
+procedure TTaskBar.RemoveWindow(AWindow: PWindow);
+begin
+  Windows.RemoveItem(AWindow);
+end;
+
+function TTaskBar.IndexOfWindow(AWindow: PWindow): integer;
+begin
+  IndexOfWindow := Windows.IndexOf(AWindow);
+end;
+
+function TTaskBar.GetWindow(AIndex: integer): PWindow;
+begin
+  GetWindow := Windows.GetItem(AIndex);
+end;
+
+function TTaskBar.GetWindowById(const AId: string): PWindow;
+begin
+  GetWindowById := Windows.GetItemById(AId);
+end;
+
+procedure TTaskBar.SetWindow(AIndex: integer; AWindow: PWindow);
+begin
+  Windows.SetItem(AIndex, AWindow);
+end;
+
+procedure TTaskBar.Layout;
+var
+  rect: TRect;
+begin
+  inherited Layout;
+  Desktop^.GetBounds(rect);
+  Height := Font^.Height + 2 * SpacingHeight + 2 * BorderWidth + 2;
+  SetBounds(-SpacingWidth, rect.Bottom - Height + SpacingWidth, rect.Width + 2 * SpacingWidth, Height);
+  GetBounds(rect);
+end;
+
+destructor TTaskBar.Free;
+begin
+  Windows.Free;
+  inherited Free;
+end;
+
+procedure TWindowList.Init;
+begin
+  inherited Init;
+  DisposeObjects := false;
+end;
+
+procedure TWindowList.Insert(AIndex: integer; AItem: PWindow);
+begin
+  inherited Insert(AIndex, AItem);
+end;
+
+function TWindowList.Add(AItem: PWindow): integer;
+begin
+  Add := inherited Add(AItem);
+end;
+
+procedure TWindowList.RemoveItem(AItem: PWindow);
+begin
+  inherited RemoveItem(AItem);
+end;
+
+function TWindowList.IndexOf(AItem: PWindow): integer;
+begin
+  IndexOf := inherited IndexOf(AItem);
+end;
+
+function TWindowList.GetItemById(const AId: string): PWindow;
+begin
+  GetItemById := PWindow(inherited GetItemById(AId));
+end;
+
+function TWindowList.GetItem(AIndex: integer): PWindow;
+begin
+  GetItem := PWindow(inherited GetItem(AIndex));
+end;
+
+procedure TWindowList.SetItem(AIndex: integer; AItem: PWindow);
+begin
+  inherited SetItem(AIndex, AItem);
+end;
+
 
 end.
