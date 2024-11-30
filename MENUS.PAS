@@ -431,9 +431,11 @@ begin
   inherited KeyPress(AEvent);
   hotKey := GetAltHotkey;
   if (AEvent.Key = hotKey) and IsMainMenuItem then begin
+    Desktop^.BeginDrawing;
     MenuManager.CloseAllMenus;
     OpenMenu;
     AEvent.Handled := true;
+    Desktop^.EndDrawing;
   end;
 end;
 
@@ -587,9 +589,11 @@ begin
       if not (Assigned(menuItem) and menuItem^.IsEnabled
         and (menuItem <> SelectedItem)) then
         exit;
+      Desktop^.BeginDrawing;
       MenuManager.CloseAllMenus;
       menuItem^.Select;
       menuItem^.OpenMenu;
+      Desktop^.EndDrawing;
       AEvent.Handled := true;
     end;
   end;

@@ -55,6 +55,8 @@ type
     DialogBack: byte;
     Select: byte;
     SelectBack: byte;
+    ListSelected: byte;
+    ListSelectedBack: byte;
     ListUnfocusedSelect: byte;
     ListUnfocusedSelectBack: byte;
     Focused: byte;
@@ -108,6 +110,8 @@ const
     DialogBack: egaDarkGray;
     Select: egaWhite;
     SelectBack: egaBlue;
+    ListSelected: egaWhite;
+    ListSelectedBack: egaBlue;
     ListUnfocusedSelect: egaLightGray;
     ListUnfocusedSelectBack: egaDarkGray;
     Focused: egaBlack;

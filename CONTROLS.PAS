@@ -123,6 +123,7 @@ type
     Controls: PControlList;
     Position: TScreenPosition;
     Visible: boolean;
+    FocusRectWidth: integer;
     ForeColor, BackColor: byte;
     FillPattern: PFillPattern;
     LinePattern: PLinePattern;
@@ -157,6 +158,8 @@ type
     function IsActionControl: boolean; virtual;
     function IsFocusControl: boolean; virtual;
     function IsMouseOver: boolean;
+    function IsView: boolean; virtual;
+    function IsWindow: boolean; virtual;
     function GetX: integer;
     function GetY: integer;
     function GetWidth: word;
@@ -181,15 +184,15 @@ type
     procedure SetWidth(AWidth: word); virtual;
     procedure SetHeight(AHeight: word); virtual;
     procedure SetStayOnTop(AStayOnTop: boolean);
-    procedure GetBounds(var ARect: TRect);
-    procedure GetScreenBounds(var ARect: TRect);
-    procedure GetClientBounds(var ARect: TRect);
-    procedure GetClientScreenBounds(var ARect: TRect);
+    procedure GetBounds(var ARect: TRect); virtual;
+    procedure GetScreenBounds(var ARect: TRect); virtual;
+    procedure GetClientBounds(var ARect: TRect); virtual;
+    procedure GetClientScreenBounds(var ARect: TRect); virtual;
     procedure DrawControl(ADrawControls: boolean); virtual;
     procedure AlignControl;
     procedure Draw;
     procedure DrawSelf;
-    procedure DrawControls;
+    procedure DrawControls; virtual;
     procedure Hide; virtual;
     procedure Show; virtual;
     procedure Run; virtual;
@@ -251,6 +254,8 @@ type
     AutoSize: boolean;
     function ContentWidth: integer; virtual;
     function ContentHeight: integer; virtual;
+    procedure GetContentBounds(var ARect: TRect); virtual;
+    procedure GetContentScreenBounds(var ARect: TRect); virtual;
     procedure GetAlign(const ABounds: TRect; const ASize: TSize;
       var AResult: TPoint);
     procedure Init; virtual;
@@ -408,6 +413,7 @@ begin
   Y := 0;
   Width := 0;
   Height := 0;
+  FocusRectWidth := 2;
   Visible := true;
   Align := alNone;
   Position := spRelative;
@@ -480,6 +486,16 @@ end;
 function TControl.IsFocusControl: boolean;
 begin
   IsFocusControl := false;
+end;
+
+function TControl.IsView: boolean;
+begin
+  IsView := false;
+end;
+
+function TControl.IsWindow: boolean;
+begin
+  IsWindow := false;
 end;
 
 function TControl.GetX: integer;
@@ -740,7 +756,7 @@ end;
 
 procedure TControl.BeginDrawing;
 var
-  parentRect, rect, mouseRect: TRect;
+  parentRect, rect: TRect;
   par: PControl;
 begin
   VeridianApp^.PushState;
@@ -758,9 +774,7 @@ begin
       par := par^.Parent;
     end;
   end;
-  MouseCursor^.GetBounds(mouseRect);
-  if rect.IntersectsRect(mouseRect) then
-    VeridianApp^.HideMouseCursor;
+  VeridianApp^.HideMouseCursor;
   Graph^.SetForeColor(ForeColor);
   Graph^.SetBackColor(BackColor);
   Graph^.State^.Font := Font;
@@ -769,7 +783,7 @@ end;
 
 procedure TControl.EndDrawing;
 var
-  desktopItemRect, rect, mouseRect: TRect;
+  desktopItemRect, rect: TRect;
   cursor: PMouseCursor;
   item: PControl;
   index: integer;
@@ -781,15 +795,15 @@ begin
   cursor^.X := Mouse.State.X;
   cursor^.Y := Mouse.State.Y;
   GetScreenBounds(rect);
-  cursor^.GetBounds(mouseRect);
   if Mouse.State.Visible then begin
     cursor^.Visible := Mouse.State.Visible;
-    if rect.IntersectsRect(mouseRect) then
-      VeridianApp^.DrawMouseCursor(Mouse.State);
+    VeridianApp^.DrawMouseCursor(Mouse.State);
   end else begin
     cursor^.Visible := false;
   end;
   if PControl(Parent) <> PControl(Desktop) then
+    exit;
+  if StayOnTop then
     exit;
   for index := 0 to Desktop^.Controls^.Count - 1 do begin
     item := Desktop^.Controls^.GetItem(index);
@@ -846,11 +860,9 @@ begin
   GetBounds(ARect);
   if (Position = spAbsolute) or not Assigned(Parent) then
     exit;
-  if Assigned(Parent) then begin
-    Parent^.GetScreenBounds(parentRect);
-    ARect.Translate(parentRect.X, parentRect.Y);
-    ARect.Translate(Margins.Left, Margins.Top);
-  end;
+  Parent^.GetScreenBounds(parentRect);
+  ARect.Translate(parentRect.X, parentRect.Y);
+  ARect.Translate(Margins.Left, Margins.Top);
 end;
 
 procedure TControl.SetBounds(APX, APY: integer; AWidth, AHeight: integer);
@@ -891,7 +903,6 @@ var
   control: PControl;
 begin
   BeginDrawing;
-  Graph^.State^.ViewPort := ARect;
   Paint;
   for index := 0 to Controls^.Count - 1 do begin
     control := Controls^.GetItem(index);
@@ -1031,8 +1042,8 @@ procedure TContentControl.Layout;
 begin
   inherited Layout;
   if AutoSize then begin
-    Width := ContentWidth + Padding.Width;
-    Height := ContentHeight + Padding.Height;
+    Width := ContentWidth + Padding.Width + OuterWidth;
+    Height := ContentHeight + Padding.Height + OuterWidth;
   end;
 end;
 
@@ -1043,13 +1054,23 @@ begin
   case HorzAlign of
     haLeft: AResult.X := ABounds.X + Padding.Left;
     haRight: AResult.X := ABounds.Right - ASize.Width - Padding.Right;
-    haCenter: AResult.X := ABounds.X + Round(ABounds.Width + Padding.Width - ASize.Width) div 2;
+    haCenter: AResult.X := ABounds.X + Round(ABounds.Width - ASize.Width) div 2;
   end;
   case VertAlign of
     vaTop: AResult.Y := ABounds.Y + Padding.Top;
     vaBottom: AResult.Y := ABounds.Bottom - ASize.Height - Padding.Bottom;
-    vaCenter: AResult.Y := ABounds.Y + (ABounds.Height + Padding.Height - ASize.Height) div 2;
+    vaCenter: AResult.Y := ABounds.Y + (ABounds.Height - ASize.Height) div 2;
   end;
+end;
+
+procedure TContentControl.GetContentScreenBounds(var ARect: TRect);
+begin
+  GetClientScreenBounds(ARect);
+end;
+
+procedure TContentControl.GetContentBounds(var ARect: TRect);
+begin
+  GetClientBounds(ARect);
 end;
 
 procedure TContentControl.SetHorzAlign(AHorzAlign: THorzAlign);
@@ -1537,10 +1558,12 @@ end;
 procedure TDesktop.GetClientBounds(var ARect: TRect);
 begin
   GetBounds(ARect);
-  if VeridianApp^.MenuBar <> nil then begin
+  if Assigned(VeridianApp^.MenuBar) then begin
     ARect.Translate(0, VeridianApp^.MenuBar^.Height);
     ARect.Grow(0, -VeridianApp^.MenuBar^.Height);
   end;
+  if Assigned(VeridianApp^.TaskBar) then
+    ARect.Grow(0, -VeridianApp^.TaskBar^.Height);
 end;
 
 destructor TDesktop.Free;

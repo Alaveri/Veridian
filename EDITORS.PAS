@@ -7,7 +7,7 @@ uses
   AplObj,
   AplTypes,
   TextType,
-  TextDrv,
+  Graphics,
   VarStr,
   Controls;
 

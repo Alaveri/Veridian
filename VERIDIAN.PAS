@@ -73,6 +73,7 @@ type
     FBlinkCurrentTime: TDateTime;
     FBlinkElapsed: TTimeSpan;
     FDoubleClickStart: TDateTime;
+    FDoubleClickControl: PControl;
     function LoadFont(const AFilename: string): PFont;
     function CreateDesktop: PDesktop; virtual;
     procedure CreateObjects;
@@ -93,6 +94,7 @@ type
       AButton: TButtonState); virtual;
     procedure HandleMouseCursor;
     procedure HandleStayOnTopControls;
+    procedure HandleDblClick(ATime: TDateTime; AControl: PControl; var AEvent: TMouseEvent);
     procedure InitMouseEvent(AControl: PControl; var AEvent: TMouseEvent);
     procedure GetFocusList(AList: PObjectList; AControl: PControl);
     procedure DrawCursor;
@@ -116,6 +118,7 @@ type
     RightMouseDownControl: PControl;
     DragControl: PControl;
     DragInitialPos: TPoint;
+    DragInitialSize: TSize;
     SelectingControl: PControl;
     MenuBar: PMenubar;
     Taskbar: PTaskbar;
@@ -148,6 +151,8 @@ type
     procedure CloseAllMenus;
     function FocusNext(AControl: PControl; AReverse: boolean): boolean;
     function GetMouseControl(AControl: PControl; var AMouseState: TMouseState): PControl;
+    function TaskBarHeight: integer;
+    function MenuBarHeight: integer;
   end;
 
   TVeridianAction = object(TAction)
@@ -288,6 +293,7 @@ begin
   Colors := LightColors;
   State.Create;
   DragInitialPos.Create;
+  DragInitialSize.Create;
   Parameters.Create;
   ParseParameters;
 end;
@@ -304,6 +310,7 @@ begin
   MouseOverControl := nil;
   LeftMouseDownControl := nil;
   RightMouseDownControl := nil;
+  FDoubleClickControl := nil;
   SelectingControl := nil;
   DragControl := nil;
   Mouse.UseSystemCursor := false;
@@ -379,6 +386,7 @@ procedure TVeridianApp.HandleMouseUp(AControl: PControl; var AEvent: TMouseEvent
 var
   selecting: boolean;
   dragEvent: TDragEvent;
+  now: TDateTime;
 begin
   if AButton in AEvent.NewMouseState.ButtonState then
     exit;
@@ -398,11 +406,12 @@ begin
   selecting := false;
 {  selecting := SelectingControl = AControl;
   SelectingControl := nil;}
+  now.CreateNow;
   if ((LeftMouseDownControl = AControl) and (AButton = bsLeft))
       or ((RightMouseDownControl = AControl) and (AButton = bsRight)) or selecting then begin
     AControl^.MouseUp(AEvent);
     AControl^.MouseClick(AEvent);
-    {HandleDblClick(now, AControl, AEvent);}
+    HandleDblClick(now, AControl, AEvent);
   end;
 
   if AButton = bsLeft then
@@ -488,26 +497,31 @@ end;
 function TVeridianApp.GetMouseControl(AControl: PControl; var AMouseState: TMouseState): PControl;
 var
   index: integer;
-  rect: TRect;
-  result: PControl;
+  rect, parentRect: TRect;
   control: PControl;
-  intersects: boolean;
 begin
   GetMouseControl := nil;
-  for index := AControl^.Controls^.Count - 1 downto 0 do begin
-    control := AControl^.Controls^.GetItem(index);
-    if not control^.IsVisible then
-      continue;
-    control := GetMouseControl(control, AMouseState);
-    if Assigned(control) then begin
-      GetMouseControl := control;
-      exit;
+  if not AControl^.IsVisible then
+    exit;
+
+  if AControl^.Controls^.Count > 0 then begin
+    for index := AControl^.Controls^.Count - 1 downto 0 do begin
+      control := AControl^.Controls^.GetItem(index);
+      control := GetMouseControl(control, AMouseState);
+      if Assigned(control) then begin
+        GetMouseControl := control;
+        exit;
+      end;
     end;
   end;
+
   AControl^.GetScreenBounds(rect);
+  if Assigned(AControl^.Parent) then begin
+    AControl^.Parent^.GetScreenBounds(parentRect);
+    rect.Intersect(parentRect);
+  end;
   if (AControl^.Modal and (PControl(VeridianApp^.ActiveWindow) = AControl))
-    or (VeridianApp^.SelectingControl = AControl)
-    or (rect.Contains(AMouseState.X, AMouseState.Y)) then
+    or (SelectingControl = AControl) or (rect.Contains(AMouseState.X, AMouseState.Y)) then
     GetMouseControl := AControl;
 end;
 
@@ -552,6 +566,7 @@ begin
       dragEvent.InitialY := DragInitialPos.Y;
       dragEvent.X := DragInitialPos.X;
       dragEvent.Y := DragInitialPos.Y;
+      DragInitialSize.CreateDims(DragControl^.Width, DragControl^.Height);
       LeftMouseDownControl^.DragStart(dragEvent);
     end;
     HandleMouseEnter(control, FMouseEvent);
@@ -584,8 +599,14 @@ begin
     GetFocusList(AList, control);
     if control^.IsFocusControl then begin
       focusControl := PFocusControl(control);
-      if focusControl^.IsVisibleAndEnabled then
-        AList^.Add(control);
+      if focusControl^.IsVisible and focusControl^.CanFocus then begin
+        if focusControl^.IsActionControl then begin
+          if PActionControl(focusControl)^.IsEnabled then
+            AList^.Add(focusControl);
+        end
+        else
+          AList^.Add(control);
+      end;
     end;
   end;
 end;
@@ -652,7 +673,9 @@ begin
       exit;
     end;
     kyEsc: begin
+      Desktop^.BeginDrawing;
       container := MenuManager.PopAndCloseMenu;
+      Desktop^.EndDrawing;
       AEvent.Handled := true;
     end;
   end;
@@ -723,6 +746,22 @@ begin
   State.CursorOn := false;
   FCursorBlinkVisible := false;
   DrawCursor;
+end;
+
+function TVeridianApp.MenuBarHeight: integer;
+begin
+  if Assigned(MenuBar) then
+    MenuBarHeight := MenuBar^.Height
+  else
+    MenuBarHeight := 0;
+end;
+
+function TVeridianApp.TaskBarHeight: integer;
+begin
+  if Assigned(Taskbar) then
+    TaskBarHeight := Taskbar^.Height
+  else
+    TaskBarHeight := 0;
 end;
 
 procedure TVeridianApp.DrawCursor;
@@ -815,6 +854,26 @@ begin
     if not control^.StayOnTop then begin
     end;
   end;
+end;
+
+procedure TVeridianApp.HandleDblClick(ATime: TDateTime; AControl: PControl; var AEvent: TMouseEvent);
+var
+  elapsed: TTimeSpan;
+begin
+  if FDoubleClickStart.Ticks = 0 then begin
+    FDoubleClickStart.SetNow;
+    FDoubleClickControl := AControl;
+    exit;
+  end;
+  elapsed.CreateTicks(ATime.Ticks - FDoubleClickStart.Ticks);
+  if (elapsed.Ticks < Settings.DoubleClickDelay.Ticks) and (FDoubleClickControl = AControl) then begin
+    AControl^.MouseDblClick(AEvent);
+    FDoubleClickStart.Ticks := 0;
+    FDoubleClickControl := nil;
+    exit;
+  end;
+  FDoubleClickStart.SetNow;
+  FDoubleClickControl := AControl;
 end;
 
 procedure TVeridianApp.ProcessEvents;

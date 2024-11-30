@@ -22,6 +22,8 @@ type
   PKeyEventProc = ^TKeyEventProc;
   PMouseEventProc = ^TMouseEventProc;
   PDragEventProc = ^TDragEventProc;
+  PMovingEventProc = ^TMovingEventProc;
+  PSizingEventProc = ^TSizingEventProc;
 
   TClosingEvent = object(TEvent)
   private
@@ -44,11 +46,25 @@ type
     procedure Init; virtual;
   end;
 
+  TMovingEvent = object(TMoveEvent)
+  private
+  public
+    CanMove: boolean;
+    procedure Init; virtual;
+  end;
+
   TSizeEvent = object(TEvent)
   private
   public
     OldSize: TSize;
     NewSize: TSize;
+    procedure Init; virtual;
+  end;
+
+  TSizingEvent = object(TSizeEvent)
+  private
+  public
+    CanResize: boolean;
     procedure Init; virtual;
   end;
 
@@ -66,10 +82,12 @@ type
   TClosingEventProc = procedure(ASender: PObject; var AEvent: TClosingEvent);
   TScrollEventProc = procedure(ASender: PObject; var AEvent: TScrollEvent);
   TMoveEventProc = procedure(ASender: PObject; var AEvent: TMoveEvent);
+  TMovingEventProc = procedure(ASender: PObject; var AEvent: TMovingEvent);
   TSizeEventProc = procedure(ASender: PObject; var AEvent: TSizeEvent);
   TKeyEventProc = procedure(ASender: PObject; var AEvent: TKeyEvent);
   TMouseEventProc = procedure(ASender: PObject; var AEvent: TMouseEvent);
   TDragEventProc = procedure(ASender: PObject; var AEvent: TDragEvent);
+  TSizingEventProc = procedure(ASender: PObject; var AEvent: TSizingEvent);
 
 implementation
 
@@ -80,11 +98,23 @@ begin
   NewPosition.Create;
 end;
 
+procedure TMovingEvent.Init;
+begin
+  inherited Init;
+  CanMove := true;
+end;
+
 procedure TSizeEvent.Init;
 begin
   inherited Init;
   OldSize.Create;
   NewSize.Create;
+end;
+
+procedure TSizingEvent.Init;
+begin
+  inherited Init;
+  CanResize := true;
 end;
 
 procedure TClosingEvent.Init;
