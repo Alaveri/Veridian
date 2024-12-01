@@ -26,7 +26,7 @@ uses
   Menus;
 
 const
-  DefaultDoubleClickDelay: double = 1;
+  DefaultDoubleClickDelay = 1.0;
   DefaultCursorBlinkRate = 0.4;
   DefaultMouseSensitivity = 4;
 
@@ -73,7 +73,6 @@ type
     FBlinkCurrentTime: TDateTime;
     FBlinkElapsed: TTimeSpan;
     FDoubleClickStart: TDateTime;
-    FDoubleClickControl: PControl;
     function LoadFont(const AFilename: string): PFont;
     function CreateDesktop: PDesktop; virtual;
     procedure CreateObjects;
@@ -94,7 +93,7 @@ type
       AButton: TButtonState); virtual;
     procedure HandleMouseCursor;
     procedure HandleStayOnTopControls;
-    procedure HandleDblClick(ATime: TDateTime; AControl: PControl; var AEvent: TMouseEvent);
+    procedure HandleDoubleClick(ATime: TDateTime; AControl: PControl; var AEvent: TMouseEvent);
     procedure InitMouseEvent(AControl: PControl; var AEvent: TMouseEvent);
     procedure GetFocusList(AList: PObjectList; AControl: PControl);
     procedure DrawCursor;
@@ -102,6 +101,7 @@ type
     procedure ApplySettings;
     procedure SetMouseSensitivity(ASens: real);
     procedure ParseParameters;
+    procedure FreeClosedWindows;
     {$IFDEF debug}
     procedure UpdateDebugInfo;
     {$ENDIF}
@@ -109,17 +109,10 @@ type
     State: TAppState;
     StateStack: TObjectStack;
     Colors: TColors;
-    ActiveControl: PFocusControl;
-    ActiveWindow: PWindow;
     DragRect, LastDragRect: TRect;
     DragRectVisible: boolean;
-    MouseOverControl: PControl;
-    LeftMouseDownControl: PControl;
-    RightMouseDownControl: PControl;
-    DragControl: PControl;
     DragInitialPos: TPoint;
     DragInitialSize: TSize;
-    SelectingControl: PControl;
     MenuBar: PMenubar;
     Taskbar: PTaskbar;
     Fonts: PFontList;
@@ -130,6 +123,15 @@ type
     CursorBlinkTime: TDateTime;
     AppDir: string;
     Parameters: TStringList;
+    DoubleClickControl: PControl;
+    MouseOverControl: PControl;
+    LeftMouseDownControl: PControl;
+    RightMouseDownControl: PControl;
+    SelectingControl: PControl;
+    ActiveControl: PFocusControl;
+    ActiveWindow: PWindow;
+    DragControl: PControl;
+    ScrollSlider: PControl;
     constructor Create(ADriver: TGraphDrivers; AWidth: integer;
       AHeight: integer; ABpp: integer);
     destructor Free; virtual;
@@ -305,14 +307,6 @@ begin
   FCursorBlinkVisible := false;
   CreateObjects;
   MenuBar := nil;
-  ActiveControl := nil;
-  ActiveWindow := nil;
-  MouseOverControl := nil;
-  LeftMouseDownControl := nil;
-  RightMouseDownControl := nil;
-  FDoubleClickControl := nil;
-  SelectingControl := nil;
-  DragControl := nil;
   Mouse.UseSystemCursor := false;
   Mouse.HideMouse;
   DragRectVisible := false;
@@ -320,6 +314,15 @@ begin
   FMemAvail := MemAvail;
   FMemMaxAvail := MaxAvail;
   FMemLabel := nil;
+  ActiveControl := nil;
+  ActiveWindow := nil;
+  MouseOverControl := nil;
+  LeftMouseDownControl := nil;
+  RightMouseDownControl := nil;
+  DoubleClickControl := nil;
+  SelectingControl := nil;
+  DragControl := nil;
+  ScrollSlider := nil;
   {$ENDIF}
 end;
 
@@ -387,6 +390,8 @@ var
   selecting: boolean;
   dragEvent: TDragEvent;
   now: TDateTime;
+  scrollParent: PScrollBar;
+  scrollEvent: TScrollEvent;
 begin
   if AButton in AEvent.NewMouseState.ButtonState then
     exit;
@@ -406,12 +411,19 @@ begin
   selecting := false;
 {  selecting := SelectingControl = AControl;
   SelectingControl := nil;}
+  if Assigned(ScrollSlider) and Assigned(ScrollSlider^.Parent) then begin
+    scrollParent := PScrollBar(ScrollSlider^.Parent);
+    scrollEvent.Create;
+    scrollEvent.ScrollPosition := scrollParent^.ScrollPosition;
+    scrollParent^.PositionChanged(scrollEvent);
+  end;
+  ScrollSlider := nil;
   now.CreateNow;
   if ((LeftMouseDownControl = AControl) and (AButton = bsLeft))
       or ((RightMouseDownControl = AControl) and (AButton = bsRight)) or selecting then begin
     AControl^.MouseUp(AEvent);
     AControl^.MouseClick(AEvent);
-    HandleDblClick(now, AControl, AEvent);
+    HandleDoubleClick(now, AControl, AEvent);
   end;
 
   if AButton = bsLeft then
@@ -546,8 +558,8 @@ begin
     HandleMouseUp(control, FMouseEvent, bsRight);
   end;
   if (FMouseState.X <> FOldMouseState.X) or (FMouseState.Y <> FOldMouseState.Y) then begin
-{    if Assigned(CurrentScrollSlider) then
-      PScrollSlider(CurrentScrollSlider)^.ProcessMouseMove(FMouseEvent);}
+    if Assigned(ScrollSlider) then
+      PScrollSlider(ScrollSlider)^.MouseMove(FMouseEvent);
     HandleMouseMove(control, FMouseEvent);
     if Assigned(DragControl) then begin
       dragEvent.Create;
@@ -772,7 +784,6 @@ var
 begin
   if not State.DrawEnabled then
     exit;
-  activeControl := ActiveControl;
   if not Assigned(ActiveControl) then
     exit;
   ActiveControl^.GetCursorRect(rect);
@@ -856,30 +867,49 @@ begin
   end;
 end;
 
-procedure TVeridianApp.HandleDblClick(ATime: TDateTime; AControl: PControl; var AEvent: TMouseEvent);
+procedure TVeridianApp.HandleDoubleClick(ATime: TDateTime; AControl: PControl; var AEvent: TMouseEvent);
 var
   elapsed: TTimeSpan;
 begin
-  if FDoubleClickStart.Ticks = 0 then begin
+  if not Assigned(AControl) then begin
+    FDoubleClickStart.Ticks := 0;
+    exit;
+  end;
+  if (FDoubleClickStart.Ticks = 0) or (AControl <> DoubleClickControl) then begin
     FDoubleClickStart.SetNow;
-    FDoubleClickControl := AControl;
+    DoubleClickControl := AControl;
     exit;
   end;
   elapsed.CreateTicks(ATime.Ticks - FDoubleClickStart.Ticks);
-  if (elapsed.Ticks < Settings.DoubleClickDelay.Ticks) and (FDoubleClickControl = AControl) then begin
-    AControl^.MouseDblClick(AEvent);
+  if elapsed.Ticks < Settings.DoubleClickDelay.Ticks then begin
+    AControl^.MouseDoubleClick(AEvent);
     FDoubleClickStart.Ticks := 0;
-    FDoubleClickControl := nil;
+    DoubleClickControl := nil;
     exit;
   end;
   FDoubleClickStart.SetNow;
-  FDoubleClickControl := AControl;
+  DoubleClickControl := AControl;
+end;
+
+procedure TVeridianApp.FreeClosedWindows;
+var
+  index: integer;
+  window: PWindow;
+begin
+  for index := Desktop^.Controls^.Count - 1 downto 0 do begin
+    if not PControl(Desktop^.Controls^.Items^[index])^.IsWindow then
+      continue;
+    window := PWindow(Desktop^.Controls^.GetItem(index));
+    if window^.Closed then
+      Desktop^.Controls^.Delete(index);
+  end;
 end;
 
 procedure TVeridianApp.ProcessEvents;
 var
   ch: word;
 begin
+  FreeClosedWindows;
   Mouse.UpdateState;
   FMouseState.Assign(Mouse.State);
   HandleCursor;
@@ -1037,7 +1067,7 @@ begin
   CursorBlinkRate := DefaultCursorBlinkRate;
   DoubleClickDelay.CreateSeconds(DefaultDoubleClickDelay);
   MouseSensitivity := DefaultMouseSensitivity;
-  UpdateScrollContents := true;
+  UpdateScrollContents := false;
 end;
 
 procedure TVeridianAppSettings.Assign(var ASource: TObject);

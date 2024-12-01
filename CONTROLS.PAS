@@ -140,7 +140,7 @@ type
     OnMouseMove: PMouseEventProc;
     OnMouseUp: PMouseEventProc;
     OnMouseClick: PMouseEventProc;
-    OnMouseDblClick: PMouseEventProc;
+    OnMouseDoubleClick: PMouseEventProc;
     OnMouseEnter: PMouseEventProc;
     OnMouseLeave: PMouseEventProc;
     OnMouseWheelChanged: PMouseEventProc;
@@ -150,6 +150,7 @@ type
     OnEnter: PEventProc;
     OnExit: PEventProc;
     OnRun: PEventProc;
+    ScrollX, ScrollY: integer;
     constructor Create(AId: string);
     constructor CreateParent(AId: string; AParent: PControl);
     destructor Free; virtual;
@@ -172,6 +173,7 @@ type
     function BringToFront: boolean;
     function SendToBack: boolean;
     function CreateControlList: PControlList; virtual;
+    function GetSize: word;
     procedure GetXY(var APX, APY: integer);
     procedure SetVisible(AVisible: boolean);
     procedure SetForeColor(AForeColor: byte);
@@ -209,7 +211,7 @@ type
     procedure MouseEnter(var AEvent: TMouseEvent); virtual;
     procedure MouseLeave(var AEvent: TMouseEvent); virtual;
     procedure MouseClick(var AEvent: TMouseEvent); virtual;
-    procedure MouseDblClick(var AEvent: TMouseEvent); virtual;
+    procedure MouseDoubleClick(var AEvent: TMouseEvent); virtual;
     procedure MouseWheelChanged(var AEvent: TMouseEvent); virtual;
     procedure DragStart(var AEvent: TDragEvent); virtual;
     procedure DragMove(var AEvent: TDragEvent); virtual;
@@ -413,6 +415,8 @@ begin
   Y := 0;
   Width := 0;
   Height := 0;
+  ScrollX := 0;
+  ScrollY := 0;
   FocusRectWidth := 2;
   Visible := true;
   Align := alNone;
@@ -439,7 +443,7 @@ begin
   OnMouseUp := nil;
   OnMouseDown := nil;
   OnMouseClick := nil;
-  OnMouseDblClick := nil;
+  OnMouseDoubleClick := nil;
   OnMouseEnter := nil;
   OnMouseLeave := nil;
   OnMouseWheelChanged := nil;
@@ -853,6 +857,21 @@ begin
   ARect.CreateDims(X, Y, Width, Height);
 end;
 
+function TControl.GetSize: word;
+var
+  index: integer;
+  control: PControl;
+  result: word;
+begin
+  result := 0;
+  for index := 0 to Controls^.Count - 1 do begin
+    control := Controls^.GetItem(index);
+    Inc(result, SizeOf(control^));
+  end;
+  Inc(result, SizeOf(self));
+  GetSize := result;
+end;
+
 procedure TControl.GetScreenBounds(var ARect: TRect);
 var
   parentRect: TRect;
@@ -992,9 +1011,9 @@ begin
   Invoke(OnMouseClick, AEvent);
 end;
 
-procedure TControl.MouseDblClick(var AEvent: TMouseEvent);
+procedure TControl.MouseDoubleClick(var AEvent: TMouseEvent);
 begin
-  Invoke(OnMouseDblClick, AEvent);
+  Invoke(OnMouseDoubleClick, AEvent);
 end;
 
 procedure TControl.MouseWheelChanged(var AEvent: TMouseEvent);
@@ -1478,13 +1497,14 @@ var
   rect: TRect;
 begin
   inherited Paint;
-  GetScreenBounds(rect);
+  GetClientScreenBounds(rect);
   Graph^.SetForeColor(ForeColor);
   Graph^.SetBackColor(BackColor);
   Graph^.SetFillPattern(FillPattern);
   Graph^.SetLinePattern(LinePattern);
   if not TransparentBack then
     Graph^.FillRect(rect);
+  GetScreenBounds(rect);
   case BorderStyle of
     bsSingle: begin
       Graph^.SetForeColor(BorderColor);

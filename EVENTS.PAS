@@ -35,7 +35,7 @@ type
   TScrollEvent = object(TEvent)
   private
   public
-    Position: longint;
+    ScrollPosition: longint;
   end;
 
   TMoveEvent = object(TEvent)

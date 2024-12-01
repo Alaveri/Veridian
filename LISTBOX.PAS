@@ -74,6 +74,8 @@ type
     UnfocusedSelectBackColor: byte;
     OnSelectedIndexChanged: PIndexChangedProc;
     ItemSpacing: integer;
+    VisibleItems: integer;
+    AutoHeight: boolean;
     function SelectedItem: PListItem;
     function GetSelectedIndex(AEvent: TMouseEvent): integer;
     function ItemHeight: integer;
@@ -89,6 +91,8 @@ type
     procedure GetItemRect(AIndex: integer; var ARect: TRect); virtual;
     procedure ChangeSelect(ADelta: integer); virtual;
     procedure Clear; virtual;
+    procedure DrawControls; virtual;
+    procedure Draw; virtual;
     destructor Free; virtual;
   end;
 
@@ -149,8 +153,10 @@ begin
   SelectedBackColor := VeridianApp^.Colors.ListSelectedBack;
   UnfocusedSelectForeColor := VeridianApp^.Colors.ListUnfocusedSelect;
   UnfocusedSelectBackColor := VeridianApp^.Colors.ListUnfocusedSelectBack;
-  Padding.CreateValue(2);
-  ItemSpacing := 1;
+  Padding.CreateAll(2, 0, 2, 0);
+  ItemSpacing := 2;
+  VisibleItems := 10;
+  AutoHeight := false;
 end;
 
 function TListBox.SelectedItem: PListItem;
@@ -193,13 +199,16 @@ var
   rect: TRect;
 begin
   GetContentScreenBounds(rect);
-  cy := rect.Y + AIndex * ItemHeight - ScrollY;
-  ARect.CreateDims(rect.X, cy, rect.Width, itemHeight);
+  cy := rect.Y + AIndex * ItemHeight - ScrollY + Padding.Top;
+  ARect.CreateDims(rect.X, cy, rect.Width + 1, ItemHeight);
 end;
 
 function TListBox.ItemHeight: integer;
+var
+  result: integer;
 begin
-  ItemHeight := Font^.Height + 2 * ItemSpacing;
+  result := Font^.Height + ItemSpacing;
+  ItemHeight := result;
 end;
 
 procedure TListBox.PaintItem(AIndex: integer);
@@ -216,6 +225,8 @@ begin
   GetContentScreenBounds(rect);
   item := Items^.GetItem(AIndex);
   GetItemRect(AIndex, itemRect);
+  Graph^.State^.ViewPort := rect;
+  Graph^.State^.ViewPort.Intersect(itemRect);
   if not itemRect.IntersectsRect(rect) then
     exit;
   Graph^.SetForeColor(ForeColor);
@@ -232,7 +243,7 @@ begin
   end;
   Graph^.FillRect(itemRect);
   Graph^.DrawTextLarge(itemRect.X + Padding.Left,
-    itemRect.Y + Padding.Top, item^.Text);
+    itemRect.Y + ItemSpacing div 2, item^.Text);
 end;
 
 function TListBox.GetSelectedIndex(AEvent: TMouseEvent): integer;
@@ -256,7 +267,7 @@ begin
   inherited MouseWheelChanged(AEvent);
   if not VertScrollBar^.Visible then
     exit;
-  amount := AEvent.NewMouseState.WheelCounter * Font^.Height;
+  amount := AEvent.NewMouseState.WheelCounter * ItemHeight;
   if AEvent.NewMouseState.WheelCounter > 0 then
     ScrollVert(amount)
   else if AEvent.NewMouseState.WheelCounter < 0 then
@@ -339,16 +350,32 @@ begin
     inherited KeyPress(AEvent);
 end;
 
+procedure TListBox.Draw;
+begin
+  inherited Draw;
+end;
+
+procedure TListBox.DrawControls;
+begin
+  inherited DrawControls;
+end;
+
 procedure TListBox.Layout;
 var
   max: longint;
   rect: TRect;
+  size: integer;
 begin
+  if AutoHeight then begin
+    size := VisibleItems * ItemHeight + 2 * OuterWidth
+      + Padding.Height;
+    SetBounds(X, Y, Width, Size);
+  end;
   inherited Layout;
   GetContentBounds(rect);
-  VertScrollbar^.Increment := Font^.Height;
-  VertScrollbar^.PageIncrement := Round(rect.Height / Font^.Height) * Font^.Height;
-  max := Items^.Count * Font^.Height + 1;
+  VertScrollbar^.Increment := ItemHeight;
+  VertScrollbar^.PageIncrement := Round(rect.Height / ItemHeight) * ItemHeight;
+  max := Items^.Count * ItemHeight;
   Dec(max, rect.Height);
   VertScrollBar^.Max := AplMath.MaxL(0, max);
 end;
