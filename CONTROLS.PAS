@@ -17,6 +17,7 @@ uses
   Actions,
   KeyDrv,
   Events,
+  VeriType,
   VeriCons,
   Colors;
 
@@ -33,55 +34,7 @@ type
   PLabel = ^TLabel;
   PButton = ^TButton;
   PPanel = ^TPanel;
-
-  TBorderStyle = (bsNone, bsSingle);
-  TBevelStyle = (bvNone, bvLowered, bvRaised);
-
-  THorzAlign =
-  (
-    haLeft,
-    haRight,
-    haCenter
-  );
-
-  TVertAlign =
-  (
-    vaTop,
-    vaBottom,
-    vaCenter
-  );
-
-  TAlign =
-  (
-    alNone,
-    alLeft,
-    alRight,
-    alTop,
-    alBottom,
-    alClient
-  );
-
-  TSpacing = object(TObject)
-  private
-  public
-    Left: integer;
-    Top: integer;
-    Right: integer;
-    Bottom: integer;
-    constructor CreateAll(ALeft, ATop, ARight, ABottom: integer);
-    constructor CreateValue(AValue: integer);
-    constructor CreateLeft(ALeft: integer);
-    constructor CreateTop(ATop: integer);
-    constructor CreateRight(ARight: integer);
-    constructor CreateBottom(ABottom: integer);
-    constructor CreateLeftRight(ALeft, ARight: integer);
-    constructor CreateTopBottom(ATop, ABottom: integer);
-    constructor CreateHorz(AValue: integer);
-    constructor CreateVert(AValue: integer);
-    function Width: integer;
-    function Height: integer;
-    procedure Init; virtual;
-  end;
+  PContentControl = ^TContentControl;
 
   TControlList = object(TIdentifiableList)
   private
@@ -114,6 +67,8 @@ type
 
   TControl = object(TMessageObject)
   private
+    FOverrideViewPort: boolean;
+    procedure InternalPaintRegion(ARegion: PRegion; AScreenRect: TRect; AExclude: PControl);
   public
     X, Y: integer;
     Width, Height: integer;
@@ -151,6 +106,7 @@ type
     OnExit: PEventProc;
     OnRun: PEventProc;
     ScrollX, ScrollY: integer;
+    Clip: boolean;
     constructor Create(AId: string);
     constructor CreateParent(AId: string; AParent: PControl);
     destructor Free; virtual;
@@ -161,10 +117,7 @@ type
     function IsMouseOver: boolean;
     function IsView: boolean; virtual;
     function IsWindow: boolean; virtual;
-    function GetX: integer;
-    function GetY: integer;
-    function GetWidth: word;
-    function GetHeight: word;
+    function IsContentControl: boolean; virtual;
     function BorderWidth: byte; virtual;
     function BevelWidth: byte; virtual;
     function OuterWidth: byte;
@@ -174,22 +127,20 @@ type
     function SendToBack: boolean;
     function CreateControlList: PControlList; virtual;
     function GetSize: word;
-    procedure GetXY(var APX, APY: integer);
     procedure SetVisible(AVisible: boolean);
     procedure SetForeColor(AForeColor: byte);
     procedure SetBackColor(ABackColor: byte);
     procedure Layout; virtual;
-    procedure SetXY(AXPos, AYPos: integer); virtual;
-    procedure SetX(APX: integer); virtual;
-    procedure SetY(APY: integer); virtual;
     procedure SetWidthHeight(AWidth, AHeight: word); virtual;
     procedure SetWidth(AWidth: word); virtual;
     procedure SetHeight(AHeight: word); virtual;
     procedure SetStayOnTop(AStayOnTop: boolean);
     procedure GetBounds(var ARect: TRect); virtual;
-    procedure GetScreenBounds(var ARect: TRect); virtual;
     procedure GetClientBounds(var ARect: TRect); virtual;
-    procedure GetClientScreenBounds(var ARect: TRect); virtual;
+    procedure GetClientOuterBounds(var ARect: TRect);
+    procedure GetAbsoluteBounds(var ARect: TRect); virtual;
+    procedure GetScreenBounds(var ARect: TRect); virtual;
+    procedure GetClipRect(var ARect: TRect); virtual;
     procedure DrawControl(ADrawControls: boolean); virtual;
     procedure AlignControl;
     procedure Draw;
@@ -243,7 +194,7 @@ type
     ActionList: PActionList;
     procedure Init; virtual;
     procedure Layout; virtual;
-    procedure GetClientBounds(var ARect: TRect); virtual;
+    procedure GetContentBounds(var ARect: TRect); virtual;
     function CreateControlList: PControlList; virtual;
     destructor Free; virtual;
   end;
@@ -256,8 +207,8 @@ type
     AutoSize: boolean;
     function ContentWidth: integer; virtual;
     function ContentHeight: integer; virtual;
+    function IsContentControl: boolean; virtual;
     procedure GetContentBounds(var ARect: TRect); virtual;
-    procedure GetContentScreenBounds(var ARect: TRect); virtual;
     procedure GetAlign(const ABounds: TRect; const ASize: TSize;
       var AResult: TPoint);
     procedure Init; virtual;
@@ -301,7 +252,7 @@ type
     constructor CreateParent(AId: string; AAction: PAction; AParent: PControl);
     constructor CreateAction(AId: string; AAction: PAction; AParent: PControl);
     procedure Init; virtual;
-    procedure paint; virtual;
+    procedure Paint; virtual;
     procedure Enable;
     procedure Disable;
     function GetAltHotKey: word; virtual;
@@ -336,7 +287,6 @@ type
     function GetCursorForeColor: byte;
     function GetCursorBackColor: byte;
     procedure GetCursorRect(var ARect: TRect);
-    procedure SetXY(AXPos, AYPos: integer); virtual;
     procedure Init; virtual;
     procedure Focus; virtual;
     procedure UnFocus; virtual;
@@ -417,10 +367,11 @@ begin
   Height := 0;
   ScrollX := 0;
   ScrollY := 0;
-  FocusRectWidth := 2;
+  Clip := true;
+  FocusRectWidth := 1;
   Visible := true;
   Align := alNone;
-  Position := spRelative;
+  Position := spContent;
   ForeColor := VeridianApp^.Colors.Window;
   BackColor := VeridianApp^.Colors.WindowBack;
   FillPattern := nil;
@@ -428,6 +379,7 @@ begin
   Modal := false;
   Margins.Create;
   Padding.Create;
+  FOverrideViewPort := false;
   Tag := 0;
   CanDrag := false;
   CanUndo := false;
@@ -468,11 +420,10 @@ begin
     Visible := false;
     if not Assigned(Parent) then
       exit;
-    Graph^.PushState;
+    Desktop^.BeginDrawing;
     VeridianApp^.CursorOff;
-    Graph^.State^.ViewPort := rect;
     Parent^.PaintRegion(rect, @self);
-    Graph^.PopState;
+    Desktop^.EndDrawing;
     exit;
   end;
   if AVisible and not Visible then begin
@@ -502,80 +453,16 @@ begin
   IsWindow := false;
 end;
 
-function TControl.GetX: integer;
-var
-  rect: TRect;
+function TControl.IsContentControl: boolean;
 begin
-  GetClientBounds(rect);
-  GetX := X - rect.X;
+  IsContentControl := false;
 end;
 
-function TControl.GetY: integer;
-var
-  rect: TRect;
+procedure TControl.InvokeSender(AEventProc: pointer; ASender: PObject; var AEvent: TEvent);
 begin
-  GetClientBounds(rect);
-  GetY := Y - rect.Y;
-end;
-
-procedure TControl.GetXY(var APX, APY: integer);
-var
-  rect: TRect;
-begin
-  GetClientBounds(rect);
-  APX := X - rect.X;
-  APY := Y - rect.Y;
-end;
-
-function TControl.GetWidth: word;
-var
-  rect: TRect;
-begin
-  GetClientBounds(rect);
-  GetWidth := rect.Width;
-end;
-
-function TControl.GetHeight: word;
-var
-  rect: TRect;
-begin
-  GetClientBounds(rect);
-  GetHeight := rect.Height;
-end;
-
-procedure TControl.SetXY(AXPos, AYPos: integer);
-var
-  rect: TRect;
-begin
-  GetClientBounds(rect);
-  X := rect.X + AXPos;
-  Y := rect.Y + AYPos;
-  Draw;
-end;
-
-procedure TControl.SetX(APX: integer);
-var
-  rect: TRect;
-begin
-  GetClientBounds(rect);
-  X := rect.X + APX;
-  Draw;
-end;
-
-procedure TControl.SetY(APY: integer);
-var
-  rect: TRect;
-begin
-  GetClientBounds(rect);
-  Y := rect.Y + APY;
-  Draw;
-end;
-
-procedure TControl.InvokeSender(AEventProc: pointer; ASender: PObject;
-  var AEvent: TEvent);
-begin
+  AEvent.Sender := ASender;
   if Assigned(AEventProc) then
-    TEventProc(AEventProc)(ASender, AEvent);
+    TEventProc(AEventProc)(AEvent);
 end;
 
 procedure TControl.Invoke(AEventProc: pointer; var AEvent: TEvent);
@@ -659,7 +546,7 @@ var
 begin
   if not Assigned(Parent) then
     exit;
-  Parent^.GetClientBounds(rect);
+  Parent^.GetBounds(rect);
   selfIndex := Parent^.Controls^.IndexOf(@self);
   offsetX := 0;
   offsetY := 0;
@@ -713,20 +600,6 @@ begin
   AlignControl;
 end;
 
-procedure TControl.GetClientBounds(var ARect: TRect);
-begin
-  ARect.CreateDims(0, 0, Width, Height);
-  ARect.Grow(-2 * OuterWidth, -2 * OuterWidth);
-  ARect.Translate(OuterWidth, OuterWidth);
-end;
-
-procedure TControl.GetClientScreenBounds(var ARect: TRect);
-begin
-  GetScreenBounds(ARect);
-  ARect.Grow(-2 * OuterWidth, -2 * OuterWidth);
-  ARect.Translate(OuterWidth, OuterWidth);
-end;
-
 procedure TControl.DrawControl(ADrawControls: boolean);
 begin
   if not IsVisible then
@@ -759,30 +632,15 @@ begin
 end;
 
 procedure TControl.BeginDrawing;
-var
-  parentRect, rect: TRect;
-  par: PControl;
 begin
   VeridianApp^.PushState;
   Mouse.PushState;
   Graph^.PushState;
   Layout;
-  GetScreenBounds(rect);
-  if Position <> spAbsolute then begin
-    par := Parent;
-    while Assigned(par) do begin
-      if par^.Position = spAbsolute then
-        break;
-      par^.GetScreenBounds(parentRect);
-      rect.Intersect(parentRect);
-      par := par^.Parent;
-    end;
-  end;
   VeridianApp^.HideMouseCursor;
   Graph^.SetForeColor(ForeColor);
   Graph^.SetBackColor(BackColor);
   Graph^.State^.Font := Font;
-  Graph^.State^.ViewPort := rect;
 end;
 
 procedure TControl.EndDrawing;
@@ -798,7 +656,6 @@ begin
   cursor := VeridianApp^.MouseCursor;
   cursor^.X := Mouse.State.X;
   cursor^.Y := Mouse.State.Y;
-  GetScreenBounds(rect);
   if Mouse.State.Visible then begin
     cursor^.Visible := Mouse.State.Visible;
     VeridianApp^.DrawMouseCursor(Mouse.State);
@@ -809,15 +666,17 @@ begin
     exit;
   if StayOnTop then
     exit;
+  GetAbsoluteBounds(rect);
   for index := 0 to Desktop^.Controls^.Count - 1 do begin
     item := Desktop^.Controls^.GetItem(index);
     if item = @self then
       continue;
     if not (item^.IsVisible and item^.StayOnTop) then
       continue;
-    item^.GetScreenBounds(desktopItemRect);
-    if desktopItemRect.IntersectsRect(rect) then
-      item^.PaintRegion(rect, @self);
+    item^.GetAbsoluteBounds(desktopItemRect);
+    if desktopItemRect.IntersectsRect(rect) then begin
+      item^.Draw;
+    end;
   end;
 end;
 
@@ -852,11 +711,6 @@ begin
   Draw;
 end;
 
-procedure TControl.GetBounds(var ARect: TRect);
-begin
-  ARect.CreateDims(X, Y, Width, Height);
-end;
-
 function TControl.GetSize: word;
 var
   index: integer;
@@ -872,16 +726,111 @@ begin
   GetSize := result;
 end;
 
-procedure TControl.GetScreenBounds(var ARect: TRect);
+procedure TControl.GetBounds(var ARect: TRect);
+begin
+  ARect.CreateDims(X, Y, Width, Height);
+end;
+
+procedure TControl.GetClientOuterBounds(var ARect: TRect);
+begin
+  { Client area without margins, padding, or borders. }
+  GetBounds(ARect);
+  ARect.TranslateToOrigin;
+end;
+
+procedure TControl.GetClientBounds(var ARect: TRect);
+begin
+  { Client area with margins, borders, and padding. }
+  GetBounds(ARect);
+  ARect.TranslateToOrigin;
+  ARect.Translate(OuterWidth, OuterWidth);
+  ARect.Grow(-2 * OuterWidth, -2 * OuterWidth);
+  ARect.Translate(Margins.Left, Margins.Top);
+  ARect.Grow(-Margins.Width, -Margins.Height);
+end;
+
+procedure TControl.GetAbsoluteBounds(var ARect: TRect);
 var
   parentRect: TRect;
 begin
   GetBounds(ARect);
-  if (Position = spAbsolute) or not Assigned(Parent) then
+  if not (Assigned(Parent) and (Position <> spAbsolute)) then
     exit;
-  Parent^.GetScreenBounds(parentRect);
+  Parent^.GetAbsoluteBounds(parentRect);
   ARect.Translate(parentRect.X, parentRect.Y);
-  ARect.Translate(Margins.Left, Margins.Top);
+end;
+
+procedure TControl.GetScreenBounds(var ARect: TRect);
+var
+  parentRect: TRect;
+begin
+  {Relative to desktop adjusted for Position value if
+   parent is assigned.}
+  case Position of
+    spAbsolute: GetBounds(ARect);
+    spContent: begin
+      GetBounds(ARect);
+      if not Assigned(Parent) then
+        exit;
+      if Parent^.IsContentControl then
+        PContentControl(Parent)^.GetContentBounds(parentRect)
+      else
+        Parent^.GetClientBounds(parentRect);
+      ARect.Translate(parentRect.X, parentRect.Y);
+      Parent^.GetScreenBounds(parentRect);
+      ARect.Translate(parentRect.X, parentRect.Y);
+    end;
+    spClient: begin
+      GetBounds(ARect);
+      if not Assigned(Parent) then
+        exit;
+      Parent^.GetClientBounds(parentRect);
+      ARect.Translate(parentRect.X, parentRect.Y);
+      Parent^.GetScreenBounds(parentRect);
+      ARect.Translate(parentRect.X, parentRect.Y);
+    end;
+    spRelative: begin
+      GetBounds(ARect);
+      if not Assigned(Parent) then
+        exit;
+      Parent^.GetClientOuterBounds(parentRect);
+      ARect.Translate(parentRect.X, parentRect.Y);
+      Parent^.GetScreenBounds(parentRect);
+      ARect.Translate(parentRect.X, parentRect.Y);
+    end;
+  end;
+end;
+
+procedure TControl.GetClipRect(var ARect: TRect);
+var
+  screenRect, parentRect: TRect;
+  par: PControl;
+begin
+  GetScreenBounds(ARect);
+
+  if not Assigned(Parent) then
+    exit;
+  case Position of
+    spAbsolute: GetAbsoluteBounds(screenRect);
+    spContent: begin
+      if Parent^.IsContentControl and (Position = spContent) then begin
+        PContentControl(Parent)^.GetContentBounds(parentRect);
+      end
+      else
+        Parent^.GetClientBounds(parentRect);
+    end;
+    spClient: Parent^.GetClientBounds(parentRect);
+    spRelative: parent^.GetClientOuterBounds(parentRect);
+  end;
+  Parent^.GetScreenBounds(screenRect);
+  parentRect.Translate(screenRect.X, screenRect.Y);
+  ARect.Intersect(parentRect);
+  par := Parent;
+  while Assigned(par) do begin
+    par^.GetClipRect(parentRect);
+    ARect.Intersect(parentRect);
+    par := par^.Parent;
+  end;
 end;
 
 procedure TControl.SetBounds(APX, APY: integer; AWidth, AHeight: integer);
@@ -894,8 +843,6 @@ end;
 
 procedure TControl.SetBoundsRect(const ARect: TRect);
 begin
-  if ARect.IsEmpty then
-    ARect.CreateDims(0, 0, 0, 0);
   X := ARect.X;
   Y := ARect.Y;
   Width := ARect.Width;
@@ -914,22 +861,55 @@ end;
 
 procedure TControl.Paint;
 begin
+  if Clip and not FOverrideViewPort then
+    GetClipRect(Graph^.State^.ViewPort);
+  FOverrideViewPort := false;
+end;
+
+procedure TControl.InternalPaintRegion(ARegion: PRegion; AScreenRect: TRect; AExclude: PControl);
+var
+  index: integer;
+  par, control: PControl;
+  rect: TRect;
+  controlRect: TRect;
+  regionRect: PRect;
+  ptr: pointer;
+begin
+  if AExclude = @self then
+    exit;
+  if not IsVisible then
+    exit;
+  GetScreenBounds(rect);
+  if rect.IsEmpty then
+    exit;
+  VeridianApp^.PushState;
+  VeridianApp^.CursorOff;
+  rect.Intersect(AScreenRect);
+  Graph^.PushState;
+  FOverrideViewPort := true;
+  Graph^.SetViewPort(rect);
+  Paint;
+  Graph^.PopState;
+
+  VeridianApp^.PopState;
+  for index := Controls^.Count - 1 downto 0 do begin
+    control := Controls^.Items^[index];
+    if control = AExclude then
+      continue;
+    if not control^.IsVisible then
+      continue;
+
+    control^.GetScreenBounds(controlRect);
+    controlRect.Intersect(rect);
+    if controlRect.IsEmpty then
+      continue;
+    control^.PaintRegion(controlRect, nil);
+  end;
 end;
 
 procedure TControl.PaintRegion(const ARect: TRect; AExclude: PControl);
-var
-  index: integer;
-  control: PControl;
 begin
-  BeginDrawing;
-  Paint;
-  for index := 0 to Controls^.Count - 1 do begin
-    control := Controls^.GetItem(index);
-    if (control = AExclude) or not (control^.IsVisible) then
-      continue;
-    control^.PaintRegion(ARect, AExclude);
-  end;
-  EndDrawing;
+  InternalPaintRegion(nil, ARect, AExclude);
 end;
 
 function TControl.BorderWidth: byte;
@@ -1082,14 +1062,17 @@ begin
   end;
 end;
 
-procedure TContentControl.GetContentScreenBounds(var ARect: TRect);
-begin
-  GetClientScreenBounds(ARect);
-end;
-
 procedure TContentControl.GetContentBounds(var ARect: TRect);
 begin
+  { If overridden by parent, gets the content bounds as defined
+    by the parent, otherwise returns client area of parent. If no
+    parent, returns the bounds of the desktop. }
   GetClientBounds(ARect);
+end;
+
+function TContentControl.IsContentControl: boolean;
+begin
+  IsContentControl := true;
 end;
 
 procedure TContentControl.SetHorzAlign(AHorzAlign: THorzAlign);
@@ -1270,7 +1253,7 @@ var
 begin
   if Assigned(Action) then
     VeridianApp^.UpdateActionControl(@self);
-  GetClientScreenBounds(rect);
+  GetScreenBounds(rect);
   GetTextAlign(rect, pos);
   currentForeColor := ForeColor;
   currentBackColor := BackColor;
@@ -1497,14 +1480,13 @@ var
   rect: TRect;
 begin
   inherited Paint;
-  GetClientScreenBounds(rect);
+  GetScreenBounds(rect);
   Graph^.SetForeColor(ForeColor);
   Graph^.SetBackColor(BackColor);
   Graph^.SetFillPattern(FillPattern);
   Graph^.SetLinePattern(LinePattern);
   if not TransparentBack then
     Graph^.FillRect(rect);
-  GetScreenBounds(rect);
   case BorderStyle of
     bsSingle: begin
       Graph^.SetForeColor(BorderColor);
@@ -1575,7 +1557,7 @@ begin
   SetBounds(0, 0, Graph^.Mode^.Width, Graph^.Mode^.Height);
 end;
 
-procedure TDesktop.GetClientBounds(var ARect: TRect);
+procedure TDesktop.GetContentBounds(var ARect: TRect);
 begin
   GetBounds(ARect);
   if Assigned(VeridianApp^.MenuBar) then begin
@@ -1723,7 +1705,7 @@ begin
   inherited Paint;
   if not Assigned(Caption) then
     exit;
-  GetClientScreenBounds(rect);
+  GetScreenBounds(rect);
   if rect.IsEmpty then
     exit;
   right := rect.Right;
@@ -1817,94 +1799,6 @@ begin
   inherited Free;
 end;
 
-constructor TSpacing.CreateAll(ALeft, ATop, ARight, ABottom: integer);
-begin
-  inherited Create;
-  Left := ALeft;
-  Top := ATop;
-  Right := ARight;
-  Bottom := ABottom;
-end;
-
-constructor TSpacing.CreateValue(AValue: integer);
-begin
-  inherited Create;
-  Left := AValue;
-  Top := AValue;
-  Right := AValue;
-  Bottom := AValue;
-end;
-
-constructor TSpacing.CreateLeft(ALeft: integer);
-begin
-  inherited Create;
-  Left := ALeft;
-end;
-
-constructor TSpacing.CreateTop(ATop: integer);
-begin
-  inherited Create;
-  Top := ATop;
-end;
-
-constructor TSpacing.CreateRight(ARight: integer);
-begin
-  inherited Create;
-  Right := ARight;
-end;
-
-constructor TSpacing.CreateBottom(ABottom: integer);
-begin
-  inherited Create;
-  Bottom := ABottom;
-end;
-
-constructor TSpacing.CreateLeftRight(ALeft, ARight: integer);
-begin
-  inherited Create;
-  Left := ALeft;
-  Right := ARight;
-end;
-
-constructor TSpacing.CreateTopBottom(ATop, ABottom: integer);
-begin
-  inherited Create;
-  Top := ATop;
-  Bottom := ABottom;
-end;
-
-constructor TSpacing.CreateHorz(AValue: integer);
-begin
-  inherited Create;
-  Left := AValue;
-  Right := AValue;
-end;
-
-constructor TSpacing.CreateVert(AValue: integer);
-begin
-  inherited Create;
-  Top := AValue;
-  Bottom := AValue;
-end;
-
-function TSpacing.Width: integer;
-begin
-  Width := Left + Right;
-end;
-
-function TSpacing.Height: integer;
-begin
-  Height := Top + Bottom;
-end;
-
-procedure TSpacing.Init;
-begin
-  Left := 0;
-  Top := 0;
-  Right := 0;
-  Bottom := 0;
-end;
-
 function TButtonList.GetItemById(const AId: string): PButton;
 begin
   GetItemById := PButton(inherited GetItemById(AId));
@@ -1982,16 +1876,15 @@ end;
 procedure TFocusControl.SetFocus(AFocus, ARedraw: boolean);
 var
   event: TEvent;
-  rect: TRect;
 begin
   if not IsVisibleAndEnabled then
     exit;
   if Focused or not CanFocus then
     exit;
-  GetScreenBounds(rect);
   event.Create;
   if AFocus then begin
-    if Assigned(VeridianApp^.ActiveControl) then begin
+    if Assigned(VeridianApp^.ActiveControl)
+      and (VeridianApp^.ActiveControl <> @self) then begin
       InvokeSender(VeridianApp^.ActiveControl^.OnExit, VeridianApp^.ActiveControl, event);
       VeridianApp^.ActiveControl^.UnFocus;
     end;
@@ -2048,13 +1941,6 @@ end;
 function TFocusControl.CursorY: integer;
 begin
   CursorY := FCursorY;
-end;
-
-procedure TFocusControl.SetXY(AXPos, AYPos: integer);
-begin
-  FCursorX := AXPos;
-  FCursorY := AYPos;
-  inherited SetXY(AXPos, AYPos);
 end;
 
 function TFocusControl.IsFocusControl: boolean;

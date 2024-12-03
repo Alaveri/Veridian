@@ -21,6 +21,7 @@ uses
   Actions,
   Colors,
   Controls,
+  ListBox,
   Views,
   Events,
   Menus;
@@ -92,7 +93,6 @@ type
     procedure HandleMouseDown(AControl: PControl; var AEvent: TMouseEvent;
       AButton: TButtonState); virtual;
     procedure HandleMouseCursor;
-    procedure HandleStayOnTopControls;
     procedure HandleDoubleClick(ATime: TDateTime; AControl: PControl; var AEvent: TMouseEvent);
     procedure InitMouseEvent(AControl: PControl; var AEvent: TMouseEvent);
     procedure GetFocusList(AList: PObjectList; AControl: PControl);
@@ -130,6 +130,7 @@ type
     SelectingControl: PControl;
     ActiveControl: PFocusControl;
     ActiveWindow: PWindow;
+    ActiveDropDown: PDropDownList;
     DragControl: PControl;
     ScrollSlider: PControl;
     constructor Create(ADriver: TGraphDrivers; AWidth: integer;
@@ -323,6 +324,7 @@ begin
   SelectingControl := nil;
   DragControl := nil;
   ScrollSlider := nil;
+  ActiveDropDown := nil;
   {$ENDIF}
 end;
 
@@ -336,14 +338,19 @@ begin
 end;
 
 procedure TVeridianApp.ActionExecute(ASender: PActionControl; AAction: PAction);
+var
+  event: TActionEvent;
 begin
-  if not (Assigned(AAction) and Assigned(ASender)) then
+  if not (Assigned(ASender) and Assigned(AAction)) then
     exit;
   UpdateActionControl(ASender);
-  if not (ASender^.IsVisibleAndEnabled and AAction^.Enabled) then
+  if not (ASender^.IsVisibleAndEnabled and ASender^.IsEnabled) then
     exit;
   if Assigned(AAction^.OnExecute) then begin
-    TActionExecuteProc(AAction^.OnExecute)(ASender, AAction);
+    event.Create;
+    event.Action := AAction;
+    event.Sender := ASender;
+    TActionExecuteProc(AAction^.OnExecute)(event);
   end;
 end;
 
@@ -439,11 +446,23 @@ var
   intersects: boolean;
   container: PMenuItemContainer;
   index: integer;
+  parent: PControl;
+  window: PWindow;
 begin
   if not (AButton in AEvent.NewMouseState.ButtonState) then
     exit;
   if AButton in AEvent.OldMouseState.ButtonState then
     exit;
+  if not AControl^.IsVisible then
+    exit;
+  if Assigned(ActiveDropDown) then begin
+    ActiveDropDown^.GetScreenBounds(rect);
+    intersects := rect.Contains(AEvent.NewMouseState.X, AEvent.NewMouseState.Y);
+    if not intersects then begin
+      ActiveDropDown^.HideList;
+      ActiveDropDown := nil;
+    end;
+  end;
 
   intersects := false;
   for index := 0 to MenuManager.OpenMenus^.Count - 1 do begin
@@ -465,6 +484,15 @@ begin
   else
     RightMouseDownControl := AControl;
 
+  parent := AControl^.Parent;
+  window := nil;
+  while Assigned(parent) do begin
+    if parent^.IsWindow then
+      window := PWindow(parent);
+    parent := parent^.Parent;
+  end;
+  if Assigned(window) and (ActiveWindow <> window) then
+    window^.Activate;
   AControl^.MouseDown(AEvent);
 end;
 
@@ -528,12 +556,7 @@ begin
   end;
 
   AControl^.GetScreenBounds(rect);
-  if Assigned(AControl^.Parent) then begin
-    AControl^.Parent^.GetScreenBounds(parentRect);
-    rect.Intersect(parentRect);
-  end;
-  if (AControl^.Modal and (PControl(VeridianApp^.ActiveWindow) = AControl))
-    or (SelectingControl = AControl) or (rect.Contains(AMouseState.X, AMouseState.Y)) then
+  if rect.Contains(AMouseState.X, AMouseState.Y) then
     GetMouseControl := AControl;
 end;
 
@@ -547,6 +570,7 @@ begin
     exit;
   control := GetMouseControl(Desktop, AEvent.NewMouseState);
 
+  AEvent.Sender := control;
   InitMouseEvent(control, FMouseEvent);
   InitMouseEvent(control, FMouseEvent);
   if (FMouseState.WheelCounter <> FOldMouseState.WheelCounter) then
@@ -592,9 +616,11 @@ var
 begin
   for index := 0 to Desktop^.ActionList^.Count - 1 do begin
     action := Desktop^.ActionList^.GetItem(index);
+    if not AControl^.IsActionControl then
+      continue;
     if (action^.Shortcut <> AEvent.Key) or not action^.Enabled then
       continue;
-    ActionExecute(AControl, action);
+    ActionExecute(PActionControl(AControl), action);
     AEvent.Handled := true;
     break;
   end;
@@ -734,11 +760,12 @@ begin
   end;
   if AEvent.Handled then
     exit;
+  AEvent.Sender := AControl;
   AControl^.KeyPress(AEvent);
   if AEvent.Handled then
     exit;
   if Assigned(AControl^.OnKeyPress) then
-    TKeyEventProc(AControl^.OnKeyPress)(AControl, AEvent);
+    TKeyEventProc(AControl^.OnKeyPress)(AEvent);
 end;
 
 procedure TVeridianApp.CursorOn;
@@ -853,18 +880,6 @@ begin
   end
   else
     MoveMouseCursor(FMouseState, FOldMouseState, true);
-end;
-
-procedure TVeridianApp.HandleStayOnTopControls;
-var
-  index: integer;
-  control: PControl;
-begin
-  for index := 0 to Desktop^.Controls^.Count - 1 do begin
-    control := Desktop^.Controls^.GetItem(index);
-    if not control^.StayOnTop then begin
-    end;
-  end;
 end;
 
 procedure TVeridianApp.HandleDoubleClick(ATime: TDateTime; AControl: PControl; var AEvent: TMouseEvent);
@@ -1057,7 +1072,7 @@ end;
 
 procedure TVeridianAction.Execute(ASender: PObject);
 begin
-  VeridianApp^.ActionExecute(PActionControl(ASender), @Self);
+  VeridianApp^.ActionExecute(PActionControl(ASender), @self);
   inherited Execute(ASender);
 end;
 

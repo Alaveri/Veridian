@@ -16,12 +16,10 @@ type
   PMenuItem = ^TMenuItem;
   PMenu = ^TMenu;
   PMenuItemList = ^TMenuItemList;
-  PMenuListProc = ^TMenuListProc;
   PMenuItemContainer = ^TMenuItemContainer;
   PMenubar = ^TMenuBar;
   PMenuItemContainerStack = ^TMenuItemContainerStack;
 
-  TMenuListProc = procedure(ASender: PMenuItemList; AMenuItem: PMenuItem);
   TMenuLocation = (mlBelow, mlSide);
 
   TMenuItemList = object(TControlList)
@@ -149,6 +147,7 @@ uses
   VeriCons,
   Graphics,
   AplUtils,
+  VeriType,
   Veridian;
 
 procedure TMenu.Init;
@@ -161,6 +160,7 @@ begin
   BackColor := VeridianApp^.Colors.MenuBack;
   BorderColor := VeridianApp^.Colors.MenuBorder;
   Position := spAbsolute;
+  Clip := false;
 end;
 
 procedure TMenu.Paint;
@@ -218,8 +218,8 @@ begin
     end;
   end;
   itemRect.Create;
-  yPos := BorderWidth;
-  xPos := BorderWidth;
+  yPos := 0;
+  xPos := 0;
   for index := 0 to MenuItems^.Count - 1 do begin
     item := MenuItems^.GetItem(index);
     if not item^.Visible then
@@ -227,7 +227,7 @@ begin
     itemHeight := item^.Font^.Height + item^.SpacingHeight;
     if item^.IsSeparator then
       itemHeight := itemHeight div 2;
-    itemRect.SetDims(xPos, yPos, menuDims.Width - 2 * BorderWidth, itemHeight);
+    itemRect.SetDims(xPos, yPos, menuDims.Width - 2 * OuterWidth, itemHeight);
     item^.SetBoundsRect(itemRect);
     Inc(yPos, itemHeight);
   end;
@@ -324,6 +324,7 @@ procedure TMenuItem.Init;
 begin
   inherited Init;
   IsSeparator := false;
+  Clip := false;
   Action := nil;
   ParentContainer := nil;
   Menu := nil;
@@ -339,6 +340,7 @@ begin
   FIsMainMenuItem := false;
   AutoSize := false;
   Padding.CreateAll(3, 2, 3, 1);
+  Position := spClient;
 end;
 
 procedure TMenuItem.OpenMenu;
@@ -535,6 +537,7 @@ begin
   VeridianApp^.MenuBar := @self;
   StayOnTop := true;
   Padding.Left := 5;
+  Position := spClient;
 end;
 
 procedure TMenuBar.Layout;
@@ -629,6 +632,7 @@ begin
   BackColor := VeridianApp^.Colors.MenuBack;
   MenuItems := New(PMenuItemList, Create(@self));
   SelectedItem := nil;
+  Position := spClient;
 end;
 
 procedure TMenuItemContainer.Show;

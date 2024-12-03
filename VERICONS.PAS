@@ -3,9 +3,6 @@ unit VeriCons;
 
 interface
 
-type
-  TScreenPosition = (spAbsolute, spRelative);
-
 const
   DefaultWordDelimiters = [
     ' ', '.', '(', ')', '[', ']', '{', '}', ',','/','<', '>','?', '/', ':',
@@ -19,6 +16,9 @@ const
     '@', '~', '`', '<', '>'
   ];
   Hexadecimal = ['0'..'9', 'A'..'F', 'a'..'f'];
+
+  { Tags used by system, don't use }
+  SystemTag = MaxInt - 256;
 
 
 implementation

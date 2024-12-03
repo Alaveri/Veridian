@@ -51,6 +51,7 @@ type
     EditorDisabledBack: byte;
     EditorFocused: byte;
     EditorFocusedBack: byte;
+    EditorBorder: byte;
     Dialog: byte;
     DialogBack: byte;
     Select: byte;
@@ -101,11 +102,12 @@ const
     Scrollbar: egaLightGray;
     ScrollbarBack: egaDarkGray;
     Editor: egaBlack;
-    EditorBack: egaLightGray;
+    EditorBack: egaWhite;
     EditorDisabled: egaDarkGray;
-    EditorDisabledBack: egaLightGray;
+    EditorDisabledBack: egaWhite;
     EditorFocused: egaWhite;
-    EditorFocusedBack: egaCyan;
+    EditorFocusedBack: egaBlue;
+    EditorBorder: egaBlack;
     Dialog: egaWhite;
     DialogBack: egaDarkGray;
     Select: egaWhite;
@@ -114,8 +116,8 @@ const
     ListSelectedBack: egaBlue;
     ListUnfocusedSelect: egaLightGray;
     ListUnfocusedSelectBack: egaDarkGray;
-    Focused: egaBlack;
-    FocusedBack: egaLightGray
+    Focused: egaWhite;
+    FocusedBack: egaBlue
   );
 
 implementation
