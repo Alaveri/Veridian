@@ -137,6 +137,7 @@ type
       AHeight: integer; ABpp: integer);
     destructor Free; virtual;
     function CheckNilPtr(APtr: pointer): boolean;
+    function GetFont(const AId: string): PFont;
     procedure ProcessEvents; virtual;
     procedure Run; virtual;
     procedure Init; virtual;
@@ -257,6 +258,17 @@ begin
     newFont := New(PSystemFont, CreateId('System'));
   LoadFont := newFont;
   Fonts^.Add(newFont);
+end;
+
+function TVeridianApp.GetFont(const AId: string): PFont;
+var
+  index: integer;
+  font: PFont;
+begin
+  font := Fonts^.GetItemById(AId);
+  if not Assigned(font) then
+    font := SystemFont;
+  GetFont := font;
 end;
 
 procedure TVeridianApp.LoadFonts;
@@ -767,10 +779,6 @@ begin
     exit;
   AEvent.Sender := AControl;
   AControl^.KeyPress(AEvent);
-  if AEvent.Handled then
-    exit;
-  if Assigned(AControl^.OnKeyPress) then
-    TKeyEventProc(AControl^.OnKeyPress)(AEvent);
 end;
 
 procedure TVeridianApp.CursorOn;
@@ -813,19 +821,23 @@ var
   rect: TRect;
   mouseRect: TRect;
   cursorColor: byte;
+  control: PTextControl;
 begin
   if not State.DrawEnabled then
     exit;
   if not Assigned(ActiveControl) then
     exit;
-  ActiveControl^.GetCursorRect(rect);
+  if not ActiveControl^.IsTextControl then
+    exit;
+  control := PTextControl(ActiveControl);
+  control^.GetCursorRect(rect);
   rect.Intersect(Graph^.State^.ViewPort);
   if rect.IsEmpty then
     exit;
   if FCursorBlinkVisible then
-    cursorColor := activeControl^.GetCursorForeColor
+    cursorColor := control^.GetCursorForeColor
   else
-    cursorColor := activeControl^.GetCursorBackColor;
+    cursorColor := control^.GetCursorBackColor;
 
   Graph^.SetBackColor(cursorColor);
   Graph^.FillRect(rect);

@@ -240,7 +240,6 @@ var
   index: integer;
   key, eventKey: word;
 begin
-  inherited KeyPress(AEvent);
   if not IsVisible then
     exit;
   case AEvent.Key of
@@ -268,7 +267,6 @@ begin
       end;
       AEvent.Handled := true;
     end;
-
   end;
   for index := 0 to MenuItems^.Count - 1 do begin
     menuItem := MenuItems^.GetItem(index);
@@ -288,6 +286,8 @@ begin
       AEvent.Handled := true;
     end;
   end;
+  if not AEvent.Handled then
+    inherited KeyPress(AEvent);
 end;
 
 destructor TMenu.Free;

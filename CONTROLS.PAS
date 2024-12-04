@@ -1,4 +1,25 @@
 {$I COMPILER.INC}
+
+{
+TODO:
+TEdit
+TCheckBox
+TRadioButton
+TGroupBox
+TDialog
+TFileDialog
+TImage
+
+Window Arrangement
+Screen edge snap
+Undo
+Redo
+Edit menu options
+
+Later:
+TMemo?
+}
+
 unit Controls;
 
 interface
@@ -35,6 +56,7 @@ type
   PButton = ^TButton;
   PPanel = ^TPanel;
   PContentControl = ^TContentControl;
+  PTextControl = ^TTextControl;
 
   TControlList = object(TIdentifiableList)
   private
@@ -119,6 +141,7 @@ type
     function IsView: boolean; virtual;
     function IsWindow: boolean; virtual;
     function IsContentControl: boolean; virtual;
+    function IsTextControl: boolean; virtual;
     function BorderWidth: byte; virtual;
     function BevelWidth: byte; virtual;
     function OuterWidth: byte;
@@ -324,6 +347,7 @@ type
     function IsVisibleAndEnabled: boolean;
     procedure SetEnabled(AEnabled: boolean);
     procedure SetAction(AAction: PAction);
+    procedure SetForeColorEnabled(AColor: byte);
   end;
 
   TFocusControl = object(TActionControl)
@@ -343,9 +367,6 @@ type
     function CursorY: integer;
     function Focused: boolean;
     function IsFocusControl: boolean; virtual;
-    function GetCursorForeColor: byte;
-    function GetCursorBackColor: byte;
-    procedure GetCursorRect(var ARect: TRect);
     procedure Init; virtual;
     procedure Focus; virtual;
     procedure UnFocus; virtual;
@@ -388,6 +409,26 @@ type
     procedure MouseClick(var AEvent: TMouseEvent); virtual;
     procedure MouseEnter(var AEvent: TMouseEvent); virtual;
     procedure MouseLeave(var AEvent: TMouseEvent); virtual;
+  end;
+
+  TTextControl = object(TFocusControl)
+  private
+  public
+    Text: PChar;
+    TextAlign: THorzAlign;
+    HighlightColor: byte;
+    TextOffsetX: shortint;
+    TextOffsetY: shortint;
+    constructor CreateText(const AId, AText: string; AParent: PControl);
+    destructor Free; virtual;
+    function GetText: string; virtual;
+    function GetCursorForeColor: byte; virtual;
+    function GetCursorBackColor: byte; virtual;
+    function IsTextControl: boolean; virtual;
+    procedure GetCursorRect(var ARect: TRect); virtual;
+    procedure Init; virtual;
+    procedure SetText(const AText: string); virtual;
+    procedure Paint; virtual;
   end;
 
 var
@@ -500,6 +541,11 @@ end;
 function TControl.IsFocusControl: boolean;
 begin
   IsFocusControl := false;
+end;
+
+function TControl.IsTextControl: boolean;
+begin
+  IsTextControl := false;
 end;
 
 function TControl.IsView: boolean;
@@ -1366,6 +1412,14 @@ begin
   GetHotKey := 0;
 end;
 
+procedure TActionControl.SetForeColorEnabled(AColor: byte);
+begin
+  if IsEnabled then
+    Graph^.SetForeColor(AColor)
+  else
+    Graph^.SetForeColor(DisabledColor);
+end;
+
 procedure TActionControl.Paint;
 var
   rect: TRect;
@@ -1973,21 +2027,6 @@ begin
     inherited Paint;
 end;
 
-procedure TFocusControl.GetCursorRect(var ARect: TRect);
-begin
-  ARect.Create;
-end;
-
-function TFocusControl.GetCursorForeColor: byte;
-begin
-  GetCursorForeColor := 0;
-end;
-
-function TFocusControl.GetCursorBackColor: byte;
-begin
-  GetCursorBackColor := 0;
-end;
-
 procedure TFocusControl.UnFocus;
 begin
   if CanFocus then
@@ -2106,6 +2145,80 @@ constructor TDesktopControlList.Create(AOwner: PControl);
 begin
   inherited CreateSorted(CompareDesktopControls);
   Owner := AOwner;
+end;
+
+constructor TTextControl.CreateText(const AId, AText: string; AParent: PControl);
+begin
+  CreateParent(AId, AParent);
+  SetText(AText);
+end;
+
+destructor TTextControl.Free;
+begin
+  TString.Free(Text);
+  inherited Free;
+end;
+
+procedure TTextControl.Init;
+begin
+  inherited Init;
+  Text := nil;
+  TextAlign := haLeft;
+  VertAlign := vaCenter;
+  TextOffsetX := 0;
+  TextOffsetY := 0;
+  HighlightColor := 0;
+end;
+
+procedure TTextControl.SetText(const AText: string);
+begin
+  TString.AssignString(Text, AText);
+  Draw;
+end;
+
+function TTextControl.GetText: string;
+begin
+  GetText := '';
+  if Assigned(Text) then
+    GetText := StrPas(Text);
+end;
+
+procedure TTextControl.GetCursorRect(var ARect: TRect);
+begin
+  ARect.Create;
+end;
+
+function TTextControl.GetCursorForeColor: byte;
+begin
+  GetCursorForeColor := 0;
+end;
+
+function TTextControl.GetCursorBackColor: byte;
+begin
+  GetCursorBackColor := 15;
+end;
+
+procedure TTextControl.Paint;
+var
+  rect: TRect;
+  txt: string;
+  pos: TPoint;
+begin
+  TPanel.Paint;
+  if not IsVisible then
+    exit;
+  GetScreenBounds(rect);
+  txt := GetText;
+  if txt = '' then
+    exit;
+  GetTextAlign(rect, pos);
+  SetForeColorEnabled(ForeColor);
+  Graph^.DrawText(pos.X + TextOffsetX, pos.Y + TextOffsetY, txt);
+end;
+
+function TTextControl.IsTextControl: boolean;
+begin
+  IsTextControl := true;
 end;
 
 begin

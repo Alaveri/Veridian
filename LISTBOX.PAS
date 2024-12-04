@@ -228,8 +228,8 @@ begin
   SelectedIndex := index;
   GetScreenBounds(rect);
   GetItemRect(SelectedIndex, itemRect);
-  if itemRect.Y > rect.Bottom then
-    ScrollVert(itemRect.Y - rect.Bottom + Font^.Height - 1);
+  if itemRect.Y >= rect.Bottom then
+    ScrollVert(itemRect.Y - rect.Bottom + ItemHeight);
   if itemRect.Y < rect.Y then
     ScrollVert(-(rect.Y - itemRect.Y));
   DrawItem(previousIndex);
@@ -814,7 +814,7 @@ var
   item: PListItem;
 begin
   itemCount := Min(FList^.Items^.Count, MaxItems);
-  listHeight := itemCount * FList^.ItemHeight + FList^.ItemSpacing div 2;
+  listHeight := itemCount * FList^.ItemHeight;
   if AutoSize then begin
     maxWidth := 0;
     for index := 0 to FList^.Items^.Count - 1 do begin

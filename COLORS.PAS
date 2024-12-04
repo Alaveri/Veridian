@@ -110,8 +110,8 @@ const
     EditorBorder: egaBlack;
     Dialog: egaWhite;
     DialogBack: egaDarkGray;
-    Select: egaWhite;
-    SelectBack: egaBlue;
+    Select: egaBlue;
+    SelectBack: egaWhite;
     ListSelected: egaWhite;
     ListSelectedBack: egaBlue;
     ListUnfocusedSelect: egaLightGray;
