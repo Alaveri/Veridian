@@ -493,6 +493,11 @@ begin
   end;
   if Assigned(window) and (ActiveWindow <> window) then
     window^.Activate;
+
+  if Assigned(ActiveControl) and (AControl^.IsFocusControl)
+    and (AControl <> PControl(ActiveControl)) then begin
+    PFocusControl(AControl)^.Focus;
+  end;
   AControl^.MouseDown(AEvent);
 end;
 

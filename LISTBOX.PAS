@@ -93,6 +93,7 @@ type
     procedure Init; virtual;
     procedure Paint; virtual;
     procedure Layout; virtual;
+    procedure SetSelectedIndex(AIndex: integer);
     procedure KeyPress(var AEvent: TKeyEvent); virtual;
     procedure MouseDown(var AEvent: TMouseEvent); virtual;
     procedure MouseWheelChanged(var AEvent: TMouseEvent); virtual;
@@ -117,8 +118,6 @@ type
   private
   public
     procedure Layout; virtual;
-    procedure GetScrollBarBounds(AOrientation: TScrollOrientation;
-      var ARect: TRect); virtual;
   end;
 
   TDropDownList = object(TFocusControl)
@@ -202,6 +201,8 @@ begin
   SelectedIndex := -1;
   BorderStyle := bsSingle;
   BevelStyle := bvNone;
+  VertScrollBar^.Position := spRelative;
+  HorzScrollBar^.Position := spRelative;
   Font := VeridianApp^.Fonts^.GetItemById('editor');
   SelectedColor := VeridianApp^.Colors.ListSelected;
   SelectedBackColor := VeridianApp^.Colors.ListSelectedBack;
@@ -211,6 +212,33 @@ begin
   ItemSpacing := 4;
   VisibleItems := 10;
   AutoHeight := false;
+end;
+
+procedure TListBox.SetSelectedIndex(AIndex: integer);
+var
+  index: integer;
+  rect, itemRect: TRect;
+  previousIndex: integer;
+  event: TIndexChangedEvent;
+begin
+  index := Clamp(AIndex, 0, Items^.Count - 1);
+  if index = SelectedIndex then
+    exit;
+  previousindex := SelectedIndex;
+  SelectedIndex := index;
+  GetScreenBounds(rect);
+  GetItemRect(SelectedIndex, itemRect);
+  if itemRect.Y > rect.Bottom then
+    ScrollVert(itemRect.Y - rect.Bottom + Font^.Height - 1);
+  if itemRect.Y < rect.Y then
+    ScrollVert(-(rect.Y - itemRect.Y));
+  DrawItem(previousIndex);
+  DrawItem(SelectedIndex);
+  event.Create;
+  event.NewIndex := SelectedIndex;
+  event.OldIndex := previousIndex;
+  event.Trigger := ctKeyboard;
+  SelectedIndexChanged(event);
 end;
 
 function TListBox.SelectedItem: PListItem;
@@ -274,17 +302,19 @@ procedure TListBox.PaintItem(AIndex: integer);
 var
   itemRect: TRect;
   item: PListItem;
-  rect: TRect;
+  viewRect: TRect;
 begin
   if not IsVisible then
     exit;
   if (AIndex < 0) or (AIndex > Items^.Count - 1) then
     exit;
   Graph^.State^.Font := Font;
-  GetClipRect(rect);
   item := Items^.GetItem(AIndex);
   GetItemRect(AIndex, itemRect);
-  if not itemRect.IntersectsRect(rect) then
+  GetClipRect(viewRect);
+  viewRect.Translate(BorderWidth, BorderWidth);
+  viewRect.Grow(-2 * BorderWidth, -2 * BorderWidth);
+  if not itemRect.IntersectsRect(viewRect) then
     exit;
   Graph^.SetForeColor(ForeColor);
   Graph^.SetBackColor(BackColor);
@@ -299,9 +329,7 @@ begin
     end;
   end;
   Graph^.PushState;
-  Graph^.State^.ViewPort := rect;
-  Graph^.State^.ViewPort.Translate(BorderWidth, BorderWidth);
-  Graph^.State^.ViewPort.Grow(-2 * BorderWidth, -BorderWidth);
+  Graph^.State^.ViewPort := viewRect;
   Graph^.FillRect(itemRect);
   Graph^.DrawTextLarge(itemRect.X + Padding.Left,
     itemRect.Y + ItemSpacing div 2, item^.Text);
@@ -363,30 +391,8 @@ begin
 end;
 
 procedure TListBox.ChangeSelect(ADelta: integer);
-var
-  index: integer;
-  rect, itemRect: TRect;
-  previousIndex: integer;
-  event: TIndexChangedEvent;
 begin
-  index := Clamp(SelectedIndex + ADelta, 0, Items^.Count - 1);
-  if index = SelectedIndex then
-    exit;
-  previousindex := SelectedIndex;
-  SelectedIndex := index;
-  GetScreenBounds(rect);
-  GetItemRect(SelectedIndex, itemRect);
-  if itemRect.Y > rect.Bottom then
-    ScrollVert(itemRect.Y - rect.Bottom + Font^.Height - 1);
-  if itemRect.Y < rect.Y then
-    ScrollVert(-(rect.Y - itemRect.Y));
-  DrawItem(previousIndex);
-  DrawItem(SelectedIndex);
-  event.Create;
-  event.NewIndex := SelectedIndex;
-  event.OldIndex := previousIndex;
-  event.Trigger := ctKeyboard;
-  SelectedIndexChanged(event);
+  SetSelectedIndex(SelectedIndex + ADelta);
 end;
 
 procedure TListBox.KeyPress(var AEvent: TKeyEvent);
@@ -611,13 +617,6 @@ begin
   end;
 end;
 
-procedure TDropDownListBox.GetScrollBarBounds(AOrientation: TScrollOrientation;
-  var ARect: TRect);
-begin
-  inherited GetScrollBarBounds(AOrientation, ARect);
-  ARect.Translate(2 * BorderWidth, 0);
-end;
-
 procedure TDropDownListBox.Layout;
 var
   max: longint;
@@ -731,10 +730,6 @@ begin
   Layout;
   Inc(Height, FList^.Height);
   VeridianApp^.ActiveDropDown := @self;
-  if Assigned(VeridianApp^.ActiveControl) then begin
-    activeControl := VeridianApp^.ActiveControl;
-    activeControl^.UnFocus;
-  end;
   VeridianApp^.ActiveControl := nil;
   FList^.Visible := true;
   FList^.SetFocus(true, true);
@@ -746,7 +741,7 @@ var
 begin
   if not FList^.IsVisible then
     exit;
-  FList^.GetScreenBounds(rect);
+  FList^.GetClipRect(rect);
   Dec(Height, FList^.Height);
   FList^.Visible := false;
   BeginDrawing;
@@ -819,7 +814,7 @@ var
   item: PListItem;
 begin
   itemCount := Min(FList^.Items^.Count, MaxItems);
-  listHeight := itemCount * FList^.ItemHeight + BorderWidth;
+  listHeight := itemCount * FList^.ItemHeight + FList^.ItemSpacing div 2;
   if AutoSize then begin
     maxWidth := 0;
     for index := 0 to FList^.Items^.Count - 1 do begin

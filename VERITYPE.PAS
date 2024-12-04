@@ -9,15 +9,6 @@ uses
 type
   PSpacing = ^TSpacing;
 
-  {
-    Absolute: The position is relative to the screen.
-    Client: The position is relative to the parent, adjusted for borders,
-      margins, and padding.
-    Relative: The position is relative to the parent, not adjusted for borders,
-      margins, and padding.
-    Content: The position is relative to the parent's content. Defaults to the
-      same value as Client. This content area can be overriden by the parent.
-  }
   TScreenPosition = (spAbsolute, spClient, spContent, spRelative);
   TBorderStyle = (bsNone, bsSingle);
   TBevelStyle = (bvNone, bvLowered, bvRaised);
