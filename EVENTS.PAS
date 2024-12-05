@@ -6,6 +6,7 @@ interface
 uses
   AplObj,
   AplTypes,
+  VeriType,
   Drawing;
 
 type
@@ -39,6 +40,7 @@ type
   private
   public
     ScrollPosition: longint;
+    Orientation: TScrollOrientation;
     procedure Assign(var ASource: TObject); virtual;
     procedure Clear; virtual;
   end;
@@ -204,6 +206,7 @@ procedure TScrollEvent.Clear;
 begin
   inherited Clear;
   ScrollPosition := 0;
+  Orientation := soHorizontal;
 end;
 
 procedure TScrollEvent.Assign(var ASource: TObject);
@@ -213,6 +216,7 @@ begin
   inherited Assign(ASource);
   source := PScrollEvent(@ASource);
   ScrollPosition := source^.ScrollPosition;
+  Orientation := source^.Orientation;
 end;
 
 end.

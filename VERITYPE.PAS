@@ -25,6 +25,12 @@ type
     alClient
   );
 
+  TScrollOrientation =
+  (
+    soVertical,
+    soHorizontal
+  );
+
   TSpacing = object(TObject)
   private
   public

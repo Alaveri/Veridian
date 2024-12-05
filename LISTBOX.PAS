@@ -88,6 +88,7 @@ type
     function SelectedItem: PListItem;
     function GetSelectedIndex(AEvent: TMouseEvent): integer;
     function ItemHeight: integer;
+    procedure GetContentExtent(var ASize: TSize); virtual;
     procedure Focus; virtual;
     procedure UnFocus; virtual;
     procedure Init; virtual;
@@ -180,6 +181,7 @@ begin
   Text := nil;
   Value := nil;
   ImageIndex := -1;
+  Owner := nil;
 end;
 
 destructor TListItem.Free;
@@ -188,12 +190,26 @@ begin
   inherited Free;
 end;
 
+procedure TListBox.GetContentExtent(var ASize: TSize);
+var
+  index: integer;
+  item: PListItem;
+begin
+  ASize.Create;
+  for index := 0 to Items^.Count - 1 do begin
+    item := Items^.GetItem(index);
+    ASize.Width := Max(ASize.Width, Font^.TextWidthLarge(item^.Text)
+      + Padding.Width);
+  end;
+  ASize.Height := Items^.Count * ItemHeight;
+end;
+
 procedure TListBox.Init;
 begin
   inherited Init;
   TransparentBack := false;
   Font := VeridianApp^.SystemFont;
-  ScrollType := scVertical;
+  ScrollType := scAsNeeded;
   HorzScrollBar^.Visible := false;
   CanFocus := true;
   Items := New(PListItems, Create(@self));
@@ -282,7 +298,7 @@ var
   rect: TRect;
 begin
   GetScreenBounds(rect);
-  cy := rect.Y + AIndex * ItemHeight - ScrollY;
+  cy := rect.Y + AIndex * ItemHeight;
   itemWidth := rect.Width - BorderWidth;
   if VertScrollBar^.Visible then
     Dec(itemWidth, VertScrollBar^.Width);
@@ -300,9 +316,10 @@ end;
 
 procedure TListBox.PaintItem(AIndex: integer);
 var
-  itemRect: TRect;
+  rect, itemRect: TRect;
   item: PListItem;
   viewRect: TRect;
+  clipRect: TRect;
 begin
   if not IsVisible then
     exit;
@@ -310,12 +327,17 @@ begin
     exit;
   Graph^.State^.Font := Font;
   item := Items^.GetItem(AIndex);
+  GetClipRect(clipRect);
   GetItemRect(AIndex, itemRect);
-  GetClipRect(viewRect);
-  viewRect.Translate(BorderWidth, BorderWidth);
-  viewRect.Grow(-2 * BorderWidth, -2 * BorderWidth);
+  GetClientInnerBounds(viewRect);
+  GetScreenBounds(rect);
+  viewRect.Translate(rect.X, rect.Y);
+  viewRect.Intersect(clipRect);
+  itemRect.Translate(-ScrollX, -ScrollY);
+  Graph^.State^.ViewPort := viewRect;
   if not itemRect.IntersectsRect(viewRect) then
     exit;
+
   Graph^.SetForeColor(ForeColor);
   Graph^.SetBackColor(BackColor);
   if AIndex = SelectedIndex then begin
@@ -328,12 +350,9 @@ begin
       Graph^.SetBackColor(UnfocusedSelectBackColor);
     end;
   end;
-  Graph^.PushState;
-  Graph^.State^.ViewPort := viewRect;
   Graph^.FillRect(itemRect);
   Graph^.DrawTextLarge(itemRect.X + Padding.Left,
     itemRect.Y + ItemSpacing div 2, item^.Text);
-  Graph^.PopState;
 end;
 
 function TListBox.GetSelectedIndex(AEvent: TMouseEvent): integer;
@@ -440,7 +459,7 @@ begin
     SetBounds(X, Y, Width, Size);
   end;
   inherited Layout;
-  GetContentBounds(rect);
+  GetClientInnerBounds(rect);
   VertScrollbar^.Increment := ItemHeight;
   VertScrollbar^.PageIncrement := Round(rect.Height / ItemHeight) * ItemHeight;
   max := Items^.Count * ItemHeight;
@@ -623,7 +642,7 @@ var
   rect: TRect;
   size: integer;
 begin
-  GetContentBounds(rect);
+  GetClientInnerBounds(rect);
   VertScrollbar^.Increment := ItemHeight;
   VertScrollbar^.PageIncrement := Round(rect.Height / ItemHeight) * ItemHeight;
   max := Items^.Count * ItemHeight;
@@ -641,6 +660,8 @@ var
   self: PListBox;
 begin
   self := PListBox(AEvent.Sender);
+  if AEvent.Handled then
+    exit;
   dropDown := PDropDownList(self^.Parent);
   case AEvent.Key of
     kyEnter: begin
@@ -648,16 +669,6 @@ begin
       dropDown^.SetText(StrPas(self^.Items^.GetItem(self^.SelectedIndex)^.Text));
       AEvent.Handled := true;
     end;
-    kyTab: begin
-      AEvent.Handled := true;
-      dropDown^.HideList;
-      VeridianApp^.FocusNext(@self, false);
-    end;
-    kyShiftTab: begin
-      AEvent.Handled := true;
-      dropDown^.HideList;
-      VeridianApp^.FocusNext(@self, true);
-      end;
   end;
 end;
 
@@ -814,7 +825,7 @@ var
   item: PListItem;
 begin
   itemCount := Min(FList^.Items^.Count, MaxItems);
-  listHeight := itemCount * FList^.ItemHeight;
+  listHeight := itemCount * FList^.ItemHeight + 2 * OuterWidth;
   if AutoSize then begin
     maxWidth := 0;
     for index := 0 to FList^.Items^.Count - 1 do begin

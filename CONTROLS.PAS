@@ -2,13 +2,14 @@
 
 {
 TODO:
-TEdit
+TDialog
+TFileDialog
 TCheckBox
 TRadioButton
 TGroupBox
-TDialog
-TFileDialog
 TImage
+
+Alt-Tab
 
 Window Arrangement
 Screen edge snap
@@ -151,6 +152,8 @@ type
     function SendToBack: boolean;
     function CreateControlList: PControlList; virtual;
     function GetSize: word;
+    function FindControl(const AId: string): PControl;
+    function ContainsControl(AControl: PControl): boolean;
     procedure SetVisible(AVisible: boolean);
     procedure SetForeColor(AForeColor: byte);
     procedure SetBackColor(ABackColor: byte);
@@ -166,13 +169,21 @@ type
 
     { GetClientBounds:
       Gets the bounds of the control's client area, which is the area inside
-      the control's borders and margins, relative to the control itself. }
+      the control's borders and margins, relative to the control itself.}
     procedure GetClientBounds(var ARect: TRect); virtual;
 
     { GetClientOuterBounds:
       Gets the bounds of the control's client area, relative to the control
-      itself, not including borders, margins, and bevels. }
-    procedure GetClientOuterBounds(var ARect: TRect);
+      itself, not including borders, margins, and bevels. Cannot be overridden.
+      Equivalent to GetBounds translated to the origin. }
+    procedure GetClientOuterBounds(var ARect: TRect); virtual;
+
+    { GetClientInnerBounds
+      Gets the bounds of the control's client area.  Normally this would be the
+      same as GetClientBounds, but can be overridden by decendents to define
+      content area.  For example, TContentControl defines this as the scrollable
+      area of the control. }
+    procedure GetClientInnerBounds(var ARect: TRect); virtual;
 
     { GetAbsoluteBounds:
       Gets the control's bounds relative to the screen. }
@@ -219,6 +230,12 @@ type
       clipped to the parent's content area, disregarding any borders, margins,
       bevels or content. }
     procedure GetFullClipRect(var ARect: TRect); virtual;
+
+    { GetScreenOffset:
+      Gets the control's screen offset.  GetScreenBounds adjusts the control's
+      on-screen position by it's parent's GetScreenOffset value. Used by
+      TContentControl to adjust for scroll positions }
+    procedure GetScreenOffset(var APoint: TPoint); virtual;
 
     procedure DrawControl(ADrawControls: boolean); virtual;
     procedure AlignControl;
@@ -273,7 +290,7 @@ type
     ActionList: PActionList;
     procedure Init; virtual;
     procedure Layout; virtual;
-    procedure GetContentBounds(var ARect: TRect); virtual;
+    procedure GetClientInnerBounds(var ARect: TRect); virtual;
     function CreateControlList: PControlList; virtual;
     destructor Free; virtual;
   end;
@@ -290,7 +307,8 @@ type
     { GetContentBounds:
       Used to define the control's content area based on interface elements such
       as scroll and title bars. }
-    procedure GetContentBounds(var ARect: TRect); virtual;
+    procedure GetClientInnerBounds(var ARect: TRect); virtual;
+    procedure GetScreenOffset(var APoint: TPoint); virtual;
     procedure GetAlign(const ABounds: TRect; const ASize: TSize;
       var AResult: TPoint);
     procedure Init; virtual;
@@ -333,6 +351,7 @@ type
     constructor CreateId(AId: string; AAction: PAction);
     constructor CreateParent(AId: string; AAction: PAction; AParent: PControl);
     constructor CreateAction(AId: string; AAction: PAction; AParent: PControl);
+    destructor Free; virtual;
     procedure Init; virtual;
     procedure Paint; virtual;
     procedure Enable;
@@ -831,16 +850,50 @@ begin
   GetSize := result;
 end;
 
-{ GetBounds:
-  Gets a TRect containing the control's X, Y, Width, and Height. }
+function TControl.ContainsControl(AControl: PControl): boolean;
+var
+  index: integer;
+  control: PControl;
+begin
+  ContainsControl := false;
+  for index := 0 to Controls^.Count - 1 do begin
+    control := Controls^.GetItem(index);
+    if control = AControl then begin
+      ContainsControl := true;
+      exit;
+    end;
+    if control^.ContainsControl(AControl) then begin
+      ContainsControl := true;
+      exit;
+    end;
+  end;
+end;
+
+function TControl.FindControl(const AId: string): PControl;
+var
+  index: integer;
+  control: PControl;
+
+begin
+  FindControl := nil;
+  for index := 0 to Controls^.Count - 1 do begin
+    control := Controls^.GetItem(index);
+    if StrLIComp(control^.Id, @AId[1], Length(AId)) = 0 then begin
+      FindControl := control;
+      exit;
+    end;
+    if control^.FindControl(AId) <> nil then begin
+      FindControl := control;
+      exit;
+    end;
+  end;
+end;
+
 procedure TControl.GetBounds(var ARect: TRect);
 begin
   ARect.CreateDims(X, Y, Width, Height);
 end;
 
-{ GetClientBounds:
-  Gets the bounds of the control's client area, which is the area inside
-  the control's borders and margins, relative to the control itself. }
 procedure TControl.GetClientBounds(var ARect: TRect);
 begin
   GetBounds(ARect);
@@ -851,18 +904,12 @@ begin
   ARect.Grow(-Margins.Width, -Margins.Height);
 end;
 
-{ GetClientOuterBounds:
-  Gets the bounds of the control's client area, relative to the control itself,
-  not including borders, margins, and bevels.  Equivalent to GetClientBounds
-  translated to the origin. }
 procedure TControl.GetClientOuterBounds(var ARect: TRect);
 begin
   GetBounds(ARect);
   ARect.TranslateToOrigin;
 end;
 
-{ GetAbsoluteBounds:
-  Gets the control's bounds relative to the screen. }
 procedure TControl.GetAbsoluteBounds(var ARect: TRect);
 var
   parentRect: TRect;
@@ -874,29 +921,11 @@ begin
   ARect.Translate(parentRect.X, parentRect.Y);
 end;
 
-{ GetScreenBounds:
-  Gets the control's bounds relative to the screen. The result is ajusted
-  for borders, margins, and bevels, based on the control's Position value.
-  The result is adjusted for borders, margins, bevels, and other interface
-  elements defined by the parent, based on the control's Position value.
-  This represents where the control is actually drawn on screen, and
-  primarily using in the control's Paint method.
-
-  Position values:
-
-  spAbsolute: The bounds are relative to the screen.
-  spClient: The bounds are relative to the parent, adjusted for borders,
-    bevels, and margins.
-  spRelative: The bounds are relative to the parent, not adjusted for
-    borders, bevels, and margins.
-  spContent: The bounds are relative to the parent's content.
-    This content area can be overriden by the parent based on interface
-    elements such as scrollbars. Defaults to the same value as spClient
-    if not overriden by the parent, or the parent is not a descendent of
-    TContentControl. This is the default for most controls. }
 procedure TControl.GetScreenBounds(var ARect: TRect);
 var
   parentRect: TRect;
+  par: PControl;
+  offset: TPoint;
 begin
   GetAdjustedBounds(ARect);
   if not Assigned(Parent) then
@@ -905,12 +934,17 @@ begin
     exit;
   Parent^.GetScreenBounds(parentRect);
   ARect.Translate(parentRect.X, parentRect.Y);
+  if Position = spContent then begin
+    Parent^.GetScreenOffset(offset);
+    ARect.Translate(offset.X, offset.Y);
+  end;
 end;
 
-{ GetAdjustedBounds:
-  Gets the control's bounds adjusted for borders, margins and bevels, and
-  content, based on the control's Position value. Equivalent to GetScreenBounds
-  in the Control's cooridinates. }
+procedure TControl.GetClientInnerBounds(var ARect: TRect);
+begin
+  GetClientBounds(ARect);
+end;
+
 procedure TControl.GetAdjustedBounds(var ARect: TRect);
 var
   parentRect: TRect;
@@ -921,10 +955,7 @@ begin
       GetBounds(ARect);
       if not Assigned(Parent) then
         exit;
-      if Parent^.IsContentControl then
-        PContentControl(Parent)^.GetContentBounds(parentRect)
-      else
-        Parent^.GetClientBounds(parentRect);
+      Parent^.GetClientInnerBounds(parentRect);
       ARect.Translate(parentRect.X, parentRect.Y);
     end;
     spClient: begin
@@ -946,22 +977,25 @@ end;
 
 procedure TControl.GetFullScreenBounds(var ARect: TRect);
 var
-  screenRect: TRect;
+  parentRect: TRect;
+  par: PControl;
 begin
   GetBounds(ARect);
-  GetScreenBounds(screenRect);
-  ARect.Translate(screenRect.X, screenRect.Y)
+  if not Assigned(Parent) then
+    exit;
+  Parent^.GetFullScreenBounds(parentRect);
+  ARect.Translate(parentRect.X, parentRect.Y);
 end;
 
 procedure TControl.GetFullClipRect(var ARect: TRect);
 var
-  screenRect, parentRect: TRect;
+  parentRect: TRect;
   par: PControl;
 begin
   GetFullScreenBounds(ARect);
   if not Assigned(Parent) then
     exit;
-  Parent^.GetFullScreenBounds(screenRect);
+  Parent^.GetFullScreenBounds(parentRect);
   ARect.Intersect(parentRect);
   par := Parent;
   while Assigned(par) do begin
@@ -978,6 +1012,7 @@ procedure TControl.GetClipRect(var ARect: TRect);
 var
   screenRect, parentRect: TRect;
   par: PControl;
+  offset: TPoint;
 begin
   GetScreenBounds(ARect);
   if not Assigned(Parent) then
@@ -987,13 +1022,7 @@ begin
       GetAbsoluteBounds(screenRect);
       exit;
     end;
-    spContent: begin
-      if Parent^.IsContentControl and (Position = spContent) then begin
-        PContentControl(Parent)^.GetContentBounds(parentRect);
-      end
-      else
-        Parent^.GetClientBounds(parentRect);
-    end;
+    spContent: Parent^.GetClientInnerBounds(parentRect);
     spClient: Parent^.GetClientBounds(parentRect);
     spRelative: parent^.GetClientOuterBounds(parentRect);
   end;
@@ -1006,6 +1035,11 @@ begin
     ARect.Intersect(parentRect);
     par := par^.Parent;
   end;
+end;
+
+procedure TControl.GetScreenOffset(var APoint: TPoint);
+begin
+  APoint.Create;
 end;
 
 procedure TControl.SetBounds(APX, APY: integer; AWidth, AHeight: integer);
@@ -1237,9 +1271,14 @@ begin
   end;
 end;
 
-procedure TContentControl.GetContentBounds(var ARect: TRect);
+procedure TContentControl.GetClientInnerBounds(var ARect: TRect);
 begin
   GetClientBounds(ARect);
+end;
+
+procedure TContentControl.GetScreenOffset(var APoint: TPoint);
+begin
+  APoint.CreateCoords(-ScrollX, -ScrollY);
 end;
 
 function TContentControl.IsContentControl: boolean;
@@ -1290,6 +1329,13 @@ end;
 constructor TActionControl.CreateAction(AId: string; AAction: PAction; AParent: PControl);
 begin
   CreateParent(AId, Action, AParent);
+end;
+
+destructor TActionControl.Free;
+begin
+  if VeridianApp^.ActiveControl = @self then
+    VeridianApp^.ActiveControl := nil;
+  inherited Free;
 end;
 
 procedure TActionControl.SetEnabled(AEnabled: boolean);
@@ -1623,7 +1669,6 @@ begin
   inherited Insert(AIndex, AItem);
   PControl(AItem)^.Parent := Owner;
 end;
-
 procedure TControlList.Init;
 begin
   inherited Init;
@@ -1737,7 +1782,7 @@ begin
   SetBounds(0, 0, Graph^.Mode^.Width, Graph^.Mode^.Height);
 end;
 
-procedure TDesktop.GetContentBounds(var ARect: TRect);
+procedure TDesktop.GetClientInnerBounds(var ARect: TRect);
 begin
   GetBounds(ARect);
   if Assigned(VeridianApp^.MenuBar) then begin

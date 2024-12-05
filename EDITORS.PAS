@@ -247,6 +247,7 @@ begin
   FCursorPos := 0;
   WordDelimiters := DefaultWordDelimiters;
   ValidChars := [#32..#126];
+  Position := spContent;
 end;
 
 procedure TEdit.SelectNone;
@@ -284,6 +285,7 @@ var
   charWidth: integer;
   ch: char;
   selected: boolean;
+  clipRect: TRect;
 begin
   if not IsVisible then
     exit;
@@ -293,6 +295,9 @@ begin
   drawRect.CreateRect(bounds);
 
   Graph^.PushState;
+  GetClipRect(clipRect);
+  Graph^.State^.ViewPort := clipRect;
+
   buffer := nil;
   Graph^.BeginDrawBuffer(buffer, drawRect);
   if Graph^.HasException then begin
@@ -339,7 +344,10 @@ begin
   Graph^.Rectangle(drawRect);
   Graph^.EndDrawBuffer;
   Graph^.PopState;
+  Graph^.PushState;
+  Graph^.State^.ViewPort := clipRect;
   Graph^.DrawImageRect(bounds, buffer);
+  Graph^.PopState;
   FreeMem(buffer, drawRect.Width * drawRect.Height);
 end;
 

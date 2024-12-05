@@ -74,10 +74,16 @@ type
     FBlinkCurrentTime: TDateTime;
     FBlinkElapsed: TTimeSpan;
     FDoubleClickStart: TDateTime;
+    AltKeyDown: boolean;
+    SwitchingWindows: boolean;
     function LoadFont(const AFilename: string): PFont;
     function CreateDesktop: PDesktop; virtual;
+    function HandleWindowSwitch: boolean;
     procedure CreateObjects;
     procedure LoadFonts;
+    procedure BeginWindowSwitch;
+    procedure EndWindowSwitch;
+    procedure SwitchWindow;
     procedure HandleKeyEvent(AControl: PControl; var AEvent: TKeyEvent);
     procedure HandleSpecialKeys(AControl: PControl; var AEvent: TKeyEvent);
     procedure HandleActionKeys(AControl: PActionControl; var AEvent: TKeyEvent);
@@ -213,6 +219,7 @@ begin
   InitControls;
   Desktop^.Layout;
   MenuBar^.Layout;
+  Keyboard.GetKey;
 end;
 
 destructor TVeridianApp.Free;
@@ -319,6 +326,7 @@ begin
   Memory.OnAllocError := @OnAllocError;
   FCursorBlinkVisible := false;
   CreateObjects;
+  SwitchingWindows := false;
   MenuBar := nil;
   Mouse.UseSystemCursor := false;
   Mouse.HideMouse;
@@ -434,6 +442,7 @@ begin
     scrollParent := PScrollBar(ScrollSlider^.Parent);
     scrollEvent.Create;
     scrollEvent.ScrollPosition := scrollParent^.ScrollPosition;
+    scrollEvent.Orientation := scrollParent^.Orientation;
     scrollParent^.PositionChanged(scrollEvent);
   end;
   ScrollSlider := nil;
@@ -522,6 +531,8 @@ begin
   if not ActiveControl^.Focused then
     exit;
   if not ActiveControl^.UsesCursor then
+    exit;
+  if not ActiveControl^.IsVisibleAndEnabled then
     exit;
   if State.CursorOn then begin
     FBlinkCurrentTime.SetNow;
@@ -675,6 +686,8 @@ var
   controlIndex: integer;
   currentIndex: integer;
 begin
+  if not Assigned(ActiveControl) then
+    exit;
   parent := AControl^.Parent;
   current := parent;
   while Assigned(current^.Parent) do
@@ -713,6 +726,8 @@ begin
       if not ActiveControl^.CanFocus then
         exit;
       MenuManager.CloseAllMenus;
+      if Assigned(ActiveDropDown) then
+        ActiveDropDown^.HideList;
       FocusNext(ActiveControl, false);
       AEvent.Handled := true;
       exit;
@@ -723,6 +738,8 @@ begin
       if not ActiveControl^.CanFocus then
         exit;
       MenuManager.CloseAllMenus;
+      if Assigned(ActiveDropDown) then
+        ActiveDropDown^.HideList;
       FocusNext(ActiveControl, true);
       AEvent.Handled := true;
       exit;
@@ -730,6 +747,8 @@ begin
     kyEsc: begin
       Desktop^.BeginDrawing;
       container := MenuManager.PopAndCloseMenu;
+      if Assigned(ActiveDropDown) then
+        ActiveDropDown^.HideList;
       Desktop^.EndDrawing;
       AEvent.Handled := true;
     end;
@@ -756,12 +775,18 @@ begin
     exit;
   if not Assigned(Desktop) then
     exit;
+
+  if (AEvent.Key = kyAltF1) and not SwitchingWindows then begin
+    SwitchingWindows := true;
+    AEvent.Handled := true;
+  end;
+
   if AEvent.Handled then
     exit;
   HandleSpecialKeys(AControl, AEvent);
   if AEvent.Handled then
     exit;
-  for index := 0 to AControl^.Controls^.Count - 1 do begin
+  for index := AControl^.Controls^.Count - 1 downto 0 do begin
     control := AControl^.Controls^.GetItem(index);
     if not control^.IsVisible then
       continue;
@@ -822,6 +847,7 @@ var
   mouseRect: TRect;
   cursorColor: byte;
   control: PTextControl;
+  clipRect: TRect;
 begin
   if not State.DrawEnabled then
     exit;
@@ -831,7 +857,8 @@ begin
     exit;
   control := PTextControl(ActiveControl);
   control^.GetCursorRect(rect);
-  rect.Intersect(Graph^.State^.ViewPort);
+  control^.GetClipRect(clipRect);
+  rect.Intersect(clipRect);
   if rect.IsEmpty then
     exit;
   if FCursorBlinkVisible then
@@ -871,6 +898,21 @@ begin
   end;
 end;
 {$ENDIF}
+
+function TVeridianApp.HandleWindowSwitch: boolean;
+begin
+  HandleWindowSwitch := false;
+  if AltkeyDown and SwitchingWindows then begin
+    if Keyboard.KeyPressed then begin
+      if Keyboard.GetKey = kyAltF1 then
+        SwitchWindow
+      else
+        BeginWindowSwitch;
+    end;
+  end;
+  if not AltKeyDown and SwitchingWindows then
+     EndWindowSwitch;
+end;
 
 procedure TVeridianApp.HandleMouseCursor;
 var
@@ -937,12 +979,30 @@ begin
   end;
 end;
 
+procedure TVeridianApp.BeginWindowSwitch;
+begin
+  SwitchingWindows := true;
+end;
+
+procedure TVeridianApp.EndWindowSwitch;
+begin
+  SwitchingWindows := false;
+end;
+
+procedure TVeridianApp.SwitchWindow;
+begin
+end;
+
 procedure TVeridianApp.ProcessEvents;
 var
   ch: word;
+  flags: TKeyboardFlags;
 begin
   FreeClosedWindows;
   Mouse.UpdateState;
+  Keyboard.GetFlags(flags);
+  AltKeyDown := kfAlt in flags;
+
   FMouseState.Assign(Mouse.State);
   HandleCursor;
   if not FMouseState.Equals(FOldMouseState) then begin
@@ -955,7 +1015,8 @@ begin
     HandleMouseEvent(Desktop, FMouseEvent);
     FOldMouseState.Assign(FMouseState);
   end;
-  if Keyboard.KeyPressed then begin
+
+  if (not HandleWindowSwitch) and Keyboard.KeyPressed then begin
     ch := Keyboard.GetKey;
     FKeyEvent.Key := ch;
     FKeyEvent.Handled := false;

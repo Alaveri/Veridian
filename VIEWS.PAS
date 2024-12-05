@@ -40,12 +40,6 @@ type
     scAsNeeded
   );
 
-  TScrollOrientation =
-  (
-    soVertical,
-    soHorizontal
-  );
-
   TWindowState =
   (
     wsNormal,
@@ -181,10 +175,12 @@ type
     procedure Layout; virtual;
     procedure Paint; virtual;
     procedure DrawControls; virtual;
-    procedure GetContentBounds(var ARect: TRect); virtual;
+    procedure GetClientInnerBounds(var ARect: TRect); virtual;
     procedure SetScrollBarBounds(AOrientation: TScrollOrientation); virtual;
     procedure ScrollVert(ADelta: integer); virtual;
     procedure ScrollHorz(ADelta: integer); virtual;
+    procedure GetContentExtent(var ASize: TSize); virtual;
+    procedure ScrollPositionChanged(var AEvent: TScrollEvent);
     destructor Free; virtual;
   end;
 
@@ -223,7 +219,7 @@ type
     function GetTitleHeight: integer; virtual;
     procedure GetGripBounds(var ARect: TRect); virtual;
     procedure GetGripScreenBounds(var ARect: TRect); virtual;
-    procedure GetContentBounds(var ARect: TRect); virtual;
+    procedure GetClientInnerBounds(var ARect: TRect); virtual;
     procedure GetClientBounds(var ARect: TRect); virtual;
     procedure SetScrollBarBounds(AOrientation: TScrollOrientation); virtual;
     procedure SetTitle(const ATitle: string);
@@ -503,6 +499,9 @@ var
   parentView: PView;
   screenRect, rect: TRect;
 begin
+  parentView := PView(Parent);
+  if Assigned(parentView) then
+    parentView^.ScrollPositionChanged(AEvent);
   if not VeridianApp^.Settings.UpdateScrollContents then begin
     SetPosition(AEvent.ScrollPosition);
   end;
@@ -593,7 +592,7 @@ var
 begin
   sizeAdjust := 3 * Size + 2 * BorderWidth;
   posOffset := Size - Slider^.BorderWidth;
-  scrollSize := Width - sizeAdjust;
+  scrollSize := Width - sizeAdjust + 2 * Slider^.BorderWidth;
   if Max = 0 then
     pos := posOffset
   else
@@ -840,6 +839,25 @@ begin
   ScrollY := 0;
 end;
 
+procedure TView.GetContentExtent(var ASize: TSize);
+var
+  index: integer;
+  control: PControl;
+begin
+  ASize.CreateDims(0, 0);
+  for index := 0 to Controls^.Count - 1 do begin
+    control := Controls^.GetItem(index);
+    if not (control^.IsVisible and (control^.Position = spContent)) then
+      continue;
+    if control^.X + control^.Width > ASize.Width then
+      ASize.Width := control^.X + control^.Width;
+    if control^.Y + control^.Height > ASize.Height then
+      ASize.Height := control^.Y + control^.Height;
+  end;
+  Inc(ASize.Width, 2 * BorderWidth + Padding.Width);
+  Inc(ASize.Height, 2 * BorderWidth + Padding.Height);
+end;
+
 function TView.IsView: boolean;
 begin
   IsView := true;
@@ -856,6 +874,14 @@ end;
 destructor TView.Free;
 begin
   inherited Free;
+end;
+
+procedure TView.ScrollPositionChanged(var AEvent: TScrollEvent);
+begin
+  if AEvent.Orientation = soVertical then
+    ScrollY := AEvent.ScrollPosition
+  else
+    ScrollX := AEvent.ScrollPosition;
 end;
 
 procedure TView.SetScrollBarBounds(AOrientation: TScrollOrientation);
@@ -879,7 +905,7 @@ begin
     );
     VertScrollBar^.SetBoundsRect(rect);
     if HorzScrollBar^.Visible then
-      Dec(VertScrollBar^.Height, HorzScrollBar^.Size);
+      Dec(VertScrollBar^.Height, HorzScrollBar^.Size)
   end
   else if AOrientation = soHorizontal then begin
     GetClientBounds(clientRect);
@@ -896,11 +922,11 @@ begin
   end;
 end;
 
-procedure TView.GetContentBounds(var ARect: TRect);
+procedure TView.GetClientInnerBounds(var ARect: TRect);
 var
   hRect, vRect: TRect;
 begin
-  inherited GetContentBounds(ARect);
+  inherited GetClientInnerBounds(ARect);
   if ScrollType = scNone then
     exit;
   HorzScrollBar^.GetBounds(hRect);
@@ -914,11 +940,11 @@ begin
       if HorzScrollBar^.Visible then
         Dec(ARect.Height, hRect.Height - 1 + BevelWidth);
     end;
-    scBoth: begin
+    scBoth, scAsNeeded: begin
       if HorzScrollBar^.Visible then
-        Dec(ARect.Width, vRect.Width - 1 + BevelWidth);
-      if VertScrollBar^.Visible then
         Dec(ARect.Height, hRect.Height - 1 + BevelWidth);
+      if VertScrollBar^.Visible then
+        Dec(ARect.Width, vRect.Width - 1 + BevelWidth);
     end;
   end;
 end;
@@ -943,8 +969,12 @@ end;
 procedure TView.Layout;
 var
   rect: TRect;
+  innerRect: TRect;
+  extent: TSize;
 begin
   inherited Layout;
+  VertScrollBar^.BringToFront;
+  HorzScrollBar^.BringToFront;
   GetBounds(rect);
   case ScrollType of
     scNone: begin
@@ -964,6 +994,24 @@ begin
       HorzScrollBar^.Visible := true;
     end;
     scAsNeeded: begin
+      GetContentExtent(extent);
+      GetClientInnerBounds(innerRect);
+      HorzScrollBar^.Max := extent.Width - Width + (Width - innerRect.Width);
+      VertScrollBar^.Max := extent.Height - Height + (Height - innerRect.Height);
+      HorzScrollBar^.ScrollPosition := ClampL(HorzScrollBar^.ScrollPosition, 0,
+        HorzScrollBar^.Max);
+      VertScrollBar^.ScrollPosition := ClampL(VertScrollBar^.ScrollPosition, 0,
+        VertScrollBar^.Max);
+      VertScrollBar^.Visible := extent.Height > Height;
+      HorzScrollBar^.Visible := extent.Width > Width;
+      if not VertScrollbar^.Visible then begin
+        VertScrollBar^.ScrollPosition := 0;
+        ScrollY := 0;
+      end;
+      if not HorzScrollbar^.Visible then begin
+        HorzScrollBar^.ScrollPosition := 0;
+        ScrollX := 0;
+      end;
     end;
   end;
   SetScrollBarBounds(soVertical);
@@ -1188,6 +1236,7 @@ begin
   CanDrag := false;
   CanFocus := false;
   ShowInTaskBar := true;
+  Position := spClient;
   TitleBar := New(PTitleBar, Create('TitleBar', '', @self));
   Grip := New(PWindowGrip, Create('Grip', @self));
   Grip^.TransparentBack := false;
@@ -1208,6 +1257,7 @@ begin
   WindowState := wsNormal;
   TaskButton := nil;
   AddToTaskBar;
+  ScrollType := scAsNeeded;
 end;
 
 destructor TWindow.Free;
@@ -1472,6 +1522,7 @@ begin
   TitleBar^.SetBounds(0, 0, rect.Width, titleHeight);
   for index := Low(TGripBorderType) to High(TGripBorderType) do begin
     FGripBorders[index]^.BringToFront;
+    FGripBorders[index]^.Position := spRelative;
   end;
   FGripBorders[wbTop]^.SetBounds(3, 0, Width - 6, 3);
   FGripBorders[wbBottom]^.SetBounds(3, Height - 3, Width - 6, 3);
@@ -1571,6 +1622,12 @@ begin
   RestoredState := WindowState;
   WindowState := wsMinimized;
   VeridianApp^.ActiveWindow := nil;
+  if VeridianApp^.State.CursorOn
+    and Assigned(VeridianApp^.ActiveControl)
+    and (VeridianApp^.ActiveControl^.IsFocusControl)
+    and ContainsControl(VeridianApp^.ActiveControl) then begin
+    PFocusControl(VeridianApp^.ActiveControl)^.UnFocus;
+  end;
   Hide;
   if Assigned(TaskButton) then begin
     TaskButton^.Down := false;
@@ -1673,11 +1730,11 @@ begin
   ARect.CreateDims(rect.Right - barSize, rect.Bottom - barSize, barSize, barSize);
 end;
 
-procedure TWindow.GetContentBounds(var ARect: TRect);
+procedure TWindow.GetClientInnerBounds(var ARect: TRect);
 var
   titleHeight: integer;
 begin
-  inherited GetContentBounds(ARect);
+  inherited GetClientInnerBounds(ARect);
   if TitleBar^.IsVisible then begin
     titleHeight := GetTitleHeight;
     ARect.Translate(0, titleHeight);
@@ -1699,6 +1756,10 @@ begin
     Dec(VertScrollBar^.Height, GetTitleHeight);
     Inc(VertScrollBar^.Y, GetTitleHeight);
   end;
+  if (AOrientation = soVertical) and not HorzScrollBar^.Visible then
+    Dec(VertScrollBar^.Height, Grip^.Height);
+  if (AOrientation = soHorizontal) and not VertScrollBar^.Visible then
+    Dec(HorzScrollBar^.Width, Grip^.Width);
 end;
 
 procedure TWindow.MouseDown(var AEvent: TMouseEvent);
@@ -1732,15 +1793,26 @@ var
   sizeAdjust: integer;
   scrollSize: integer;
   parentView: PView;
-  parentRect, rect: TRect;
+  clipRect, innerRect, rect: TRect;
   newCoord: integer;
 begin
+  if Max = 0 then
+    exit;
+  parentView := PView(Parent);
+  if Orientation = soVertical then
+    parentView^.ScrollY := APosition
+  else
+    parentView^.ScrollX := APosition;
+
   parentView := PView(Parent);
   ScrollPosition := APosition;
-  parentView^.ScrollY := APosition;
   parentView^.BeginDrawing;
-  GetFullClipRect(rect);
-  parentView^.PaintRegion(rect, @self);
+  ParentView^.GetClipRect(clipRect);
+  ParentView^.GetClientInnerBounds(innerRect);
+  ParentView^.GetScreenBounds(rect);
+  innerRect.Translate(rect.X, rect.Y);
+  innerRect.Intersect(clipRect);
+  parentView^.PaintRegion(innerRect, @self);
   parentView^.EndDrawing;
 
   sizeAdjust := 3 * Size - 3 * BorderWidth;
@@ -1754,7 +1826,6 @@ begin
     scrollSize := Height - sizeAdjust;
     newCoord := Round(ScrollPosition / Max * scrollSize) - 2 * BorderWidth + Size;
     Slider^.Y := newCoord;
-    Inc(Slider^.Y, 2);
     DrawSlider;
   end;
 end;
@@ -1770,18 +1841,18 @@ begin
   Graph^.SetBackColor(BackColor);
   if Orientation = soHorizontal then begin
     value := slider^.X;
-    rect.Height := Slider^.X - Size + 1;
-    rect.Translate(Size - 1, BorderWidth);
+    GetScreenBounds(rect);
+    rect.Width := Slider^.X - Size + 1;
+    rect.Translate(Size, BorderWidth);
     rect.Grow(0, -2 * BorderWidth);
     Graph^.State^.FillPattern := @CheckerFillPattern;
-
     Graph^.FillRect(rect);
     GetScreenBounds(rect);
-    rect.Translate(BorderWidth, value + Size);
+    rect.Translate(value + Size, BorderWidth);
     rect.Grow(0, -2 * BorderWidth);
     rect.Width := rect.Width - value - 2 * Size;
     Graph^.FillRect(rect);
- end
+  end
   else begin
     value := slider^.Y;
     GetScreenBounds(rect);
@@ -1795,7 +1866,6 @@ begin
     rect.Grow(-2 * BorderWidth, 0);
     rect.Height := rect.Height - value - 2 * Size;
     Graph^.FillRect(rect);
-
   end;
   Slider^.DrawSelf;
   EndDrawing;
@@ -1807,6 +1877,7 @@ var
 begin
   pos := ClampL(ScrollPosition + ADelta, Min, Max);
   SetPosition(pos);
+  DrawSlider;
 end;
 
 procedure TScrollBar.ScrollBySlider(ADelta: integer);
@@ -1817,16 +1888,16 @@ var
 begin
   minCoord := Size - 2 * BorderWidth;
   if Orientation = soHorizontal then begin
-    maxCoord := Width - 2 * Size + BorderWidth;
+    maxCoord := Width - 2 * Size + 2 * OuterWidth;
     slider^.X := Clamp(slider^.X + ADelta, minCoord, maxCoord);
-    scrollSize := Width - 3 * Size + 3 * BorderWidth;
-    pos := Round(((slider^.X - Size + 2 * BorderWidth) / scrollSize) * Max);
+    scrollSize := Width - 3 * Size + 3 * OuterWidth;
+    pos := Round(((slider^.X - Size + 2 * OuterWidth) / scrollSize) * Max);
   end
   else begin
-    maxCoord := Height - 2 * Size;
+    maxCoord := Height - 2 * Size + 2 * OuterWidth;
     slider^.Y := Clamp(slider^.Y + ADelta, minCoord, maxCoord);
-    scrollSize := Height - 3 * Size + 3 * BorderWidth;
-    pos := Round(((slider^.Y - Size + 2 * BorderWidth) / scrollSize) * Max);
+    scrollSize := Height - 3 * Size + 3 * OuterWidth;
+    pos := Round(((slider^.Y - Size + 2 * OuterWidth) / scrollSize) * Max);
   end;
   if VeridianApp^.Settings.UpdateScrollContents then
     SetPosition(pos)
@@ -2145,7 +2216,7 @@ begin
     controlWidth := Min(control^.Width, MaxButtonWidth) + 2 * control^.FocusRectWidth;
     controlHeight := 2 * control^.OuterWidth + control^.Font^.Height
       + 2 * FocusRectWidth + control^.Padding.Height;
-    barHeight := controlHeight + OuterWidth + Margins.Height + 2 * control^.FocusRectWidth;
+    barHeight := controlHeight + OuterWidth + Margins.Height;
     if barHeight > maxHeight then
       maxHeight := barHeight;
     control^.Width := controlWidth;

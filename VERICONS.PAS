@@ -17,9 +17,12 @@ const
   ];
   Hexadecimal = ['0'..'9', 'A'..'F', 'a'..'f'];
 
-  { Tags used by system, don't use }
-  SystemTag = MaxInt - 256;
-
+  { Standard Veridian message Ids, don't use. }
+  wmVeridian = $F000;
+  vmMinimize = wmVeridian + 1;
+  vmMaximize = wmVeridian + 2;
+  vmRestore = wmVeridian + 3;
+  vmClose = wmVeridian + 4;
 
 implementation
 
