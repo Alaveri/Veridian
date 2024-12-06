@@ -62,6 +62,7 @@ type
     ListUnfocusedSelectBack: byte;
     Focused: byte;
     FocusedBack: byte;
+    FocusRectColor: byte;
   end;
 
 const
@@ -117,7 +118,8 @@ const
     ListUnfocusedSelect: egaLightGray;
     ListUnfocusedSelectBack: egaDarkGray;
     Focused: egaWhite;
-    FocusedBack: egaBlue
+    FocusedBack: egaBlue;
+    FocusRectColor: egaBlue
   );
 
 implementation

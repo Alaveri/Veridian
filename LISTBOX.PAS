@@ -807,6 +807,7 @@ begin
   FocusedBackColor := VeridianApp^.Colors.EditorFocusedBack;
   BorderColor := VeridianApp^.Colors.EditorBorder;
   VertAlign := vaCenter;
+  Text := nil;
   MaxItems := -1;
   AutoSize := true;
   BorderStyle := bsSingle;

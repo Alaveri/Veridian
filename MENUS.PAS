@@ -20,7 +20,7 @@ type
   PMenubar = ^TMenuBar;
   PMenuItemContainerStack = ^TMenuItemContainerStack;
 
-  TMenuLocation = (mlBelow, mlSide);
+  TMenuLocation = (mlBelow, mlSide, mlManual);
 
   TMenuItemList = object(TControlList)
   private
@@ -71,7 +71,6 @@ type
     MenuItems: PMenuItemList;
     SelectedItem: PMenuItem;
     ParentMenuItem: PMenuItem;
-    { true if parent item's container is open }
     destructor Free; virtual;
     procedure Init; virtual;
     procedure KeyPress(var AEvent: TKeyEvent); virtual;
@@ -160,7 +159,7 @@ begin
   BackColor := VeridianApp^.Colors.MenuBack;
   BorderColor := VeridianApp^.Colors.MenuBorder;
   Position := spAbsolute;
-  Clip := false;
+  Exclude(ControlOptions, coClipping);
 end;
 
 procedure TMenu.Paint;
@@ -207,14 +206,17 @@ begin
   menuRect.CreateDims(0, 0, menuDims.Width, menuDims.Height);
   if Assigned(ParentMenuItem) then begin
     ParentMenuItem^.GetScreenBounds(parentItemRect);
-    if MenuLocation = mlBelow then begin
-      menuRect.X := parentItemRect.X;
-      menuRect.Y := parentItemRect.Bottom + 1;
-    end else begin
-      menuRect.X := parentItemRect.X + parentItemRect.Width;
-      menuRect.Y := parentItemRect.Y - BorderWidth;
-      if menuRect.Right > Graph^.Mode^.Bounds.Right then
-        menuRect.X := parentItemRect.X - menuDims.Width;
+    case MenuLocation of
+      mlBelow: begin
+        menuRect.X := parentItemRect.X;
+        menuRect.Y := parentItemRect.Bottom + 1;
+      end;
+      mlSide: begin
+        menuRect.X := parentItemRect.X + parentItemRect.Width;
+        menuRect.Y := parentItemRect.Y - BorderWidth;
+        if menuRect.Right > Graph^.Mode^.Bounds.Right then
+          menuRect.X := parentItemRect.X - menuDims.Width;
+      end;
     end;
   end;
   itemRect.Create;
@@ -263,7 +265,7 @@ begin
         menuItem := SelectedItem;
         MenuManager.CloseAllMenus;
         SelectedItem := nil;
-        menuItem^.Action^.Execute(menuItem);
+        VeridianApp^.ActionExecute(menuItem, menuItem^.Action);
       end;
       AEvent.Handled := true;
     end;
@@ -281,7 +283,7 @@ begin
       else if Assigned(menuItem^.Action) then begin
         MenuManager.CloseAllMenus;
         SelectedItem := nil;
-        menuItem^.Action^.Execute(menuItem);
+        VeridianApp^.ActionExecute(menuItem, menuItem^.Action);
       end;
       AEvent.Handled := true;
     end;
@@ -324,7 +326,7 @@ procedure TMenuItem.Init;
 begin
   inherited Init;
   IsSeparator := false;
-  Clip := false;
+  Exclude(ControlOptions, coClipping);
   Action := nil;
   ParentContainer := nil;
   Menu := nil;
@@ -358,6 +360,7 @@ begin
     DrawSelf;
   end;
 end;
+
 procedure TMenuItem.Select;
 begin
   if not Assigned(ParentContainer) then
@@ -495,7 +498,7 @@ begin
   inherited MouseUp(AEvent);
   if Assigned(Action) then begin
     MenuManager.CloseAllMenus;
-    Action^.Execute(@self);
+    VeridianApp^.ActionExecute(@self, Action);
   end;
 end;
 
@@ -533,7 +536,7 @@ begin
   BorderColor := VeridianApp^.Colors.MenuBorder;
   MenuItems := New(PMenuItemList, Create(@self));
   VeridianApp^.MenuBar := @self;
-  StayOnTop := true;
+  Include(ControlOptions, coStayOnTop);
   Padding.Left := 5;
   Position := spClient;
 end;

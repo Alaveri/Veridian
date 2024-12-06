@@ -9,6 +9,7 @@ uses
   AplTypes,
   AplConst,
   Drawing,
+  Dialogs,
   Lists,
   Graphics,
   Gr8Drv,
@@ -33,7 +34,6 @@ const
 
 type
   PVeridianApp = ^TVeridianApp;
-  PVeridianAction = ^TVeridianAction;
   PVeridianAppSettings = ^TVeridianAppSettings;
   PAppState = ^TAppState;
 
@@ -74,6 +74,8 @@ type
     FBlinkCurrentTime: TDateTime;
     FBlinkElapsed: TTimeSpan;
     FDoubleClickStart: TDateTime;
+    FSpecialControls: TObjectStack;
+    FNewWindowX, FNewWindowY: integer;
     AltKeyDown: boolean;
     SwitchingWindows: boolean;
     function LoadFont(const AFilename: string): PFont;
@@ -86,7 +88,7 @@ type
     procedure SwitchWindow;
     procedure HandleKeyEvent(AControl: PControl; var AEvent: TKeyEvent);
     procedure HandleSpecialKeys(AControl: PControl; var AEvent: TKeyEvent);
-    procedure HandleActionKeys(AControl: PActionControl; var AEvent: TKeyEvent);
+    procedure HandleActionKey(AControl: PActionControl; var AEvent: TKeyEvent);
     procedure HandleMouseEvent(AControl: PControl; var AEvent: TMouseEvent);
     procedure HandleMouseMove(AControl: PControl;
       var AEvent: TMouseEvent); virtual;
@@ -107,7 +109,6 @@ type
     procedure ApplySettings;
     procedure SetMouseSensitivity(ASens: real);
     procedure ParseParameters;
-    procedure FreeClosedWindows;
     {$IFDEF debug}
     procedure UpdateDebugInfo;
     {$ENDIF}
@@ -137,6 +138,7 @@ type
     ActiveControl: PFocusControl;
     ActiveWindow: PWindow;
     ActiveDropDown: PDropDownList;
+    ActiveDialog: PDialog;
     DragControl: PControl;
     ScrollSlider: PControl;
     constructor Create(ADriver: TGraphDrivers; AWidth: integer;
@@ -144,6 +146,8 @@ type
     destructor Free; virtual;
     function CheckNilPtr(APtr: pointer): boolean;
     function GetFont(const AId: string): PFont;
+    function DefaultWindowX: integer;
+    function DefaultWindowY: integer;
     procedure ProcessEvents; virtual;
     procedure Run; virtual;
     procedure Init; virtual;
@@ -159,16 +163,15 @@ type
     procedure UpdateActionControl(AControl: PActionControl); virtual;
     procedure SetActiveControl(AControl: PFocusControl);
     procedure CloseAllMenus;
+    procedure StoreSpecialControlState;
+    procedure RestoreSpecialControlState;
+    procedure ClearSpecialControlState;
     function FocusNext(AControl: PControl; AReverse: boolean): boolean;
+    function FocusFirst: boolean;
+    function FocusLast: boolean;
     function GetMouseControl(AControl: PControl; var AMouseState: TMouseState): PControl;
     function TaskBarHeight: integer;
     function MenuBarHeight: integer;
-  end;
-
-  TVeridianAction = object(TAction)
-  private
-  public
-    procedure Execute(ASender: PObject); virtual;
   end;
 
 var
@@ -220,6 +223,8 @@ begin
   Desktop^.Layout;
   MenuBar^.Layout;
   Keyboard.GetKey;
+  FNewWindowX := 10;
+  FNewWindowY := MenuBar^.Height + 10;
 end;
 
 destructor TVeridianApp.Free;
@@ -227,6 +232,9 @@ begin
   StateStack.DisposeObjects := true;
   StateStack.Free;
   Parameters.Free;
+  Settings.Free;
+  FSpecialControls.Free;
+  FreeAndNil(Fonts);
   inherited Free;
 end;
 
@@ -307,6 +315,8 @@ begin
   FBlinkElapsed.Create;
   FDoubleClickStart.Create;
   FBlinkCurrentTime.Create;
+  FSpecialControls.Create;
+  FSpecialControls.DisposeObjects := false;
   CursorBlinkTime.Create;
   StateStack.Create;
   Settings.Create;
@@ -331,10 +341,6 @@ begin
   Mouse.UseSystemCursor := false;
   Mouse.HideMouse;
   DragRectVisible := false;
-  {$IFDEF debug}
-  FMemAvail := MemAvail;
-  FMemMaxAvail := MaxAvail;
-  FMemLabel := nil;
   ActiveControl := nil;
   ActiveWindow := nil;
   MouseOverControl := nil;
@@ -345,12 +351,17 @@ begin
   DragControl := nil;
   ScrollSlider := nil;
   ActiveDropDown := nil;
+  ActiveDialog := nil;
+  {$IFDEF debug}
+  FMemAvail := MemAvail;
+  FMemMaxAvail := MaxAvail;
+  FMemLabel := nil;
   {$ENDIF}
 end;
 
 function TVeridianApp.CreateDesktop: PDesktop;
 begin
-  CreateDesktop := New(PDesktop, CreateParent('Desktop', nil));
+  CreateDesktop := New(PDesktop, CreateParent('Desktop', nil, nil));
 end;
 
 procedure TVeridianApp.UpdateActionControl(AControl: PActionControl);
@@ -364,13 +375,15 @@ begin
   if not (Assigned(ASender) and Assigned(AAction)) then
     exit;
   UpdateActionControl(ASender);
-  if not (ASender^.IsVisibleAndEnabled and ASender^.IsEnabled) then
+  if not (ASender^.IsVisibleAndEnabled) then
     exit;
+  if Assigned(ActiveDialog) then
+    ActiveDialog^.ActionExecute(ASender, AAction);
   if Assigned(AAction^.OnExecute) then begin
     event.Create;
     event.Action := AAction;
     event.Sender := ASender;
-    TActionExecuteProc(AAction^.OnExecute)(event);
+    TActionExecuteEventProc(AAction^.OnExecute)(event);
   end;
 end;
 
@@ -393,7 +406,8 @@ begin
     MouseCursor := AControl^.MouseCursor;
     DrawMouseCursor(AEvent.NewMouseState);
   end;
-  AControl^.MouseEnter(AEvent);
+  if AControl^.IsVisibleAndEnabled then
+    AControl^.MouseEnter(AEvent);
 end;
 
 procedure TVeridianApp.HandleMouseMove(AControl: PControl; var AEvent: TMouseEvent);
@@ -405,6 +419,8 @@ procedure TVeridianApp.HandleMouseWheelChanged(AControl: PControl; var AEvent: T
 var
   rect: TRect;
 begin
+  if not AControl^.IsVisibleAndEnabled then
+    exit;
   AControl^.GetScreenBounds(rect);
   if rect.Contains(AEvent.NewMouseState.X, AEvent.NewMouseState.Y) then begin
     AControl^.MouseWheelChanged(AEvent);
@@ -458,6 +474,9 @@ begin
     LeftMouseDownControl := nil
   else
     RightMouseDownControl := nil;
+
+  if AControl^.IsActionControl then
+    ActionExecute(PActionControl(AControl), PActionControl(AControl)^.Action);
 end;
 
 procedure TVeridianApp.HandleMouseDown(AControl: PControl; var AEvent: TMouseEvent;
@@ -474,7 +493,7 @@ begin
     exit;
   if AButton in AEvent.OldMouseState.ButtonState then
     exit;
-  if not AControl^.IsVisible then
+  if not AControl^.IsVisibleAndEnabled then
     exit;
   if Assigned(ActiveDropDown) then begin
     ActiveDropDown^.GetScreenBounds(rect);
@@ -512,7 +531,8 @@ begin
       window := PWindow(parent);
     parent := parent^.Parent;
   end;
-  if Assigned(window) and (ActiveWindow <> window) then
+  if Assigned(window) and (ActiveWindow <> window)
+    and window^.IsVisibleAndEnabled then
     window^.Activate;
 
   if Assigned(ActiveControl) and (AControl^.IsFocusControl)
@@ -621,8 +641,11 @@ begin
       dragEvent.Y := AEvent.NewMouseState.Y;
       DragControl^.DragMove(dragEvent);
     end;
-    if Assigned(LeftMouseDownControl) and LeftMouseDownControl^.CanDrag
+    if Assigned(LeftMouseDownControl)
+      and (coCanDrag in LeftMouseDownControl^.ControlOptions)
       and not Assigned(DragControl) then begin
+      if not LeftMouseDownControl^.IsVisibleAndEnabled then
+        exit;
       DragControl := LeftMouseDownControl;
       DragInitialPos.SetCoords(AEvent.NewMouseState.X, AEvent.NewMouseState.Y);
       dragEvent.Create;
@@ -631,21 +654,19 @@ begin
       dragEvent.X := DragInitialPos.X;
       dragEvent.Y := DragInitialPos.Y;
       DragInitialSize.CreateDims(DragControl^.Width, DragControl^.Height);
-      LeftMouseDownControl^.DragStart(dragEvent);
+        LeftMouseDownControl^.DragStart(dragEvent);
     end;
     HandleMouseEnter(control, FMouseEvent);
   end;
 end;
 
-procedure TVeridianApp.HandleActionKeys(AControl: PActionControl; var AEvent: TKeyEvent);
+procedure TVeridianApp.HandleActionKey(AControl: PActionControl; var AEvent: TKeyEvent);
 var
   index: integer;
   action: PAction;
 begin
   for index := 0 to Desktop^.ActionList^.Count - 1 do begin
     action := Desktop^.ActionList^.GetItem(index);
-    if not AControl^.IsActionControl then
-      continue;
     if (action^.Shortcut <> AEvent.Key) or not action^.Enabled then
       continue;
     ActionExecute(PActionControl(AControl), action);
@@ -663,17 +684,11 @@ begin
   for index := 0 to AControl^.Controls^.Count - 1 do begin
     control := AControl^.Controls^.GetItem(index);
     GetFocusList(AList, control);
-    if control^.IsFocusControl then begin
-      focusControl := PFocusControl(control);
-      if focusControl^.IsVisible and focusControl^.CanFocus then begin
-        if focusControl^.IsActionControl then begin
-          if PActionControl(focusControl)^.IsEnabled then
-            AList^.Add(focusControl);
-        end
-        else
-          AList^.Add(control);
-      end;
-    end;
+    if not control^.IsFocusControl then
+      continue;
+    focusControl := PFocusControl(control);
+    if focusControl^.IsVisibleAndEnabled and focusControl^.CanFocus then
+        AList^.Add(focusControl);
   end;
 end;
 
@@ -715,32 +730,72 @@ begin
   FreeAndNil(focusList);
 end;
 
+function TVeridianApp.FocusFirst: boolean;
+var
+  focusList: PObjectList;
+  control: PControl;
+begin
+  focusList := New(PObjectList, Create);
+  focusList^.DisposeObjects := false;
+  GetFocusList(focusList, Desktop);
+  if focusList^.Count >= 0 then begin
+    control := PControl(focusList^.GetItem(focusList^.Count - 1));
+    if Assigned(control) then
+      PFocusControl(control)^.Focus;
+  end;
+  FreeAndNil(focusList);
+end;
+
+function TVeridianApp.FocusLast: boolean;
+var
+  focusList: PObjectList;
+  control: PControl;
+begin
+  focusList := New(PObjectList, Create);
+  focusList^.DisposeObjects := false;
+  GetFocusList(focusList, Desktop);
+  if focusList^.Count >= 0 then begin
+    control := PControl(focusList^.GetItem(0));
+    if Assigned(control) then
+      PFocusControl(control)^.Focus;
+  end;
+  FreeAndNil(focusList);
+end;
+
 procedure TVeridianApp.HandleSpecialKeys(AControl: PControl; var AEvent: TKeyEvent);
 var
   container: PMenuItemContainer;
 begin
   case AEvent.Key of
     kyTab: begin
-      if not (Assigned(ActiveControl) or ActiveControl^.AcceptsTab) then
-        exit;
-      if not ActiveControl^.CanFocus then
-        exit;
       MenuManager.CloseAllMenus;
       if Assigned(ActiveDropDown) then
         ActiveDropDown^.HideList;
-      FocusNext(ActiveControl, false);
+      if Assigned(ActiveDropDown) then
+        ActiveDropDown^.HideList;
+      if Assigned(ActiveControl) then begin
+        if ActiveControl^.AcceptsTab or not ActiveControl^.CanFocus then
+          exit;
+        FocusNext(ActiveControl, true);
+      end
+      else begin
+        FocusFirst;
+      end;
       AEvent.Handled := true;
       exit;
     end;
     kyShiftTab: begin
-      if not (Assigned(ActiveControl) or ActiveControl^.AcceptsTab) then
-        exit;
-      if not ActiveControl^.CanFocus then
-        exit;
       MenuManager.CloseAllMenus;
       if Assigned(ActiveDropDown) then
         ActiveDropDown^.HideList;
-      FocusNext(ActiveControl, true);
+      if Assigned(ActiveControl) then begin
+        if ActiveControl^.AcceptsTab or not ActiveControl^.CanFocus then
+          exit;
+        FocusNext(ActiveControl, false);
+      end
+      else begin
+        FocusLast;
+      end;
       AEvent.Handled := true;
       exit;
     end;
@@ -750,20 +805,19 @@ begin
       if Assigned(ActiveDropDown) then
         ActiveDropDown^.HideList;
       Desktop^.EndDrawing;
-      AEvent.Handled := true;
     end;
   end;
   if AEvent.Handled then
     exit;
   if AControl^.IsActionControl then
-    HandleActionKeys(PActionControl(AControl), AEvent);
+    HandleActionKey(PActionControl(AControl), AEvent);
 end;
 
 procedure TVeridianApp.HandleKeyEvent(AControl: PControl; var AEvent: TKeyEvent);
 var
   index: integer;
   control: PControl;
-  actionControl: PActionControl;
+  controlEnabled: boolean;
 begin
   {$IFDEF debug}
   if AEvent.Key = kyAltZ then begin
@@ -790,12 +844,8 @@ begin
     control := AControl^.Controls^.GetItem(index);
     if not control^.IsVisible then
       continue;
-    if control^.IsActionControl then begin
-      actionControl := PActionControl(control);
-      if actionControl^.IsEnabled then
-        HandleKeyEvent(actionControl, AEvent);
-    end
-    else
+    controlEnabled := control^.IsEnabled;
+    if controlEnabled then
       HandleKeyEvent(control, AEvent);
     if AEvent.Handled then
       exit;
@@ -804,6 +854,22 @@ begin
     exit;
   AEvent.Sender := AControl;
   AControl^.KeyPress(AEvent);
+end;
+
+function TVeridianApp.DefaultWindowX: integer;
+begin
+  FNewWindowX := FNewWindowX + 10;
+  if FNewWindowX > Graph^.Mode^.Width div 2 then
+    FNewWindowX := 10;
+  DefaultWindowX := FNewWindowX;
+end;
+
+function TVeridianApp.DefaultWindowY: integer;
+begin
+  FNewWindowY := FNewWindowY + 10;
+  if FNewWindowY > Graph^.Mode^.Height div 2 then
+    FNewWindowY := 10;
+  DefaultWindowY := FNewWindowY;
 end;
 
 procedure TVeridianApp.CursorOn;
@@ -922,15 +988,13 @@ begin
     DragRectVisible := false;
   if Assigned(DragControl) and not DragRectVisible then begin
     DragRectVisible := true;
-    Graph^.WaitForVSync;
     MoveMouseCursor(FMouseState, FOldMouseState, false);
     Graph^.InverseRectangle(DragRect);
     LastDragRect.Assign(DragRect);
   end
-  else if Assigned(DragControl) then begin
+  else if Assigned(DragControl) and DragRectVisible then begin
     newRect.CreateRect(DragRect);
     oldRect.CreateRect(LastDragRect);
-    Graph^.WaitForVSync;
     Graph^.InverseRectangle(oldRect);
     MoveMouseCursor(FMouseState, FOldMouseState, false);
     Graph^.InverseRectangle(newRect);
@@ -965,20 +1029,6 @@ begin
   DoubleClickControl := AControl;
 end;
 
-procedure TVeridianApp.FreeClosedWindows;
-var
-  index: integer;
-  window: PWindow;
-begin
-  for index := Desktop^.Controls^.Count - 1 downto 0 do begin
-    if not PControl(Desktop^.Controls^.Items^[index])^.IsWindow then
-      continue;
-    window := PWindow(Desktop^.Controls^.GetItem(index));
-    if window^.Closed then
-      Desktop^.Controls^.Delete(index);
-  end;
-end;
-
 procedure TVeridianApp.BeginWindowSwitch;
 begin
   SwitchingWindows := true;
@@ -993,15 +1043,63 @@ procedure TVeridianApp.SwitchWindow;
 begin
 end;
 
+procedure TVeridianApp.StoreSpecialControlState;
+begin
+  FSpecialControls.Clear;
+  FSpecialControls.Push(DoubleClickControl);
+  FSpecialControls.Push(MouseOverControl);
+  FSpecialControls.Push(LeftMouseDownControl);
+  FSpecialControls.Push(RightMouseDownControl);
+  FSpecialControls.Push(SelectingControl);
+  FSpecialControls.Push(ActiveDialog);
+  FSpecialControls.Push(ActiveControl);
+  FSpecialControls.Push(ActiveWindow);
+  FSpecialControls.Push(ActiveDropDown);
+  FSpecialControls.Push(DragControl);
+  FSpecialControls.Push(ScrollSlider);
+end;
+
+procedure TVeridianApp.ClearSpecialControlState;
+begin
+  DoubleClickControl := nil;
+  MouseOverControl := nil;
+  LeftMouseDownControl := nil;
+  RightMouseDownControl := nil;
+  SelectingControl := nil;
+  ActiveControl := nil;
+  ActiveWindow := nil;
+  ActiveDropDown := nil;
+  DragControl := nil;
+  ActiveDialog := nil;
+  ScrollSlider := nil;
+end;
+
+procedure TVeridianApp.RestoreSpecialControlState;
+begin
+  ScrollSlider := PControl(FSpecialControls.Pop);
+  DragControl := PControl(FSpecialControls.Pop);
+  ActiveDropDown := PDropDownList(FSpecialControls.Pop);
+  ActiveWindow := PWindow(FSpecialControls.Pop);
+  ActiveControl := PFocusControl(FSpecialControls.Pop);
+  ActiveDialog := PDialog(FSpecialControls.Pop);
+  SelectingControl := PControl(FSpecialControls.Pop);
+  RightMouseDownControl := PControl(FSpecialControls.Pop);
+  LeftMouseDownControl := PControl(FSpecialControls.Pop);
+  MouseOverControl := PControl(FSpecialControls.Pop);
+  DoubleClickControl := PControl(FSpecialControls.Pop);
+  FSpecialControls.Clear;
+end;
+
 procedure TVeridianApp.ProcessEvents;
 var
   ch: word;
   flags: TKeyboardFlags;
 begin
-  FreeClosedWindows;
   Mouse.UpdateState;
   Keyboard.GetFlags(flags);
   AltKeyDown := kfAlt in flags;
+  if Assigned(MenuBar) then
+    MenuBar^.BringToFront;
 
   FMouseState.Assign(Mouse.State);
   HandleCursor;
@@ -1146,12 +1244,6 @@ begin
   CursorOn := source^.CursorOn;
   DrawEnabled := source^.DrawEnabled;
   MouseVisible := source^.MouseVisible;
-end;
-
-procedure TVeridianAction.Execute(ASender: PObject);
-begin
-  VeridianApp^.ActionExecute(PActionControl(ASender), @self);
-  inherited Execute(ASender);
 end;
 
 procedure TVeridianAppSettings.Init;

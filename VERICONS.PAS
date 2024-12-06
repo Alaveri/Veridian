@@ -24,6 +24,10 @@ const
   vmRestore = wmVeridian + 3;
   vmClose = wmVeridian + 4;
 
+  { Standard Veridian action Ids, don't use. }
+  acVeridian = $FFFF - $1000;
+  acVeridianDialog = acVeridian + $0100;
+
 implementation
 
 end.
