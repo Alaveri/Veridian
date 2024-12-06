@@ -2,12 +2,12 @@
 
 {
 TODO:
-TDialog
 TFileDialog
 TCheckBox
 TRadioButton
 TGroupBox
 TImage
+Taskbar menu
 
 Alt-Tab
 
@@ -164,6 +164,7 @@ type
     function IsDialogButton: boolean; virtual;
     function IsButton: boolean; virtual;
     function IsVisualControl: boolean; virtual;
+    function IsTaskButton: boolean; virtual;
 
     procedure SetVisible(AVisible: boolean);
     procedure Layout; virtual;
@@ -567,6 +568,11 @@ end;
 function TControl.IsVisualControl: boolean;
 begin
   IsVisualControl := false;
+end;
+
+function TControl.IsTaskButton: boolean;
+begin
+  IsTaskButton := false;
 end;
 
 function TControl.IsButton: boolean;

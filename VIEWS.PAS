@@ -30,7 +30,7 @@ type
   PHorzScrollBar = ^THorzScrollBar;
   PWindowGrip = ^TWindowGrip;
   PTaskbar = ^TTaskbar;
-  PTaskbarButton = ^TTaskbarButton;
+  PTaskButton = ^TTaskButton;
 
   TViewScrollType = (
     scNone,
@@ -211,7 +211,7 @@ type
   public
     Title: PChar;
     TitleBar: PTitleBar;
-    TaskButton: PTaskbarButton;
+    TaskButton: PTaskButton;
     Grip: PLabel;
     Options: TWindowOptions;
     Closed: boolean;
@@ -299,13 +299,14 @@ type
     procedure RemoveItem(AItem: PWindow);
   end;
 
-  TTaskbarButton = object(TButton)
+  TTaskButton = object(TButton)
   private
   public
     Window: PWindow;
     ParentTaskbar: PTaskbar;
     constructor Create(const AId: string; AParentTaskbar: PTaskbar; AWindow: PWindow);
     function GetCaption: string; virtual;
+    function IsTaskbutton: boolean; virtual;
     procedure Init; virtual;
     procedure Paint; virtual;
     procedure MouseClick(var AEvent: TMouseEvent); virtual;
@@ -325,7 +326,7 @@ type
     procedure SetWindow(AIndex: integer; AWindow: PWindow);
     procedure Paint; virtual;
     procedure RemoveButton(AWindow: PWindow);
-    function NewButton(AWindow: PWindow): PTaskBarButton;
+    function NewButton(AWindow: PWindow): PTaskButton;
     function IndexOfWindow(AWindow: PWindow): integer;
     function GetWindow(AIndex: integer): PWindow;
     function GetWindowById(const AId: string): PWindow;
@@ -1450,6 +1451,7 @@ begin
     wsMinimized: begin
       WindowState := RestoredState;
       Activate;
+      Show;
     end;
   end;
 end;
@@ -1753,19 +1755,16 @@ var
   activeWindow: PWindow;
 begin
   activeWindow := VeridianApp^.ActiveWindow;
-  if Assigned(activeWindow) then begin
+  if VeridianApp^.ActiveWindow = @self then
+    exit;
+  if Assigned(activeWindow) then
     activeWindow^.Deactivate;
-    VeridianApp^.ActiveWindow := nil;
-    activeWindow^.TitleBar^.Draw;
-  end;
   VeridianApp^.ActiveWindow := @self;
-  BringToFront;
-  if Visible then begin
-    if Assigned(TitleBar) then
-      TitleBar^.Draw;
-  end
-  else
-    Show;
+
+  if BringToFront then
+    Draw
+  else if Assigned(TitleBar) then
+    TitleBar^.Draw;
   if Assigned(TaskButton) then begin
     TaskButton^.Down := true;
     TaskButton^.DrawSelf;
@@ -1789,7 +1788,11 @@ begin
       activeWindow^.TaskButton^.DrawSelf;
     end;
     VeridianApp^.ActiveWindow := nil;
-    Draw;
+    activeWindow^.TitleBar^.Draw;
+  end;
+  if Assigned(TaskButton) then begin
+    TaskButton^.Down := false;
+    TaskButton^.DrawSelf;
   end;
 end;
 
@@ -1864,7 +1867,6 @@ begin
   if AEvent.Handled or Active then
     exit;
   if AEvent.NewMouseState.ButtonState = [bsLeft] then begin
-    BringToFront;
     Activate;
   end;
 end;
@@ -2143,48 +2145,63 @@ begin
   end;
 end;
 
-constructor TTaskBarButton.Create(const AId: string; AParentTaskBar: PTaskBar; AWindow: PWindow);
+constructor TTaskButton.Create(const AId: string; AParentTaskBar: PTaskBar; AWindow: PWindow);
 begin
   inherited CreateParent(AId, AParentTaskBar);
   ParentTaskBar := AParentTaskBar;
   Window := AWindow;
 end;
 
-procedure TTaskBarButton.Init;
+procedure TTaskButton.Init;
 begin
   inherited Init;
   CanFocus := false;
   Include(ControlOptions, coCanDrag);;
   HorzAlign := haLeft;
   VertAlign := vaCenter;
-  Margins.CreateAll(4, 2, 4, 2);
+  Margins.CreateValue(0);
   Padding.CreateAll(4, 2, 4, 2);
   AutoSize := true;
 end;
 
-function TTaskBarButton.GetCaption: string;
+function TTaskButton.IsTaskButton: boolean;
+begin
+  IsTaskButton := true;
+end;
+
+function TTaskButton.GetCaption: string;
 begin
   GetCaption := Window^.TitleBar^.GetCaption;
 end;
 
-procedure TTaskBarButton.Paint;
+procedure TTaskButton.Paint;
 begin
   inherited Paint;
 end;
 
-function IsActive(AItem: pointer): boolean;
+function CanActivate(AItem: pointer): boolean;
+var
+  control: PControl;
+  window: PWindow;
 begin
-  IsActive := PWindow(AItem)^.Active;
+  CanActivate := false;
+  control := PControl(AItem);
+  if not control^.IsWindow then
+    exit;
+  window := PWindow(control);
+  CanActivate := window^.IsVisibleAndEnabled
+    and not window^.Active
+    and not (window^.WindowState = wsMinimized);
 end;
 
-procedure TTaskBarButton.MouseClick(var AEvent: TMouseEvent);
+procedure TTaskButton.MouseClick(var AEvent: TMouseEvent);
 var
   last: PControl;
 begin
   AEvent.Handled := true;
-  if Window^.WindowState <> wsMinimized then begin
+  if Window^.Active and (Window^.WindowState <> wsMinimized) then begin
     Window^.Minimize;
-    last := Desktop^.Controls^.LastThat(IsActive);
+    last := Desktop^.Controls^.LastThat(CanActivate);
     if Assigned(last) then begin
       last^.BringToFront;
       if last^.IsWindow then begin
@@ -2192,13 +2209,17 @@ begin
       end
       else
         last^.Draw;
-    end;
-    exit;
+    end
+  end
+  else if (not Window^.Active) and (Window^.WindowState <> wsMinimized) then begin
+    Window^.Activate;
+  end
+  else if Window^.WindowState = wsMinimized then begin
+    if Assigned(VeridianApp^.ActiveWindow) then
+      VeridianApp^.ActiveWindow^.Deactivate;
+    Window^.BringToFront;
+    Window^.Restore;
   end;
-  if Assigned(VeridianApp^.ActiveWindow) then
-    VeridianApp^.ActiveWindow^.Deactivate;
-  Window^.BringToFront;
-  Window^.Restore;
 end;
 
 constructor TTaskBar.Create;
@@ -2228,11 +2249,11 @@ begin
   Position := spClient;
 end;
 
-function TTaskBar.NewButton(AWindow: PWindow): PTaskBarButton;
+function TTaskBar.NewButton(AWindow: PWindow): PTaskButton;
 var
-  button: PTaskBarButton;
+  button: PTaskButton;
 begin
-  button := New(PTaskBarButton, Create('Button' + IntToStr(Controls^.Count), @self, AWindow));
+  button := New(PTaskButton, Create('Button' + IntToStr(Controls^.Count), @self, AWindow));
   NewButton := button;
 end;
 
@@ -2247,7 +2268,7 @@ end;
 
 procedure TTaskBar.AddWindow(AWindow: PWindow);
 var
-  button: PTaskBarButton;
+  button: PTaskButton;
 begin
   if (woShowInTaskBar in AWindow^.Options) and Assigned(VeridianApp^.TaskBar) then begin
     Windows.Add(AWindow);
@@ -2297,6 +2318,7 @@ var
   index, xPos: integer;
   control: PContentControl;
   controlWidth: integer;
+  taskButton: PTaskButton;
   controlHeight, barHeight: integer;
   maxHeight: integer;
   pos: TPoint;
@@ -2323,12 +2345,13 @@ begin
     if barHeight > maxHeight then
       maxHeight := barHeight;
     control^.Width := controlWidth;
+    Inc(xPos, control^.Margins.Left);
     control^.X := xPos;
-    Inc(xPos, Width + Padding.Width);
     size.CreateDims(controlWidth, controlHeight);
     rect.SetDims(0, 0, control^.Width, barHeight - OuterWidth);
     control^.GetAlign(rect, size, pos);
     control^.Y := pos.Y;
+    Inc(xPos, controlWidth);
   end;
   if maxHeight > 0 then
     Height := maxHeight;
