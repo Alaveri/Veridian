@@ -123,6 +123,7 @@ type
     function ButtonType: TScrollButtonType;
     procedure Init; virtual;
     procedure MouseClick(var AEvent: TMouseEvent); virtual;
+    procedure MouseDown(var AEvent: TMouseEvent); virtual;
   end;
 
   TScrollSlider = object(TButton)
@@ -387,6 +388,21 @@ begin
   FType := btInc;
 end;
 
+procedure TScrollButton.MouseDown(var AEvent: TMouseEvent);
+var
+  scrollBar: PScrollBar;
+  control: PFocusControl;
+begin
+  if Assigned(Parent) then begin
+    scrollBar := PScrollBar(Parent);
+    if Assigned(scrollBar^.Parent) and scrollBar^.Parent^.IsFocusControl then begin
+      control := PFocusControl(scrollBar^.Parent);
+      if not control^.Focused then
+        control^.Focus;
+    end;
+  end;
+end;
+
 procedure TScrollButton.MouseClick(var AEvent: TMouseEvent);
 var
   scrollBar: PScrollBar;
@@ -412,8 +428,19 @@ begin
 end;
 
 procedure TScrollSlider.MouseDown(var AEvent: TMouseEvent);
+var
+  scrollBar: PScrollBar;
+  control: PFocusControl;
 begin
   VeridianApp^.ScrollSlider := @self;
+  if Assigned(Parent) then begin
+    scrollBar := PScrollBar(Parent);
+    if Assigned(scrollBar^.Parent) and scrollBar^.Parent^.IsFocusControl then begin
+      control := PFocusControl(scrollBar^.Parent);
+      if not control^.Focused then
+        control^.Focus;
+    end;
+  end;
   FDownX := AEvent.X;
   FDownY := AEvent.Y;
 end;
@@ -476,12 +503,13 @@ begin
   inherited Init;
   Min := 0;
   Max := 0;
+  Tag := 5;
   OnPositionChanged := nil;
   ScrollPosition := 0;
   UpdateScrollContents := VeridianApp^.Settings.UpdateScrollContents;
   ForeColor := VeridianApp^.Colors.ScrollBar;
   BackColor := VeridianApp^.Colors.ScrollBarBack;
-  FillPattern := @CheckerFillPattern;
+{  FillPattern := @CheckerFillPattern;}
   IncButton := New(PScrollButton, Create('IncButton', @self, btInc));
   with IncButton^ do begin
     HorzAlign := haCenter;
@@ -1364,6 +1392,8 @@ var
   movingEvent: TMovingEvent;
   maximizedEvent: TEvent;
 begin
+  if not (woResizeable in Options) then
+    exit;
   sizingEvent.Create;
   movingEvent.Create;
   GetMaximizedBounds(maxRect);
@@ -1444,6 +1474,7 @@ begin
       SetBoundsRect(RestoredBounds);
       TitleBar^.MaximizeButton^.SetCaption(#7);
       Activate;
+      Show;
       Resized(sizedEvent);
       Moved(movedEvent);
       Restored(restoredEvent);
@@ -1757,6 +1788,8 @@ begin
   activeWindow := VeridianApp^.ActiveWindow;
   if VeridianApp^.ActiveWindow = @self then
     exit;
+  if Assigned(VeridianApp^.ActiveControl) then
+    VeridianApp^.ActiveControl^.UnFocus;
   if Assigned(activeWindow) then
     activeWindow^.Deactivate;
   VeridianApp^.ActiveWindow := @self;
@@ -1782,18 +1815,14 @@ var
   activeWindow: PWindow;
 begin
   activeWindow := VeridianApp^.ActiveWindow;
-  if activeWindow = @self then begin
-    if Assigned(activeWindow^.TaskButton) then begin
-      activeWindow^.TaskButton^.Down := false;
-      activeWindow^.TaskButton^.DrawSelf;
-    end;
-    VeridianApp^.ActiveWindow := nil;
-    activeWindow^.TitleBar^.Draw;
-  end;
+  if activeWindow <> @self then
+    exit;
   if Assigned(TaskButton) then begin
     TaskButton^.Down := false;
     TaskButton^.DrawSelf;
   end;
+  VeridianApp^.ActiveWindow := nil;
+  TitleBar^.Draw;
 end;
 
 function TWindow.GetTitleHeight: integer;
@@ -1933,9 +1962,7 @@ var
   mouseRect, rect: TRect;
   value: integer;
 begin
-  GetClipRect(rect);
   BeginDrawing;
-  Graph^.State^.ViewPort := rect;
   Graph^.SetBackColor(BackColor);
   if Orientation = soHorizontal then begin
     value := slider^.X;
@@ -2160,8 +2187,8 @@ begin
   HorzAlign := haLeft;
   VertAlign := vaCenter;
   Margins.CreateValue(0);
-  Padding.CreateAll(4, 2, 4, 2);
-  AutoSize := true;
+  Padding.CreateAll(4, 4, 4, 4);
+  Font := VeridianApp^.GetFont('editor');
 end;
 
 function TTaskButton.IsTaskButton: boolean;
@@ -2340,7 +2367,6 @@ begin
       Inc(controlWidth, 2 * PFocusControl(control)^.FocusRectWidth);
       Inc(controlHeight, 2 * PFocusControl(control)^.FocusRectWidth);
     end;
-
     barHeight := controlHeight + OuterWidth + Margins.Height;
     if barHeight > maxHeight then
       maxHeight := barHeight;
@@ -2351,7 +2377,7 @@ begin
     rect.SetDims(0, 0, control^.Width, barHeight - OuterWidth);
     control^.GetAlign(rect, size, pos);
     control^.Y := pos.Y;
-    Inc(xPos, controlWidth);
+    Inc(xPos, controlWidth - BorderWidth);
   end;
   if maxHeight > 0 then
     Height := maxHeight;

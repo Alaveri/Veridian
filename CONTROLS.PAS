@@ -100,8 +100,7 @@ type
 
   TControl = object(TEventObject)
   private
-    FOverrideViewPort: boolean;
-    procedure InternalPaintRegion(ARegion: PRegion; AScreenRect: TRect;
+    procedure InternalPaintRegion(var ARegion: TRegion; var ARect: TRect;
       AExclude: PControl);
   public
     X, Y: integer;
@@ -137,8 +136,7 @@ type
     constructor CreateParent(AId: string; AParent: PControl);
     destructor Free; virtual;
     procedure Init; virtual;
-    function IsVisible: boolean;
-    function IsMouseOver: boolean;
+    procedure Layout; virtual;
     function BorderWidth: byte; virtual;
     function BevelWidth: byte; virtual;
     function OuterWidth: byte;
@@ -148,12 +146,15 @@ type
     function SendToBack: boolean;
     function CreateControlList: PControlList; virtual;
     function GetSize: word;
-    function FindControl(const AId: string): PControl;
-    function ContainsControl(AControl: PControl): boolean;
     function ScaleX(APercent: real): integer;
     function ScaleY(APercent: real): integer;
+    function FindControl(const AId: string): PControl;
+    function ContainsControl(AControl: PControl): boolean;
+
+    function IsVisible: boolean;
     function IsEnabled: boolean;
     function IsVisibleAndEnabled: boolean;
+    function IsMouseOver: boolean;
 
     function IsActionControl: boolean; virtual;
     function IsFocusControl: boolean; virtual;
@@ -167,7 +168,6 @@ type
     function IsTaskButton: boolean; virtual;
 
     procedure SetVisible(AVisible: boolean);
-    procedure Layout; virtual;
     procedure SetWidthHeight(AWidth, AHeight: word); virtual;
     procedure SetWidth(AWidth: word); virtual;
     procedure SetHeight(AHeight: word); virtual;
@@ -235,12 +235,6 @@ type
       borders, margins, bevels or content. }
     procedure GetFullScreenBounds(var ARect: TRect); virtual;
 
-    { GetFullClipRect:
-      Gets the control's full clip rect, which is the control's full bounds
-      clipped to the parent's content area, disregarding any borders, margins,
-      bevels or content. }
-    procedure GetFullClipRect(var ARect: TRect); virtual;
-
     { GetScreenOffset:
       Gets the control's screen offset.  GetScreenBounds adjusts the control's
       on-screen position by it's parent's GetScreenOffset value. Used by
@@ -261,7 +255,7 @@ type
     procedure SetBoundsRect(const ARect: TRect);
     procedure SetEnabled(AEnabled: boolean);
     procedure Paint; virtual;
-    procedure PaintRegion(const ARect: TRect; AExclude: PControl); virtual;
+    procedure PaintRegion(var ARect: TRect; AExclude: PControl); virtual;
     procedure KeyPress(var AEvent: TKeyEvent); virtual;
     procedure MouseDown(var AEvent: TMouseEvent); virtual;
     procedure MouseUp(var AEvent: TMouseEvent); virtual;
@@ -514,7 +508,6 @@ begin
   Position := spContent;
   Margins.Create;
   Padding.Create;
-  FOverrideViewPort := false;
   Tag := 0;
   ControlOptions := [coClipping];
   OnDragEnd := nil;
@@ -548,17 +541,17 @@ var
   rect: TRect;
 begin
   GetScreenBounds(rect);
-  if Visible and not AVisible then begin
+  if IsVisible and not AVisible then begin
     Visible := false;
     if not Assigned(Parent) then
       exit;
     Desktop^.BeginDrawing;
     VeridianApp^.CursorOff;
-    Parent^.PaintRegion(rect, @self);
+    Desktop^.PaintRegion(rect, nil);
     Desktop^.EndDrawing;
     exit;
   end;
-  if AVisible and not Visible then begin
+  if AVisible and not IsVisible then begin
     Visible := true;
     Draw;
     exit;
@@ -762,6 +755,8 @@ begin
   if not VeridianApp^.State.DrawEnabled then
     exit;
   BeginDrawing;
+  if (coClipping in ControlOptions) then
+    GetClipRect(Graph^.State^.ViewPort);
   Paint;
   if ADrawControls then
     DrawControls;
@@ -1033,24 +1028,6 @@ begin
   ARect.Translate(parentRect.X, parentRect.Y);
 end;
 
-procedure TControl.GetFullClipRect(var ARect: TRect);
-var
-  parentRect: TRect;
-  par: PControl;
-begin
-  GetFullScreenBounds(ARect);
-  if not Assigned(Parent) then
-    exit;
-  Parent^.GetFullScreenBounds(parentRect);
-  ARect.Intersect(parentRect);
-  par := Parent;
-  while Assigned(par) do begin
-    par^.GetFullClipRect(parentRect);
-    ARect.Intersect(parentRect);
-    par := par^.Parent;
-  end;
-end;
-
 { GetClipRect:
   Gets the control's clip rect, which is the control's screen bounds,
   clipped to the the Parent's content area. }
@@ -1072,10 +1049,12 @@ begin
     spClient: Parent^.GetClientBounds(parentRect);
     spRelative: parent^.GetClientOuterBounds(parentRect);
   end;
-  Parent^.GetScreenBounds(screenRect);
+  Parent^.GetClipRect(screenRect);
   parentRect.Translate(screenRect.X, screenRect.Y);
+  parentRect.Intersect(screenRect);
   ARect.Intersect(parentRect);
-  par := Parent;
+
+  par := Parent^.Parent;
   while Assigned(par) do begin
     par^.GetClipRect(parentRect);
     ARect.Intersect(parentRect);
@@ -1116,56 +1095,50 @@ end;
 
 procedure TControl.Paint;
 begin
-  if (coClipping in ControlOptions) and not FOverrideViewPort then
-    GetClipRect(Graph^.State^.ViewPort);
-  FOverrideViewPort := false;
   if IsVisualControl then
     Graph^.State^.Font := PVisualControl(@self)^.Font;
 end;
 
-procedure TControl.InternalPaintRegion(ARegion: PRegion; AScreenRect: TRect; AExclude: PControl);
+procedure TControl.PaintRegion(var ARect: TRect; AExclude: PControl);
 var
-  index: integer;
-  par, control: PControl;
-  rect: TRect;
-  controlRect: TRect;
-  regionRect: PRect;
-  ptr: pointer;
+  region: TRegion;
+  clipRect: TRect;
 begin
-  if AExclude = @self then
-    exit;
-  if not IsVisible then
-    exit;
-  GetScreenBounds(rect);
-  if rect.IsEmpty then
-    exit;
   VeridianApp^.PushState;
   VeridianApp^.CursorOff;
-  rect.Intersect(AScreenRect);
+  region.Create;
+  Graph^.WaitForVSync;
+  InternalPaintRegion(region, ARect, AExclude);
+  region.Free;
+  VeridianApp^.PopState;
+end;
+
+procedure TControl.InternalPaintRegion(var ARegion: TRegion; var ARect: TRect;
+  AExclude: PControl);
+var
+  region: TRegion;
+  index: integer;
+  control: PControl;
+  rect, clipRect: TRect;
+begin
+  if (@self = AExclude) or not IsVisible then
+    exit;
+  GetScreenBounds(rect);
+  rect.Intersect(ARect);
+  GetClipRect(clipRect);
+  rect.Intersect(clipRect);
+  if rect.IsEmpty then
+    exit;
+
   Graph^.PushState;
-  FOverrideViewPort := true;
   Graph^.SetViewPort(rect);
   Paint;
   Graph^.PopState;
 
-  VeridianApp^.PopState;
   for index := 0 to Controls^.Count - 1 do begin
-    control := Controls^.Items^[index];
-    if control = AExclude then
-      continue;
-    if not control^.IsVisible then
-      continue;
-    control^.GetScreenBounds(controlRect);
-    controlRect.Intersect(rect);
-    if controlRect.IsEmpty then
-      continue;
-    control^.PaintRegion(controlRect, nil);
+    control := Controls^.GetItem(index);
+    control^.InternalPaintRegion(ARegion, rect, AExclude);
   end;
-end;
-
-procedure TControl.PaintRegion(const ARect: TRect; AExclude: PControl);
-begin
-  InternalPaintRegion(nil, ARect, AExclude);
 end;
 
 function TControl.BorderWidth: byte;
@@ -1896,7 +1869,6 @@ begin
   Caption := TString.New(ACaption);
 end;
 
-
 procedure TCaptionControl.SetCaption(ACaption: string);
 begin
   TString.AssignString(Caption, ACaption);
@@ -2025,7 +1997,6 @@ begin
   index := 0;
   ch := Caption^;
   tw := 0;
-  Graph^.State^.ViewPort := rect;
   while true do begin
     ch := Caption[index];
     cw := Font^.TextWidth(ch);
@@ -2347,7 +2318,16 @@ begin
   IsTextControl := true;
 end;
 
+var
+  previousExitProc: PProc;
+
+procedure Finalize; far;
+begin
+  ExitProc := previousExitProc;
+end;
+
 begin
   Desktop := nil;
-
+  previousExitProc := ExitProc;
+  ExitProc := @Finalize;
 end.

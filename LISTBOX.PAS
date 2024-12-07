@@ -297,7 +297,7 @@ var
   itemWidth: integer;
   rect: TRect;
 begin
-  GetScreenBounds(rect);
+  GetClipRect(rect);
   cy := rect.Y + AIndex * ItemHeight;
   itemWidth := rect.Width - BorderWidth;
   if VertScrollBar^.Visible then
@@ -325,19 +325,9 @@ begin
     exit;
   if (AIndex < 0) or (AIndex > Items^.Count - 1) then
     exit;
-  Graph^.State^.Font := Font;
   item := Items^.GetItem(AIndex);
-  GetClipRect(clipRect);
   GetItemRect(AIndex, itemRect);
-  GetClientInnerBounds(viewRect);
-  GetScreenBounds(rect);
-  viewRect.Translate(rect.X, rect.Y);
-  viewRect.Intersect(clipRect);
   itemRect.Translate(-ScrollX, -ScrollY);
-  Graph^.State^.ViewPort := viewRect;
-  if not itemRect.IntersectsRect(viewRect) then
-    exit;
-
   Graph^.SetForeColor(ForeColor);
   Graph^.SetBackColor(BackColor);
   if AIndex = SelectedIndex then begin
@@ -350,9 +340,15 @@ begin
       Graph^.SetBackColor(UnfocusedSelectBackColor);
     end;
   end;
+  GetClipRect(rect);
+  rect.Translate(outerWidth, outerWidth);
+  rect.Grow(-OuterWidth, -OuterWidth - BorderWidth);
+  Graph^.PushState;
+  Graph^.State^.ViewPort.Intersect(rect);
   Graph^.FillRect(itemRect);
   Graph^.DrawTextLarge(itemRect.X + Padding.Left,
     itemRect.Y + ItemSpacing div 2, item^.Text);
+  Graph^.PopState;
 end;
 
 function TListBox.GetSelectedIndex(AEvent: TMouseEvent): integer;

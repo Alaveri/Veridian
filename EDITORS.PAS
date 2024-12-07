@@ -278,33 +278,22 @@ end;
 
 procedure TEdit.Paint;
 var
-  drawRect, bounds, charRect: TRect;
+  drawRect, charRect: TRect;
   buffer: PByte;
   index: integer;
   pos: TPoint;
   charWidth: integer;
   ch: char;
   selected: boolean;
-  clipRect: TRect;
 begin
+  TControl.Paint;
   if not IsVisible then
     exit;
 
   selected := CheckSelection;
-  GetScreenBounds(bounds);
-  drawRect.CreateRect(bounds);
+  GetScreenBounds(drawRect);
 
-  Graph^.PushState;
-  GetClipRect(clipRect);
-  Graph^.State^.ViewPort := clipRect;
-
-  buffer := nil;
-  Graph^.BeginDrawBuffer(buffer, drawRect);
-  if Graph^.HasException then begin
-    Graph^.ClearException;
-    VeridianApp^.Error(self, ecNotEnoughMemory);
-    exit;
-  end;
+  Graph^.WaitForVSync;
   Graph^.State^.Font := Font;
   Graph^.SetForeColor(ForeColor);
   Graph^.SetBackColor(BackColor);
@@ -315,7 +304,6 @@ begin
   GetTextAlign(drawRect, pos);
   pos.X := drawRect.X + Padding.Left - ScrollPos + BorderWidth;
   charRect.Create;
-
   index := 0;
   while index < Length do begin
     Graph^.SetForeColor(ForeColor);
@@ -342,13 +330,6 @@ begin
   end;
   Graph^.SetForeColor(BorderColor);
   Graph^.Rectangle(drawRect);
-  Graph^.EndDrawBuffer;
-  Graph^.PopState;
-  Graph^.PushState;
-  Graph^.State^.ViewPort := clipRect;
-  Graph^.DrawImageRect(bounds, buffer);
-  Graph^.PopState;
-  FreeMem(buffer, drawRect.Width * drawRect.Height);
 end;
 
 function TEdit.SetCursorPos(APos: word): boolean;

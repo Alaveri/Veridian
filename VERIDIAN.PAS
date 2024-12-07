@@ -74,6 +74,7 @@ type
     FBlinkCurrentTime: TDateTime;
     FBlinkElapsed: TTimeSpan;
     FDoubleClickStart: TDateTime;
+    FDoubleClickPos: TPoint;
     FSpecialControls: TObjectStack;
     FNewWindowX, FNewWindowY: integer;
     AltKeyDown: boolean;
@@ -327,6 +328,7 @@ begin
   DragInitialPos.Create;
   DragInitialSize.Create;
   Parameters.Create;
+  FDoubleClickPos.Create;
   ParseParameters;
 end;
 
@@ -546,13 +548,10 @@ procedure TVeridianApp.HandleCursor;
 var
   seconds: Double;
 begin
-  if not Assigned(ActiveControl) then
-    exit;
-  if not ActiveControl^.Focused then
-    exit;
-  if not ActiveControl^.UsesCursor then
-    exit;
-  if not ActiveControl^.IsVisibleAndEnabled then
+  if not (Assigned(ActiveControl)
+    and ActiveControl^.Focused
+    and ActiveControl^.UsesCursor
+    and ActiveControl^.IsVisibleAndEnabled) then
     exit;
   if State.CursorOn then begin
     FBlinkCurrentTime.SetNow;
@@ -688,7 +687,7 @@ begin
       continue;
     focusControl := PFocusControl(control);
     if focusControl^.IsVisibleAndEnabled and focusControl^.CanFocus then
-        AList^.Add(focusControl);
+      AList^.Add(focusControl);
   end;
 end;
 
@@ -711,7 +710,10 @@ begin
     exit;
   focusList := New(PObjectList, Create);
   focusList^.DisposeObjects := false;
-  GetFocusList(focusList, Desktop);
+  if Assigned(ActiveWindow) then
+    GetFocusList(focusList, ActiveWindow)
+  else
+    GetFocusList(focusList, Desktop);
   controlIndex := focusList^.IndexOf(AControl);
   if AReverse then begin
     currentIndex := controlIndex - 1;
@@ -1015,12 +1017,16 @@ begin
   end;
   if (FDoubleClickStart.Ticks = 0) or (AControl <> DoubleClickControl) then begin
     FDoubleClickStart.SetNow;
+    FDoubleClickPos.X := AEvent.NewMouseState.X;
+    FDoubleClickPos.Y := AEvent.NewMouseState.Y;
     DoubleClickControl := AControl;
     exit;
   end;
   elapsed.CreateTicks(ATime.Ticks - FDoubleClickStart.Ticks);
   if elapsed.Ticks < Settings.DoubleClickDelay.Ticks then begin
-    AControl^.MouseDoubleClick(AEvent);
+    if (AEvent.NewMouseState.X = FDoubleClickPos.X)
+      and (AEvent.NewMouseState.Y = FDoubleClickPos.Y) then
+      AControl^.MouseDoubleClick(AEvent);
     FDoubleClickStart.Ticks := 0;
     DoubleClickControl := nil;
     exit;
