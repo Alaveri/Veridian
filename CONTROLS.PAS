@@ -100,8 +100,7 @@ type
 
   TControl = object(TEventObject)
   private
-    procedure InternalPaintRegion(var ARegion: TRegion; var ARect: TRect;
-      AExclude: PControl);
+    procedure InternalPaintRegion(var ARect: TRect; AExclude: PControl);
   public
     X, Y: integer;
     Width, Height: integer;
@@ -755,8 +754,6 @@ begin
   if not VeridianApp^.State.DrawEnabled then
     exit;
   BeginDrawing;
-  if (coClipping in ControlOptions) then
-    GetClipRect(Graph^.State^.ViewPort);
   Paint;
   if ADrawControls then
     DrawControls;
@@ -795,6 +792,8 @@ begin
     Graph^.SetForeColor(visualControl^.ForeColor);
     Graph^.SetBackColor(visualControl^.BackColor);
     Graph^.State^.Font := visualControl^.Font;
+    if (coClipping in ControlOptions) then
+      GetClipRect(Graph^.State^.ViewPort);
   end;
 end;
 
@@ -1101,20 +1100,16 @@ end;
 
 procedure TControl.PaintRegion(var ARect: TRect; AExclude: PControl);
 var
-  region: TRegion;
   clipRect: TRect;
 begin
   VeridianApp^.PushState;
   VeridianApp^.CursorOff;
-  region.Create;
   Graph^.WaitForVSync;
-  InternalPaintRegion(region, ARect, AExclude);
-  region.Free;
+  InternalPaintRegion(ARect, AExclude);
   VeridianApp^.PopState;
 end;
 
-procedure TControl.InternalPaintRegion(var ARegion: TRegion; var ARect: TRect;
-  AExclude: PControl);
+procedure TControl.InternalPaintRegion(var ARect: TRect; AExclude: PControl);
 var
   region: TRegion;
   index: integer;
@@ -1137,7 +1132,7 @@ begin
 
   for index := 0 to Controls^.Count - 1 do begin
     control := Controls^.GetItem(index);
-    control^.InternalPaintRegion(ARegion, rect, AExclude);
+    control^.InternalPaintRegion(rect, AExclude);
   end;
 end;
 

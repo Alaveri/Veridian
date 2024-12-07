@@ -72,7 +72,6 @@ type
 
   TListBox = object(TView)
   private
-    procedure DrawItem(AIndex: integer);
     procedure PaintItem(AIndex: integer);
   public
     Items: PListItems;
@@ -248,8 +247,8 @@ begin
     ScrollVert(itemRect.Y - rect.Bottom + ItemHeight);
   if itemRect.Y < rect.Y then
     ScrollVert(-(rect.Y - itemRect.Y));
-  DrawItem(previousIndex);
-  DrawItem(SelectedIndex);
+  PaintItem(previousIndex);
+  PaintItem(SelectedIndex);
   event.Create;
   event.NewIndex := SelectedIndex;
   event.OldIndex := previousIndex;
@@ -274,20 +273,13 @@ end;
 procedure TListBox.Focus;
 begin
   SetFocus(true, false);
-  DrawItem(SelectedIndex);
+  PaintItem(SelectedIndex);
 end;
 
 procedure TListBox.Unfocus;
 begin
   SetFocus(false, false);
-  DrawItem(SelectedIndex);
-end;
-
-procedure TListBox.DrawItem(AIndex: integer);
-begin
-  BeginDrawing;
-  PaintItem(AIndex);
-  EndDrawing;
+  PaintItem(SelectedIndex);
 end;
 
 procedure TListBox.GetItemRect(AIndex: integer; var ARect: TRect);
@@ -297,7 +289,7 @@ var
   itemWidth: integer;
   rect: TRect;
 begin
-  GetClipRect(rect);
+  GetScreenBounds(rect);
   cy := rect.Y + AIndex * ItemHeight;
   itemWidth := rect.Width - BorderWidth;
   if VertScrollBar^.Visible then
@@ -328,6 +320,8 @@ begin
   item := Items^.GetItem(AIndex);
   GetItemRect(AIndex, itemRect);
   itemRect.Translate(-ScrollX, -ScrollY);
+  rect.CreateRect(Graph^.State^.ViewPort);
+  BeginDrawing;
   Graph^.SetForeColor(ForeColor);
   Graph^.SetBackColor(BackColor);
   if AIndex = SelectedIndex then begin
@@ -340,15 +334,12 @@ begin
       Graph^.SetBackColor(UnfocusedSelectBackColor);
     end;
   end;
-  GetClipRect(rect);
-  rect.Translate(outerWidth, outerWidth);
-  rect.Grow(-OuterWidth, -OuterWidth - BorderWidth);
-  Graph^.PushState;
-  Graph^.State^.ViewPort.Intersect(rect);
+  rect.Grow(0, -BorderWidth);
+  Graph^.SetViewPort(rect);
   Graph^.FillRect(itemRect);
   Graph^.DrawTextLarge(itemRect.X + Padding.Left,
     itemRect.Y + ItemSpacing div 2, item^.Text);
-  Graph^.PopState;
+  EndDrawing;
 end;
 
 function TListBox.GetSelectedIndex(AEvent: TMouseEvent): integer;
@@ -393,8 +384,8 @@ begin
     SelectedIndex := GetSelectedIndex(AEvent);
     SelectedIndex := Clamp(SelectedIndex, 0, Items^.Count - 1);
 
-    DrawItem(previousIndex);
-    DrawItem(SelectedIndex);
+    PaintItem(previousIndex);
+    PaintItem(SelectedIndex);
     event.Create;
     event.NewIndex := SelectedIndex;
     event.OldIndex := previousIndex;
@@ -489,7 +480,7 @@ begin
   FocusedColor := oldFocusedColor;
   FocusedBackColor := oldFocusedBackColor;
   for index := 0 to Items^.Count - 1 do
-    DrawItem(index);
+    PaintItem(index);
   Graph^.SetBackColor(BackColor);
   GetScreenBounds(rect);
   if Items^.Count * ItemHeight < rect.Height then begin

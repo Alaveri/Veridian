@@ -509,7 +509,7 @@ begin
   UpdateScrollContents := VeridianApp^.Settings.UpdateScrollContents;
   ForeColor := VeridianApp^.Colors.ScrollBar;
   BackColor := VeridianApp^.Colors.ScrollBarBack;
-{  FillPattern := @CheckerFillPattern;}
+  FillPattern := @CheckerFillPattern;
   IncButton := New(PScrollButton, Create('IncButton', @self, btInc));
   with IncButton^ do begin
     HorzAlign := haCenter;
@@ -1959,14 +1959,14 @@ end;
 
 procedure TScrollBar.DrawSlider;
 var
-  mouseRect, rect: TRect;
+  clipRect, mouseRect, rect: TRect;
   value: integer;
 begin
   BeginDrawing;
   Graph^.SetBackColor(BackColor);
   if Orientation = soHorizontal then begin
     value := slider^.X;
-    GetScreenBounds(rect);
+    GetClipRect(rect);
     rect.Width := Slider^.X - Size + 1;
     rect.Translate(Size, BorderWidth);
     rect.Grow(0, -2 * BorderWidth);
@@ -1981,6 +1981,14 @@ begin
   else begin
     value := slider^.Y;
     GetScreenBounds(rect);
+    GetClipRect(clipRect);
+
+{  rect.Translate(outerWidth, outerWidth);
+  rect.Grow(-OuterWidth, -OuterWidth - BorderWidth);
+  Graph^.PushState;
+  Graph^.State^.ViewPort.Intersect(rect);
+  Graph^.FillRect(itemRect);}
+
     rect.Height := Slider^.Y - Size + 1;
     rect.Translate(BorderWidth, Size);
     rect.Grow(-2 * BorderWidth, 0);
