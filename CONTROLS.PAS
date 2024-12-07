@@ -165,6 +165,9 @@ type
     function IsButton: boolean; virtual;
     function IsVisualControl: boolean; virtual;
     function IsTaskButton: boolean; virtual;
+    function IsMenuItemContainer: boolean; virtual;
+    function IsMenuItem: boolean; virtual;
+    function IsMainMenuItem: boolean; virtual;
 
     procedure SetVisible(AVisible: boolean);
     procedure SetWidthHeight(AWidth, AHeight: word); virtual;
@@ -562,6 +565,21 @@ begin
   IsVisualControl := false;
 end;
 
+function TControl.IsMenuItemContainer: boolean;
+begin
+  IsMenuItemContainer := false;
+end;
+
+function TControl.IsMenuItem: boolean;
+begin
+  IsMenuItem := false;
+end;
+
+function TControl.IsMainMenuItem: boolean;
+begin
+  IsMainMenuItem := false;
+end;
+
 function TControl.IsTaskButton: boolean;
 begin
   IsTaskButton := false;
@@ -861,7 +879,7 @@ begin
   BackColor := VeridianApp^.Colors.ButtonBack;
   FillPattern := nil;
   LinePattern := nil;
-  Font := Desktop^.Font;
+  Font := VeridianApp^.GetFont('System');
 end;
 
 function TVisualControl.IsVisualControl: boolean;

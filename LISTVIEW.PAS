@@ -1,5 +1,5 @@
 {$I COMPILER.INC}
-unit ListBox;
+unit ListView;
 
 interface
 
@@ -14,14 +14,14 @@ uses
   Views;
 
 type
-  PListBox = ^TListBox;
+  PListView = ^TListView;
   PListItem = ^TListItem;
   PListItems = ^TListItems;
   PIndexChangedProc = ^TIndexChangedProc;
   PDropDownList = ^TDropDownList;
   PDropDownButton = ^TDropDownButton;
   PIndexChangedEvent = ^TIndexChangedEvent;
-  PDropDownListBox = ^TDropDownListBox;
+  PDropDownListView = ^TDropDownListView;
 
   TIndexChangeTrigger = (ctMouse, ctKeyboard);
 
@@ -40,7 +40,7 @@ type
   TListItem = object(TObject)
   private
   public
-    Owner: PListBox;
+    Owner: PListView;
     Text: PChar;
     Value: pointer;
     ImageIndex: integer;
@@ -54,8 +54,8 @@ type
   TListItems = object(TObjectList)
   private
   public
-    Owner: PListBox;
-    constructor Create(AOwner: PListBox);
+    Owner: PListView;
+    constructor Create(AOwner: PListView);
     function GetItem(AIndex: integer): PListItem;
     function GetItemByValue(AValue: pointer): PListItem;
     function Add(AItem: PListItem): integer;
@@ -70,7 +70,7 @@ type
     procedure InsertText(AIndex: integer; const AText: string);
   end;
 
-  TListBox = object(TView)
+  TListView = object(TView)
   private
     procedure PaintItem(AIndex: integer);
   public
@@ -114,7 +114,7 @@ type
     procedure MouseDown(var AEvent: TMouseEvent); virtual;
   end;
 
-  TDropDownListBox = object(TListBox)
+  TDropDownListView = object(TListView)
   private
   public
     procedure Layout; virtual;
@@ -123,7 +123,7 @@ type
   TDropDownList = object(TFocusControl)
   private
     FButton: PDropDownButton;
-    FList: PDropDownListBox;
+    FList: PDropDownListView;
     FButtonSize: integer;
   public
     MaxItems: integer;
@@ -189,7 +189,7 @@ begin
   inherited Free;
 end;
 
-procedure TListBox.GetContentExtent(var ASize: TSize);
+procedure TListView.GetContentExtent(var ASize: TSize);
 var
   index: integer;
   item: PListItem;
@@ -203,11 +203,10 @@ begin
   ASize.Height := Items^.Count * ItemHeight;
 end;
 
-procedure TListBox.Init;
+procedure TListView.Init;
 begin
   inherited Init;
   TransparentBack := false;
-  Font := VeridianApp^.SystemFont;
   ScrollType := scAsNeeded;
   HorzScrollBar^.Visible := false;
   CanFocus := true;
@@ -218,7 +217,7 @@ begin
   BevelStyle := bvNone;
   VertScrollBar^.Position := spRelative;
   HorzScrollBar^.Position := spRelative;
-  Font := VeridianApp^.Fonts^.GetItemById('editor');
+  Font := VeridianApp^.GetFont('editor');
   SelectedColor := VeridianApp^.Colors.ListSelected;
   SelectedBackColor := VeridianApp^.Colors.ListSelectedBack;
   UnfocusedSelectForeColor := VeridianApp^.Colors.ListUnfocusedSelect;
@@ -229,7 +228,7 @@ begin
   AutoHeight := false;
 end;
 
-procedure TListBox.SetSelectedIndex(AIndex: integer);
+procedure TListView.SetSelectedIndex(AIndex: integer);
 var
   index: integer;
   rect, itemRect: TRect;
@@ -256,7 +255,7 @@ begin
   SelectedIndexChanged(event);
 end;
 
-function TListBox.SelectedItem: PListItem;
+function TListView.SelectedItem: PListItem;
 begin
   SelectedItem := nil;
   if (SelectedIndex < 0) or (SelectedIndex > Items^.Count - 1) then
@@ -264,25 +263,25 @@ begin
   SelectedItem := Items^.GetItem(SelectedIndex);
 end;
 
-destructor TListBox.Free;
+destructor TListView.Free;
 begin
   FreeAndNil(Items);
   inherited Free;
 end;
 
-procedure TListBox.Focus;
+procedure TListView.Focus;
 begin
   SetFocus(true, false);
   PaintItem(SelectedIndex);
 end;
 
-procedure TListBox.Unfocus;
+procedure TListView.Unfocus;
 begin
   SetFocus(false, false);
   PaintItem(SelectedIndex);
 end;
 
-procedure TListBox.GetItemRect(AIndex: integer; var ARect: TRect);
+procedure TListView.GetItemRect(AIndex: integer; var ARect: TRect);
 var
   cx: integer;
   cy: integer;
@@ -298,7 +297,7 @@ begin
   ARect.Translate(BorderWidth, BorderWidth);
 end;
 
-function TListBox.ItemHeight: integer;
+function TListView.ItemHeight: integer;
 var
   result: integer;
 begin
@@ -306,7 +305,7 @@ begin
   ItemHeight := result;
 end;
 
-procedure TListBox.PaintItem(AIndex: integer);
+procedure TListView.PaintItem(AIndex: integer);
 var
   rect, itemRect: TRect;
   item: PListItem;
@@ -334,7 +333,7 @@ begin
       Graph^.SetBackColor(UnfocusedSelectBackColor);
     end;
   end;
-  rect.Grow(0, -BorderWidth);
+  rect.Grow(-BorderWidth, -BorderWidth);
   Graph^.SetViewPort(rect);
   Graph^.FillRect(itemRect);
   Graph^.DrawTextLarge(itemRect.X + Padding.Left,
@@ -342,20 +341,20 @@ begin
   EndDrawing;
 end;
 
-function TListBox.GetSelectedIndex(AEvent: TMouseEvent): integer;
+function TListView.GetSelectedIndex(AEvent: TMouseEvent): integer;
 begin
   Inc(AEvent.Y, ScrollY);
   GetSelectedIndex := AEvent.Y div ItemHeight;
 end;
 
-procedure TListBox.SelectedIndexChanged(var AEvent: TIndexChangedEvent);
+procedure TListView.SelectedIndexChanged(var AEvent: TIndexChangedEvent);
 begin
   if AEvent.OldIndex = AEvent.NewIndex then
     exit;
   Invoke(OnSelectedIndexChanged, AEvent);
 end;
 
-procedure TListBox.MouseWheelChanged(var AEvent: TMouseEvent);
+procedure TListView.MouseWheelChanged(var AEvent: TMouseEvent);
 var
   amount: integer;
 begin
@@ -369,7 +368,7 @@ begin
     ScrollVert(amount);
 end;
 
-procedure TListBox.MouseDown(var AEvent: TMouseEvent);
+procedure TListView.MouseDown(var AEvent: TMouseEvent);
 var
   index: integer;
   previousIndex: integer;
@@ -396,12 +395,12 @@ begin
   inherited MouseDown(AEvent);
 end;
 
-procedure TListBox.ChangeSelect(ADelta: integer);
+procedure TListView.ChangeSelect(ADelta: integer);
 begin
   SetSelectedIndex(SelectedIndex + ADelta);
 end;
 
-procedure TListBox.KeyPress(var AEvent: TKeyEvent);
+procedure TListView.KeyPress(var AEvent: TKeyEvent);
 var
   rect: TRect;
 begin
@@ -424,17 +423,17 @@ begin
     inherited KeyPress(AEvent);
 end;
 
-procedure TListBox.Draw;
+procedure TListView.Draw;
 begin
   inherited Draw;
 end;
 
-procedure TListBox.DrawControls;
+procedure TListView.DrawControls;
 begin
   inherited DrawControls;
 end;
 
-procedure TListBox.Layout;
+procedure TListView.Layout;
 var
   max: longint;
   rect: TRect;
@@ -454,7 +453,7 @@ begin
   VertScrollBar^.Max := AplMath.MaxL(0, max);
 end;
 
-procedure TListBox.Clear;
+procedure TListView.Clear;
 begin
   Items^.Clear;
   SelectedIndex := 0;
@@ -462,7 +461,7 @@ begin
   VertScrollbar^.ScrollPosition := 0;
 end;
 
-procedure TListBox.Paint;
+procedure TListView.Paint;
 var
   index: integer;
   oldFocusedColor: longint;
@@ -490,7 +489,7 @@ begin
   end;
 end;
 
-constructor TListItems.Create(AOwner: PListBox);
+constructor TListItems.Create(AOwner: PListView);
 begin
   inherited Create;
   Owner := AOwner;
@@ -623,7 +622,7 @@ begin
   end;
 end;
 
-procedure TDropDownListBox.Layout;
+procedure TDropDownListView.Layout;
 var
   max: longint;
   rect: TRect;
@@ -644,9 +643,9 @@ end;
 procedure ListKeyPress(var AEvent: TKeyEvent); far;
 var
   dropDown: PDropDownList;
-  self: PListBox;
+  self: PListView;
 begin
-  self := PListBox(AEvent.Sender);
+  self := PListView(AEvent.Sender);
   if AEvent.Handled then
     exit;
   dropDown := PDropDownList(self^.Parent);
@@ -763,10 +762,10 @@ end;
 
 procedure DropDownIndexChanged(var AEvent: TIndexChangedEvent); far;
 var
-  list: PListBox;
+  list: PListView;
   dropDown: PDropDownList;
 begin
-  list := PListBox(AEvent.Sender);
+  list := PListView(AEvent.Sender);
   dropDown := PDropDownList(list^.Parent);
   dropDown^.SelectedIndexChanged(AEvent);
 end;
@@ -777,7 +776,7 @@ begin
   CanFocus := true;
   FButton := New(PDropDownButton, CreateParent('Button', @self));
   FButton^.SetCaption(#31);
-  FList := New(PDropDownListBox, CreateParent('List', @self));
+  FList := New(PDropDownListView, CreateParent('List', @self));
   FList^.BorderStyle := bsSingle;
   FList^.OnKeyPress := @ListKeyPress;
   FList^.OnSelectedIndexChanged := @DropDownIndexChanged;

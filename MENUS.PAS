@@ -14,6 +14,7 @@ uses
 
 type
   PMenuItem = ^TMenuItem;
+  PMainMenuItem = ^TMainMenuItem;
   PMenu = ^TMenu;
   PMenuItemList = ^TMenuItemList;
   PMenuItemContainer = ^TMenuItemContainer;
@@ -36,7 +37,6 @@ type
 
   TMenuItem = object(TActionControl)
   private
-    FIsMainMenuItem: boolean;
   public
     IsSeparator: boolean;
     ParentContainer: PMenuItemContainer;
@@ -48,7 +48,7 @@ type
     constructor CreateSeparator(AParent: PMenu);
     function NewMenu(const AId: string): PMenu;
     function Selected: boolean;
-    function IsMainMenuItem: boolean;
+    function IsMenuItem: boolean; virtual;
     function CloseMenu: boolean;
     procedure Init; virtual;
     procedure Paint; virtual;
@@ -65,6 +65,12 @@ type
     destructor Free; virtual;
   end;
 
+  TMainMenuItem = object(TMenuItem)
+  private
+  public
+    function IsMainMenuItem: boolean; virtual;
+  end;
+
   TMenuItemContainer = object(TPopUp)
   private
   public
@@ -78,6 +84,7 @@ type
     function NewMenuItem(const AId: string; AActionId: integer): PMenuItem; virtual;
     function NewSubMenuItem(const AId, ACaption: string): PMenuItem; virtual;
     function GetNextActiveMenuItem(AForward: boolean): PMenuItem;
+    function IsMenuItemContainer: boolean; virtual;
   end;
 
   TMenu = object(TMenuItemContainer)
@@ -339,7 +346,6 @@ begin
   SelectedBackColor := VeridianApp^.Colors.MenuSelectedBack;
   SelectedShortcutColor := VeridianApp^.Colors.SelectedShortcut;
   BorderStyle := bsNone;
-  FIsMainMenuItem := false;
   AutoSize := false;
   Padding.CreateAll(3, 2, 3, 1);
   Position := spClient;
@@ -507,9 +513,9 @@ begin
   inherited MouseClick(AEvent);
 end;
 
-function TMenuItem.IsMainMenuItem: boolean;
+function TMenuItem.IsMenuItem: boolean;
 begin
-  IsMainMenuItem := FIsMainMenuItem;
+  IsMenuItem := true;
 end;
 
 destructor TMenuItem.Free;
@@ -521,6 +527,11 @@ constructor TMenuItem.Create(const AId: string; AActionId: integer; AParent: PMe
 begin
   inherited CreateParent(AId, Desktop^.ActionList^.GetActionById(AActionId), AParent);
   ParentContainer := AParent;
+end;
+
+function TMainMenuItem.IsMainMenuItem: boolean;
+begin
+  IsMainMenuItem := true;
 end;
 
 constructor TMenuBar.Create;
@@ -615,9 +626,8 @@ var
   menu: PMenu;
   item: PMenuItem;
 begin
-  item := New(PMenuItem, CreateCaption(AId + 'Item', ACaption, @self));
+  item := New(PMainMenuItem, CreateCaption(AId + 'Item', ACaption, @self));
   menu := New(PMenu, CreateParent(AId, item));
-  item^.FIsMainMenuItem := true;
   item^.ParentContainer := @self;
   item^.Menu := menu;
   menu^.ParentMenuItem := item;
@@ -634,6 +644,11 @@ begin
   MenuItems := New(PMenuItemList, Create(@self));
   SelectedItem := nil;
   Position := spClient;
+end;
+
+function TMenuItemContainer.IsMenuItemContainer: boolean;
+begin
+  IsMenuItemContainer := true;
 end;
 
 procedure TMenuItemContainer.Show;

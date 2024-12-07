@@ -891,7 +891,7 @@ begin
   FocusedColor := VeridianApp^.Colors.View;
   FocusedBackColor := VeridianApp^.Colors.ViewBack;
   BorderStyle := bsNone;
-  Font := Desktop^.Font;
+  Font := VeridianApp^.GetFont('system');
   CanFocus := true;
   HorzScrollBar := New(PHorzScrollBar, CreateParent('HorzScrollBar', @self));
   VertScrollBar := New(PVertScrollBar, CreateParent('VertScrollBar', @self));
@@ -2194,7 +2194,7 @@ begin
   Include(ControlOptions, coCanDrag);;
   HorzAlign := haLeft;
   VertAlign := vaCenter;
-  Margins.CreateValue(0);
+  Margins.CreateAll(0, 2, 2, 2);
   Padding.CreateAll(4, 4, 4, 4);
   Font := VeridianApp^.GetFont('editor');
 end;
@@ -2278,7 +2278,7 @@ begin
   BorderColor := VeridianApp^.Colors.ButtonBorder;
   BackColor := VeridianApp^.Colors.ButtonBack;
   ForeColor := VeridianApp^.Colors.Button;
-  Include(ControlOptions, coStayOnTop);;
+  Include(ControlOptions, coStayOnTop);
   MaxButtonWidth := 120;
   Font := VeridianApp^.Fonts^.GetItemById('editor');
   Position := spClient;
@@ -2367,25 +2367,24 @@ begin
   maxHeight := 0;
   for index := 0 to Controls^.Count - 1 do begin
     control := PContentControl(Controls^.GetItem(index));
-    control^.Layout;
-    controlWidth := Min(control^.Width, MaxButtonWidth);
-    controlHeight := 2 * control^.OuterWidth + control^.Font^.Height
-      + control^.Padding.Height;
+    controlWidth := Min(control^.ContentWidth + Padding.Width + 2 * OuterWidth, MaxButtonWidth);
+    controlHeight := control^.Font^.Height + control^.Padding.Height;
     if control^.IsFocusControl then begin
       Inc(controlWidth, 2 * PFocusControl(control)^.FocusRectWidth);
       Inc(controlHeight, 2 * PFocusControl(control)^.FocusRectWidth);
     end;
-    barHeight := controlHeight + OuterWidth + Margins.Height;
+    barHeight := controlHeight + 2 * OuterWidth + Margins.Height;
     if barHeight > maxHeight then
       maxHeight := barHeight;
     control^.Width := controlWidth;
     Inc(xPos, control^.Margins.Left);
-    control^.X := xPos;
+    control^.X := xPos + control^.Margins.left;
     size.CreateDims(controlWidth, controlHeight);
-    rect.SetDims(0, 0, control^.Width, barHeight - OuterWidth);
+    rect.SetDims(0, 0, controlWidth, barHeight);
     control^.GetAlign(rect, size, pos);
-    control^.Y := pos.Y;
-    Inc(xPos, controlWidth - BorderWidth);
+    control^.Y := 0;
+    control^.Height := controlHeight;
+    Inc(xPos, controlWidth + control^.Margins.Right);
   end;
   if maxHeight > 0 then
     Height := maxHeight;
