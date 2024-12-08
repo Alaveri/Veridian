@@ -87,11 +87,12 @@ type
     ParentWindow: PWindow;
     ActiveForeColor: byte;
     ActiveBackColor: byte;
-    MinimizeButton: PLabel;
-    MaximizeButton: PLabel;
-    ButtonBox: PPanel;
-    CloseButton: PLabel;
+    MinimizeButton: PButton;
+    MaximizeButton: PButton;
+    CloseButton: PButton;
+    ButtonWidth, ButtonHeight: integer;
     constructor Create(const AId, ACaption: string; AParentWindow: PWindow);
+    procedure GetButtonArea(var ARect: TRect);
     procedure Init; virtual;
     procedure Layout; virtual;
     procedure Paint; virtual;
@@ -401,6 +402,7 @@ begin
         control^.Focus;
     end;
   end;
+  inherited MouseDown(AEvent);
 end;
 
 procedure TScrollButton.MouseClick(var AEvent: TMouseEvent);
@@ -665,22 +667,20 @@ procedure CloseButtonClick(var AEvent: TMouseEvent);
 var
   window: PWindow;
   parent: PTitleBar;
-  button: PLabel;
+  button: PButton;
 begin
   if AEvent.Handled then
     exit;
-  button := PLabel(AEvent.Sender);
+  button := PButton(AEvent.Sender);
   parent := PTitleBar(button^.Parent);
   window := PWindow(parent^.ParentWindow);
-  if not window^.Active then begin
-    window^.BringToFront;
-    window^.Activate;
-  end;
   window^.Close(button);
   if Assigned(window^.TaskButton) and Assigned(VeridianApp^.TaskBar) then begin
     VeridianApp^.TaskBar^.RemoveButton(window);
     VeridianApp^.TaskBar^.Draw;
   end;
+  if VeridianApp^.ActiveWindow = window then
+    VeridianApp^.ActiveWindow := nil;
   AEvent.Handled := true;
 end;
 
@@ -688,11 +688,11 @@ procedure MinimizeButtonClick(var AEvent: TMouseEvent);
 var
   window: PWindow;
   parent: PTitleBar;
-  button: PLabel;
+  button: PButton;
 begin
   if AEvent.Handled then
     exit;
-  button := PLabel(AEvent.Sender);
+  button := PButton(AEvent.Sender);
   parent := PTitleBar(button^.Parent);
   window := PWindow(parent^.ParentWindow);
   if not window^.Active then begin
@@ -708,11 +708,11 @@ procedure MaximizeButtonClick(var AEvent: TMouseEvent);
 var
   window: PWindow;
   parent: PTitleBar;
-  button: PLabel;
+  button: PButton;
 begin
   if AEvent.Handled then
     exit;
-  button := PLabel(AEvent.Sender);
+  button := PButton(AEvent.Sender);
   parent := PTitleBar(button^.Parent);
   window := PWindow(parent^.ParentWindow);
   if not window^.Active then begin
@@ -735,36 +735,40 @@ begin
   ActiveBackColor := VeridianApp^.Colors.WindowTitleActiveBack;
   VertAlign := vaCenter;
   HorzAlign := haLeft;
-  Padding.CreateAll(3, 2, 3, 2);
+  Padding.CreateAll(3, 4, 0, 4);
+  ButtonWidth := 16;
+  ButtonHeight := 16;
   Include(ControlOptions, coCanDrag);
   ParentWindow := nil;
   Font := Desktop^.Font;
-  ButtonBox := New(PPanel, CreateParent('ButtonBox', @self));
-  MinimizeButton := New(PLabel, CreateCaption('MinLabel', #6, @self));
+  MinimizeButton := New(PButton, CreateCaption('MinButton', #6, @self));
   with MinimizeButton^ do begin
     Font := VeridianApp^.Fonts^.GetItemById('Symbol');
     SetCaption(#6);
     HorzAlign := haCenter;
     VertAlign := vaCenter;
-    AutoSize := true;
+    AutoSize := false;
+    CanFocus := false;
     OnMouseClick := @MinimizeButtonClick;
   end;
-  MaximizeButton := New(PLabel, CreateCaption('MaxLabel', #7, @self));
+  MaximizeButton := New(PButton, CreateCaption('MaxButton', #7, @self));
   with MaximizeButton^ do begin
     Font := VeridianApp^.Fonts^.GetItemById('Symbol');
     SetCaption(#7);
     HorzAlign := haCenter;
     VertAlign := vaCenter;
-    AutoSize := true;
+    AutoSize := false;
+    CanFocus := false;
     OnMouseClick := @MaximizeButtonClick;
   end;
-  CloseButton := New(PLabel, CreateCaption('CloseButton', #8, @self));
+  CloseButton := New(PButton, CreateCaption('CloseButton', #8, @self));
   with CloseButton^ do begin
     Font := VeridianApp^.Fonts^.GetItemById('Symbol');
     SetCaption(#8);
     HorzAlign := haCenter;
     VertAlign := vaCenter;
-    AutoSize := true;
+    AutoSize := false;
+    CanFocus := false;
     OnMouseClick := @CloseButtonClick;
   end;
   Position := spClient;
@@ -776,54 +780,59 @@ var
   xPos: integer;
   totalWidth: integer;
   pos: TPoint;
+  size: TSize;
 begin
   inherited Layout;
   GetClientBounds(rect);
-  CloseButton^.Layout;
-  MaximizeButton^.Layout;
-  MinimizeButton^.Layout;
-  ButtonBox^.SendToBack;
   xPos := rect.Right;
   totalWidth := 0;
+  size.CreateDims(ButtonWidth, ButtonHeight);
+  GetAlign(rect, size, pos);
   if CloseButton^.IsVisible then  begin
-    Dec(xPos, CloseButton^.Width + Padding.Right);
-    Inc(totalWidth, CloseButton^.Width);
+    Dec(xPos, buttonWidth + Padding.Right);
     CloseButton^.SetBounds(
       xPos,
-      rect.Y,
-      CloseButton^.Width,
-      CloseButton^.Height
+      pos.Y,
+      buttonWidth,
+      buttonHeight
     );
+    Inc(totalWidth, CloseButton^.Width);
   end;
   if MaximizeButton^.IsVisible then begin
-    Dec(xPos, CloseButton^.Width + 5);
-    Inc(totalWidth, CloseButton^.Width + 5);
-
+    Dec(xPos, buttonWidth);
     MaximizeButton^.SetBounds(
       xPos,
-      rect.Y,
-      MaximizeButton^.Width,
-      MaximizeButton^.Height
+      pos.Y,
+      buttonWidth,
+      buttonHeight
     );
+    Inc(totalWidth, CloseButton^.Width + 1);
   end;
   if MinimizeButton^.IsVisible then begin
-    Dec(xPos, MinimizeButton^.Width + 5);
-    Inc(totalWidth, MinimizeButton^.Width + 5);
+    Dec(xPos, buttonWidth);
     MinimizeButton^.SetBounds(
       xPos,
-      rect.Y,
-      MinimizeButton^.Width,
-      MinimizeButton^.Height
+      pos.Y,
+      buttonWidth,
+      buttonHeight
     );
+    Inc(totalWidth, MinimizeButton^.Width + 1);
   end;
+end;
+
+procedure TTitleBar.GetButtonArea(var ARect: TRect);
+var
+  rect: TRect;
+  totalWidth: integer;
+begin
+  totalWidth := 4;
   GetBounds(rect);
-  if MinimizeButton^.IsVisible
-    or MaximizeButton^.IsVisible
-    or CloseButton^.IsVisible then begin
-    Inc(totalWidth, 5);
-    Dec(xPos, 5);
-  end;
-  ButtonBox^.SetBounds(xPos, 0, totalWidth, rect.Height);
+  if MinimizeButton^.IsVisible then
+    Inc(totalWidth, MinimizeButton^.Width + 1);
+  if MaximizeButton^.IsVisible then
+    Inc(totalWidth, MaximizeButton^.Width + 1);
+  if CloseButton^.IsVisible then
+    Inc(totalWidth, CloseButton^.Width + 1);
 end;
 
 procedure TTitleBar.Paint;
@@ -840,14 +849,6 @@ begin
     ForeColor := ActiveForeColor;
     BackColor := ActiveBackColor;
   end;
-  CloseButton^.ForeColor := ForeColor;
-  MaximizeButton^.ForeColor := ForeColor;
-  MinimizeButton^.ForeColor := ForeColor;
-  CloseButton^.BackColor := BackColor;
-  MaximizeButton^.BackColor := BackColor;
-  MinimizeButton^.BackColor := BackColor;
-  ButtonBox^.ForeColor := ForeColor;
-  ButtonBox^.BackColor := BackColor;
   inherited Paint;
   ForeColor := fore;
   BackColor := back;
@@ -1534,7 +1535,7 @@ var
 begin
   inherited CreateParent(AId, AParent);
   event.Create;
-  SetTitle(ATitle);
+  TString.AssignString(TitleBar^.Caption, ATitle);
   Initialized;
   Invoke(OnCreate, event);
 end;
@@ -1545,7 +1546,7 @@ var
 begin
   inherited CreateParent(AId, AParent);
   Exclude(Options, woShowInTaskBar);
-  SetTitle(ATitle);
+  TString.AssignString(TitleBar^.Caption, ATitle);
   event.Create;
   Initialized;
   Invoke(OnCreate, event);
@@ -1556,6 +1557,7 @@ var
   minW: integer;
   minTW: integer;
   buttonSize: integer;
+  rect: TRect;
 begin
   buttonSize := HorzScrollBar^.Size
     + 2 * HorzScrollBar^.OuterWidth
@@ -1565,7 +1567,8 @@ begin
   minW := 4 * buttonSize + OuterWidth;
   if VertScrollBar^.Visible and not HorzScrollBar^.Visible then
     Inc(minW, VertScrollBar^.Size + 2 * VertScrollBar^.OuterWidth);
-  minTW := 2 * OuterWidth + (Width - TitleBar^.ButtonBox^.X - 1);
+  TitleBar^.GetButtonArea(rect);
+  minTW := 2 * OuterWidth + rect.Width;
   MinWidth := Max(minW, minTW);
 end;
 
@@ -1830,7 +1833,7 @@ begin
   GetTitleHeight := 0;
   if not TitleBar^.IsVisible then
     exit;
-  GetTitleHeight := Font^.Height + 2 * TitleBar^.Margins.Height;
+  GetTitleHeight := Font^.Height + 2 * TitleBar^.Margins.Height + 2;
 end;
 
 procedure TWindow.GetGripBounds(var ARect: TRect);
@@ -1920,7 +1923,7 @@ var
   sizeAdjust: integer;
   scrollSize: integer;
   parentView: PView;
-  clipRect, innerRect, rect: TRect;
+  contentRect, rect: TRect;
   newCoord: integer;
 begin
   if Max = 0 then
@@ -1933,13 +1936,10 @@ begin
 
   parentView := PView(Parent);
   ScrollPosition := APosition;
+
   parentView^.BeginDrawing;
-  ParentView^.GetClipRect(clipRect);
-  ParentView^.GetClientInnerBounds(innerRect);
-  ParentView^.GetScreenBounds(rect);
-  innerRect.Translate(rect.X, rect.Y);
-  innerRect.Intersect(clipRect);
-  parentView^.PaintRegion(innerRect, @self);
+  parentView^.GetClientScreenBounds(contentRect);
+  parentView^.PaintRegion(contentRect, @self);
   parentView^.EndDrawing;
 
   sizeAdjust := 3 * Size - 3 * BorderWidth;

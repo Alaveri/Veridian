@@ -246,8 +246,10 @@ begin
     ScrollVert(itemRect.Y - rect.Bottom + ItemHeight);
   if itemRect.Y < rect.Y then
     ScrollVert(-(rect.Y - itemRect.Y));
+  BeginDrawing;
   PaintItem(previousIndex);
   PaintItem(SelectedIndex);
+  EndDrawing;
   event.Create;
   event.NewIndex := SelectedIndex;
   event.OldIndex := previousIndex;
@@ -271,14 +273,18 @@ end;
 
 procedure TListView.Focus;
 begin
+  BeginDrawing;
   SetFocus(true, false);
   PaintItem(SelectedIndex);
+  EndDrawing;
 end;
 
 procedure TListView.Unfocus;
 begin
+  BeginDrawing;
   SetFocus(false, false);
   PaintItem(SelectedIndex);
+  EndDrawing;
 end;
 
 procedure TListView.GetItemRect(AIndex: integer; var ARect: TRect);
@@ -286,15 +292,14 @@ var
   cx: integer;
   cy: integer;
   itemWidth: integer;
-  rect: TRect;
+  clipRect, rect: TRect;
 begin
-  GetScreenBounds(rect);
+  GetClientScreenBounds(rect);
+  GetClipRect(clipRect);
+  rect.Intersect(clipRect);
   cy := rect.Y + AIndex * ItemHeight;
-  itemWidth := rect.Width - BorderWidth;
-  if VertScrollBar^.Visible then
-    Dec(itemWidth, VertScrollBar^.Width);
+  itemWidth := rect.Width;
   ARect.CreateDims(rect.X, cy, itemWidth, ItemHeight);
-  ARect.Translate(BorderWidth, BorderWidth);
 end;
 
 function TListView.ItemHeight: integer;
@@ -317,10 +322,6 @@ begin
   if (AIndex < 0) or (AIndex > Items^.Count - 1) then
     exit;
   item := Items^.GetItem(AIndex);
-  GetItemRect(AIndex, itemRect);
-  itemRect.Translate(-ScrollX, -ScrollY);
-  rect.CreateRect(Graph^.State^.ViewPort);
-  BeginDrawing;
   Graph^.SetForeColor(ForeColor);
   Graph^.SetBackColor(BackColor);
   if AIndex = SelectedIndex then begin
@@ -333,12 +334,18 @@ begin
       Graph^.SetBackColor(UnfocusedSelectBackColor);
     end;
   end;
-  rect.Grow(-BorderWidth, -BorderWidth);
-  Graph^.SetViewPort(rect);
-  Graph^.FillRect(itemRect);
-  Graph^.DrawTextLarge(itemRect.X + Padding.Left,
-    itemRect.Y + ItemSpacing div 2, item^.Text);
-  EndDrawing;
+  GetItemRect(AIndex, itemRect);
+  itemRect.Translate(-ScrollX, -ScrollY);
+  GetClientScreenBounds(rect);
+  GetClipRect(clipRect);
+  rect.Intersect(clipRect);
+  rect.Intersect(Graph^.State^.ViewPort);
+  Graph^.State^.ViewPort := rect;
+  if itemRect.IntersectsRect(rect) then begin
+    Graph^.FillRect(itemRect);
+    Graph^.DrawTextLarge(itemRect.X + Padding.Left,
+      itemRect.Y + ItemSpacing div 2, item^.Text);
+  end;
 end;
 
 function TListView.GetSelectedIndex(AEvent: TMouseEvent): integer;
@@ -373,25 +380,28 @@ var
   index: integer;
   previousIndex: integer;
   event: TIndexChangedEvent;
+  rect: TRect;
 begin
   if not IsVisibleAndEnabled then
     exit;
-  with AEvent do begin
-    if CanFocus and not Focused then
-      Focus;
-    previousindex := SelectedIndex;
-    SelectedIndex := GetSelectedIndex(AEvent);
-    SelectedIndex := Clamp(SelectedIndex, 0, Items^.Count - 1);
-
-    PaintItem(previousIndex);
-    PaintItem(SelectedIndex);
-    event.Create;
-    event.NewIndex := SelectedIndex;
-    event.OldIndex := previousIndex;
-    event.Trigger := ctMouse;
-    event.Sender := @self;
-    SelectedIndexChanged(event);
-  end;
+  if CanFocus and not Focused then
+    Focus;
+  previousindex := SelectedIndex;
+  SelectedIndex := GetSelectedIndex(AEvent);
+  SelectedIndex := Clamp(SelectedIndex, 0, Items^.Count - 1);
+  GetClipRect(rect);
+  rect.Translate(OuterWidth, OuterWidth);
+  rect.Grow(-2 * OuterWidth, -2 * OuterWidth);
+  BeginDrawing;
+  PaintItem(previousIndex);
+  PaintItem(SelectedIndex);
+  EndDrawing;
+  event.Create;
+  event.NewIndex := SelectedIndex;
+  event.OldIndex := previousIndex;
+  event.Trigger := ctMouse;
+  event.Sender := @self;
+  SelectedIndexChanged(event);
   inherited MouseDown(AEvent);
 end;
 
@@ -478,13 +488,13 @@ begin
   inherited Paint;
   FocusedColor := oldFocusedColor;
   FocusedBackColor := oldFocusedBackColor;
+  GetClientScreenBounds(rect);
   for index := 0 to Items^.Count - 1 do
     PaintItem(index);
   Graph^.SetBackColor(BackColor);
-  GetScreenBounds(rect);
   if Items^.Count * ItemHeight < rect.Height then begin
     yPos := rect.Y + Items^.Count * ItemHeight;
-    rect.CreateDims(rect.X + OuterWidth, yPos, rect.Width - 2 * OuterWidth, rect.Bottom - yPos);
+    rect.CreateDims(rect.X, yPos, rect.Width, rect.Bottom - yPos);
     Graph^.FillRect(rect);
   end;
 end;
@@ -812,8 +822,8 @@ var
   item: PListItem;
 begin
   itemCount := Min(FList^.Items^.Count, MaxItems);
-  listHeight := itemCount * FList^.ItemHeight + 2 * OuterWidth;
   if AutoSize then begin
+    listHeight := itemCount * FList^.ItemHeight + 2 * OuterWidth;
     maxWidth := 0;
     for index := 0 to FList^.Items^.Count - 1 do begin
       item := FList^.Items^.GetItem(index);
@@ -821,9 +831,10 @@ begin
       if itemWidth > maxWidth then
         maxWidth := itemWidth;
     end;
+    listWidth := FButtonSize + maxWidth + 2 * OuterWidth
+      + 2 * Padding.Width;
   end;
-  itemWidth := maxWidth + 2 * Padding.Width + FButtonSize;
-  listWidth := FButtonSize + itemWidth + 2 * OuterWidth;
+  itemWidth := listWidth - FButtonSize;
   ARect.CreateDims(0, Height, listWidth, listHeight);
 end;
 

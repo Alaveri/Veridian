@@ -99,7 +99,7 @@ type
 
   TControl = object(TEventObject)
   private
-    procedure InternalPaintRegion(var ARect: TRect; AExclude: PControl);
+    procedure InternalPaintRegion(ARect: TRect; AExclude: PControl);
   public
     X, Y: integer;
     Width, Height: integer;
@@ -182,6 +182,11 @@ type
       Gets the bounds of the control's client area, which is the area inside
       the control's borders and margins, relative to the control itself.}
     procedure GetClientBounds(var ARect: TRect); virtual;
+
+    { GetClientBounds:
+      Gets the bounds of the control's client area, which is the area inside
+      the control's borders and margins, relative to the screen.}
+    procedure GetClientScreenBounds(var ARect: TRect); virtual;
 
     { GetClientOuterBounds:
       Gets the bounds of the control's client area, relative to the control
@@ -961,6 +966,15 @@ begin
   ARect.Grow(-Margins.Width, -Margins.Height);
 end;
 
+procedure TControl.GetClientScreenBounds(var ARect: TRect);
+var
+  rect: TRect;
+begin
+  GetClientInnerBounds(ARect);
+  GetScreenBounds(rect);
+  ARect.Translate(rect.X, rect.Y);
+end;
+
 procedure TControl.GetClientOuterBounds(var ARect: TRect);
 begin
   GetBounds(ARect);
@@ -1126,7 +1140,7 @@ begin
   VeridianApp^.PopState;
 end;
 
-procedure TControl.InternalPaintRegion(var ARect: TRect; AExclude: PControl);
+procedure TControl.InternalPaintRegion(ARect: TRect; AExclude: PControl);
 var
   region: TRegion;
   index: integer;
@@ -1149,7 +1163,7 @@ begin
 
   for index := 0 to Controls^.Count - 1 do begin
     control := Controls^.GetItem(index);
-    control^.InternalPaintRegion(rect, AExclude);
+    control^.InternalPaintRegion(ARect, AExclude);
   end;
 end;
 
@@ -1627,7 +1641,6 @@ begin
   rect.Translate(-1, -1);
   Graph^.State^.ViewPort := rect;
   Graph^.Rectangle(rect);
-
 end;
 
 procedure TButton.MouseDown(var AEvent: TMouseEvent);
@@ -1788,14 +1801,8 @@ begin
   Graph^.SetLinePattern(LinePattern);
   if not TransparentBack then
     Graph^.FillRect(rect);
-  case BorderStyle of
-    bsSingle: begin
-      Graph^.SetForeColor(BorderColor);
-      Graph^.Rectangle(rect);
-      rect.Translate(1, 1);
-      rect.Grow(-2, -2);
-    end;
-  end;
+  rect.Translate(1, 1);
+  rect.Grow(-2, -2);
   case BevelStyle of
     bvRaised: begin
       Graph^.SetForeColor(ShadowColor);
@@ -1812,6 +1819,14 @@ begin
       Graph^.SetForeColor(ShadowColor);
       Graph^.HLine(rect.X, rect.Y, rect.Width);
       Graph^.VLine(rect.X, rect.Y, rect.Height);
+    end;
+  end;
+  rect.Translate(-1, -1);
+  rect.Grow(2, 2);
+  case BorderStyle of
+    bsSingle: begin
+      Graph^.SetForeColor(BorderColor);
+      Graph^.Rectangle(rect);
     end;
   end;
 end;

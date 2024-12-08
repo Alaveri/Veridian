@@ -132,7 +132,7 @@ type
   TFileDialog = object(TDialog)
   private
     CurrentDir: PDirectoryContents;
-    LastDir: string;
+    LastDir: PChar;
     procedure PopulateFileView(const APath: string);
     procedure ReadPath(const APath: string);
     procedure Cancel;
@@ -327,6 +327,8 @@ end;
 
 procedure TDialog.Init;
 begin
+  VeridianApp^.PushState;
+  VeridianApp^.State.DrawEnabled := false;
   inherited Init;
   FDialogButtons := New(PButtonList, Create);
   FDialogButtons^.DisposeObjects := false;
@@ -348,6 +350,7 @@ begin
   Position := spAbsolute;
   ActionList := New(PActionList, Create);
   ActionList^.DisposeObjects := true;
+  VeridianApp^.PopState;
 end;
 
 procedure TDialog.BeforeShow;
@@ -604,7 +607,7 @@ constructor TFileDialog.CreateParent(const ATitle, AInitialPath: string; AParent
 begin
   CreateParent('FileDialog', ATitle, AParent);
   Buttons := [mbOk, mbCancel];
-  SetTitle(ATitle);
+  TString.AssignString(Title, ATitle);
 end;
 
 constructor TFileDialog.CreatreParentOptions(const ATitle, AInitialPath: string;
@@ -782,7 +785,8 @@ var
   lowRes: boolean;
 begin
   inherited Init;
-  LastDir := GetCurrentDirectory;
+  LastDir := nil;
+  TString.AssignString(LastDir, GetCurrentDirectory);
   FileOptions := [];
   Title := nil;
   ScrollType := scNone;
@@ -863,7 +867,8 @@ end;
 destructor TFileDialog.Free;
 begin
   FreeAndNil(CurrentDir);
-  ChangeDirectory(LastDir);
+  ChangeDirectory(StrPas(LastDir));
+  TString.Free(LastDir);
   inherited Free;
 end;
 

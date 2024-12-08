@@ -602,7 +602,7 @@ begin
     end;
   end;
 
-  AControl^.GetScreenBounds(rect);
+  AControl^.GetClipRect(rect);
   if rect.Contains(AMouseState.X, AMouseState.Y) then
     GetMouseControl := AControl;
 end;
