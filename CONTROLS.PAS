@@ -2,7 +2,6 @@
 
 {
 TODO:
-TFileDialog
 TCheckBox
 TRadioButton
 TGroupBox
