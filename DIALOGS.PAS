@@ -91,6 +91,8 @@ type
     procedure Layout; virtual;
     procedure Close(ASender: PControl); virtual;
     procedure KeyPress(var AEvent: TKeyEvent); virtual;
+    procedure SetDefaultButton(AButton: TDialogButtonType);
+    procedure SetCancelButton(AButton: TDialogButtonType);
   end;
 
   TDialogButton = object(TButton)
@@ -100,6 +102,7 @@ type
     Default: boolean;
     Cancel: boolean;
     ModalResult: TModalResult;
+    ButtonType: TDialogButtonType;
     procedure KeyPress(var AEvent: TKeyEvent); virtual;
     procedure Init; virtual;
   end;
@@ -231,12 +234,11 @@ var
   dialog: PShowMessageDialog;
 begin
   dialog := New(PShowMessageDialog, Create(ATitle, AMessage, AButtons));
-  dialog^.DefaultButton := ADefault;
-  dialog^.CancelButton := ACancel;
+  dialog^.SetDefaultButton(ADefault);
+  dialog^.SetCancelButton(ACancel);
   MessageBox := dialog^.ShowDialog;
   FreeAndNil(dialog);
 end;
-
 
 constructor TDialog.Create(const AId, ATitle: string; AButtons: TDialogButtons);
 begin
@@ -275,6 +277,7 @@ begin
     button^.Default := true;
   button^.Action := CreateAction(AButton, DialogButtonCaptions[AButton], 0);
   button^.Action^.ShortCut := button^.GetAltHotKey;
+  button^.ButtonType := AButton;
   FDialogButtons^.Insert(0, button);
 end;
 
@@ -287,6 +290,38 @@ begin
   for index := High(TDialogButtonType) downto Succ(mbNone) do begin
     if index in Buttons then
       CreateButton(index);
+  end;
+end;
+
+procedure TDialog.SetDefaultButton(AButton: TDialogButtonType);
+var
+  index: integer;
+  button: PDialogButton;
+begin
+  for index := 0 to FDialogButtons^.Count - 1 do begin
+    button := PDialogButton(FDialogButtons^.GetItem(index));
+    button^.Default := false;
+  end;
+  for index := 0 to FDialogButtons^.Count - 1 do begin
+    button := PDialogButton(FDialogButtons^.GetItem(index));
+    if button^.ButtonType = AButton then
+      button^.Default := true;
+  end;
+end;
+
+procedure TDialog.SetCancelButton(AButton: TDialogButtonType);
+var
+  index: integer;
+  button: PDialogButton;
+begin
+  for index := 0 to FDialogButtons^.Count - 1 do begin
+    button := PDialogButton(FDialogButtons^.GetItem(index));
+    button^.Cancel := false;
+  end;
+  for index := 0 to FDialogButtons^.Count - 1 do begin
+    button := PDialogButton(FDialogButtons^.GetItem(index));
+    if button^.ButtonType = AButton then
+      button^.Cancel := true;
   end;
 end;
 
@@ -465,22 +500,22 @@ begin
   VeridianApp^.State.DrawEnabled := false;
   Desktop^.SetEnabled(false);
   FOldActionList := Desktop^.ActionList;
+  VeridianApp^.ClearSpecialControlState;
   found := false;
   for index := 0 to FDialogButtons^.Count - 1 do begin
     button := PDialogButton(FDialogButtons^.GetItem(index));
     if button^.Default then begin
-      FDialogButtons^.GetItem(index)^.Focus;
+      VeridianApp^.ActiveControl := FDialogButtons^.GetItem(index);
       found := true;
       break;
     end;
   end;
   if (not found) and (FDialogButtons^.Count > 0) then
-    FDialogButtons^.GetItem(0)^.Focus;
+    VeridianApp^.ActiveControl := FDialogButtons^.GetItem(0);
   VeridianApp^.PopState;
 
   Visible := false;
   BringToFront;
-  VeridianApp^.ClearSpecialControlState;
   VeridianApp^.ActiveWindow := @self;
   VeridianApp^.ActiveDialog := @self;
   VeridianApp^.PushState;
@@ -492,6 +527,7 @@ end;
 procedure TDialog.CleanUp;
 var
   activeControl: PFocusControl;
+  activeWindow: PWindow;
 begin
   Desktop^.ActionList := FOldActionList;
   VeridianApp^.RestoreSpecialControlState;
@@ -506,8 +542,11 @@ begin
   Desktop^.SetEnabled(true);
   VeridianApp^.PopState;
   VeridianApp^.MenuBar^.Draw;
-  if Assigned(VeridianApp^.ActiveWindow) then
-    VeridianApp^.ActiveWindow^.Activate;
+  if Assigned(VeridianApp^.ActiveWindow) then begin
+    activeWindow := VeridianApp^.ActiveWindow;
+    VeridianApp^.ActiveWindow := nil;
+    activeWindow^.Activate;
+  end;
   if Assigned(VeridianApp^.ActiveControl) then begin
     activeControl := VeridianApp^.ActiveControl;
     VeridianApp^.ActiveControl := nil;
@@ -589,7 +628,7 @@ begin
     exists := false;
     FSplit(CurrentDir^.Filter, path, name, ext);
     if not HasWildCard(ext) then begin
-      AFilename := AFilename + ext;
+      AFilename := UpperCase(AFilename + ext);
       if FileExists(AFilename) then
         exists := true;
     end;
@@ -647,7 +686,7 @@ begin
   AFilename := FExpand(AFilename);
   if (ExtractExtension(AFilename) = '') and
     FileExists(AFilename + DefaultExt) then
-    AFilename := AFilename + DefaultExt;
+    AFilename := UpperCase(AFilename + DefaultExt);
   if DirectoryExists(AFilename) then begin
     AFilename := FExpand(AFilename);
     if not ChangeDirectory(AFilename) then
@@ -856,7 +895,6 @@ var
   button: PDialogButton;
 begin
   inherited Layout;
-  CenterScreen;
   labelWidth := Font^.TextWidthLarge(FLabel^.Caption);
   button := PDialogButton(FDialogButtons^.GetItem(0));
   FLabel^.SetBounds(

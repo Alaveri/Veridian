@@ -855,7 +855,7 @@ begin
   if AEvent.Handled then
     exit;
   AEvent.Sender := AControl;
-    AControl^.KeyPress(AEvent);
+  AControl^.KeyPress(AEvent);
 end;
 
 function TVeridianApp.DefaultWindowX: integer;
