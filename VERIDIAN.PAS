@@ -4,51 +4,40 @@ unit Veridian;
 interface
 
 uses
-  AplGrApp,
-  AplApps,
-  AplTypes,
-  AplLists,
-  AplDates,
-  AplDraw,
-  AplStrms,
   AplObj,
-  AplGrap8,
-  AplGraph,
-  AplGrIni,
-  AplMouse,
-  AplKeys,
-  AplAct,
+  AplDos,
+  AplTypes,
+  AplConst,
+  Drawing,
+  Dialogs,
+  Lists,
+  Graphics,
+  Gr8Drv,
+  GraphIni,
+  GraphApp,
+  MouseDrv,
+  MemDrv,
+  DateTime,
+  Streams,
+  Actions,
+  Colors,
   Controls,
-  Dos,
-  Desk;
+  ListView,
+  Views,
+  Events,
+  Menus;
 
 const
-  vmVeridian = 1000;
-  vmKeyDown = vmVeridian + 1;
-  vmKeyPressed = vmVeridian + 2;
-  vmKeyUp = vmVeridian + 3;
-  vmClose = vmVeridian + 4;
-
-  DefaultDoubleClickDelay: double = 1;
+  DefaultDoubleClickDelay = 1.0;
   DefaultCursorBlinkRate = 0.4;
-  DefaultMouseSensitivity = 2.0;
+  DefaultMouseSensitivity = 4;
 
 type
   PVeridianApp = ^TVeridianApp;
   PVeridianAppSettings = ^TVeridianAppSettings;
   PAppState = ^TAppState;
 
-  TAppState = object(TObject)
-  private
-  public
-    MouseCursor: PMouseCursor;
-    CursorOn: boolean;
-    DrawEnabled: boolean;
-    procedure Init; virtual;
-    procedure Assign(var ASource: TObject); virtual;
-  end;
-
-  TVeridianAppSettings = object(TObject)
+  TVeridianAppSettings = object(TPersistent)
   private
   public
     CursorBlinkRate: double;
@@ -57,102 +46,144 @@ type
     MouseSensitivity: real;
     procedure Init; virtual;
     procedure Assign(var ASource: TObject); virtual;
-    procedure SaveToStream(AStream: PStream);
-    procedure LoadFromStream(AStream: PStream);
+    procedure SaveToStream(AStream: PStream); virtual;
+    procedure LoadFromStream(AStream: PStream); virtual;
+  end;
+
+  TAppState = object(TObject)
+  private
+  public
+    CursorOn: boolean;
+    DrawEnabled: boolean;
+    MouseVisible: boolean;
+    procedure Init; virtual;
+    procedure Assign(var ASource: TObject); virtual;
   end;
 
   TVeridianApp = object(TGraphApp)
   private
-    FMouseEvent: TMouseEvent;
+    {$IFDEF debug}
+    FMemAvail: longint;
+    FMemMaxAvail: longint;
+    FMemLabel: PLabel;
+    {$ENDIF}
     FKeyEvent: TKeyEvent;
-    FMouseState: TMouseState;
-    FOldMouseState: TMouseState;
+    FMouseEvent: TMouseEvent;
+    FMouseState, FOldMouseState: TMouseState;
     FCursorBlinkVisible: boolean;
     FBlinkCurrentTime: TDateTime;
     FBlinkElapsed: TTimeSpan;
-    FMouseOverControl: PControl;
-    FDragControl: PControl;
     FDoubleClickStart: TDateTime;
-    FDoubleClickControl: PControl;
-    {$IFDEF debug}
-    FMemAvail: longint;
-    FMaxAvail: longint;
-    {$ENDIF}
-    procedure ParseParameters;
+    FDoubleClickPos: TPoint;
+    FSpecialControls: TObjectStack;
+    FNewWindowX, FNewWindowY: integer;
+    AltKeyDown: boolean;
+    SwitchingWindows: boolean;
+    function LoadFont(const AFilename: string): PFont;
+    function CreateDesktop: PDesktop; virtual;
+    function HandleWindowSwitch: boolean;
+    procedure CreateObjects;
+    procedure LoadFonts;
+    procedure BeginWindowSwitch;
+    procedure EndWindowSwitch;
+    procedure SwitchWindow;
+    procedure HandleKeyEvent(AControl: PControl; var AEvent: TKeyEvent);
+    procedure HandleSpecialKeys(AControl: PControl; var AEvent: TKeyEvent);
+    procedure HandleActionKey(AControl: PActionControl; var AEvent: TKeyEvent);
+    procedure HandleMouseEvent(AControl: PControl; var AEvent: TMouseEvent);
+    procedure HandleMouseMove(AControl: PControl;
+      var AEvent: TMouseEvent); virtual;
+    procedure HandleMouseEnter(AControl: PControl;
+      var AEvent: TMouseEvent); virtual;
+    procedure HandleMouseWheelChanged(AControl: PControl;
+      var AEvent: TMouseEvent); virtual;
+    procedure HandleMouseUp(AControl: PControl; var AEvent: TMouseEvent;
+      AButton: TButtonState); virtual;
+    procedure HandleMouseDown(AControl: PControl; var AEvent: TMouseEvent;
+      AButton: TButtonState); virtual;
+    procedure HandleMouseCursor;
+    procedure HandleDoubleClick(ATime: TDateTime; AControl: PControl; var AEvent: TMouseEvent);
+    procedure InitMouseEvent(AControl: PControl; var AEvent: TMouseEvent);
+    procedure GetFocusList(AList: PObjectList; AControl: PControl);
     procedure DrawCursor;
     procedure HandleCursor;
-    procedure InitMouseEvent(AControl: PControl; var AEvent: TMouseEvent);
-    procedure HandleMouseEnter(AControl: PControl; var AEvent: TMouseEvent);
-    procedure HandleMouseMove(AControl: PControl; var AEvent: TMouseEvent);
-    procedure HandleMouseDown(AControl: PControl; var AEvent: TMouseEvent; AButton: TButtonState);
-    procedure HandleMouseWheelChanged(AControl: PControl; AEvent: TMouseEvent);
-    procedure HandleMouseUp(AControl: PControl; var AEvent: TMouseEvent; AButton: TButtonState);
-    procedure HandleDblClick(ATime: TDateTime; AControl: PControl; var AEvent: TMouseEvent);
-    procedure ProcessMouseEvents;
-    procedure ProcessKeyEvents(AControl: PControl; var AEvent: TKeyEvent);
-    procedure ProcessMessages; virtual;
-    procedure LoadFonts;
-    procedure CreateDesktop;
-    procedure CreateObjects;
-    procedure SetMouseSensitivity(ASens: real);
     procedure ApplySettings;
+    procedure SetMouseSensitivity(ASens: real);
+    procedure ParseParameters;
+    {$IFDEF debug}
+    procedure UpdateDebugInfo;
+    {$ENDIF}
   public
-    Settings: TVeridianAppSettings;
-    CursorBlinkTime: TDateTime;
     State: TAppState;
     StateStack: TObjectStack;
+    Colors: TColors;
+    DragRect, LastDragRect: TRect;
+    DragRectVisible: boolean;
+    DragInitialPos: TPoint;
+    DragInitialSize: TSize;
+    MenuBar: PMenubar;
+    Taskbar: PTaskbar;
     Fonts: PFontList;
-    MouseCursors: PMouseCursorList;
-    SelectingControl: PControl;
-    LeftMouseDownControl: PControl;
-    RightMouseDownControl: PControl;
     SystemFont: PFont;
     SymbolFont: PFont;
     EditorFont: PFont;
-    Parameters: PStringList;
-    CurrentScrollSlider: PControl;
-    constructor Create(ADriverId: TGraphDrivers; AWidth, AHeight, ABpp: integer);
-    function HandleActionExecute(ASender: PObject; AAction: PAction): boolean; virtual;
-    function GetMouseControl(AControl: PControl; var AMouseState: TMouseState): PControl;
-    function LoadFont(const AFilename: string): PFont; virtual;
-    function Scale(AValue: real): integer; virtual;
-    function MenuBar: PMenuBar;
-    function StatusBar: PStatusBar;
-    function CheckError(ASender: PStatusObject): boolean; virtual;
-    function FocusNext(AControl: PControl; AReverse: boolean): boolean;
-    procedure RedrawMouseCursor(AViewPort: TRect);
-    procedure Init; virtual;
-    procedure ProcessEvents; virtual;
-    procedure InitControls; virtual;
-    procedure InitActions; virtual;
-    procedure InitMouseCursors; virtual;
-    procedure CursorOn;
-    procedure CursorOff;
-    procedure PushState;
-    procedure PopState;
-    procedure DeactivateActiveControl;
-    procedure UpdateActionControl(AControl: PActionControl); virtual;
-    procedure ResetDoubleClick; virtual;
-    procedure ClearMouseOver;
-    procedure Run; virtual;
-    {$IFDEF debug}
-    procedure DrawDebugInfo;
-    {$ENDIF}
+    Settings: TVeridianAppSettings;
+    CursorBlinkTime: TDateTime;
+    AppDir: string;
+    Parameters: TStringList;
+    DoubleClickControl: PControl;
+    MouseOverControl: PControl;
+    LeftMouseDownControl: PControl;
+    RightMouseDownControl: PControl;
+    SelectingControl: PControl;
+    ActiveControl: PFocusControl;
+    ActiveWindow: PWindow;
+    ActiveDropDown: PDropDownList;
+    ActiveDialog: PDialog;
+    DragControl: PControl;
+    ScrollSlider: PControl;
+    constructor Create(ADriver: TGraphDrivers; AWidth: integer;
+      AHeight: integer; ABpp: integer);
     destructor Free; virtual;
+    function CheckNilPtr(APtr: pointer): boolean;
+    function GetFont(const AId: string): PFont;
+    function DefaultWindowX: integer;
+    function DefaultWindowY: integer;
+    procedure ProcessEvents; virtual;
+    procedure Run; virtual;
+    procedure Init; virtual;
+    procedure CursorOn; virtual;
+    procedure CursorOff; virtual;
+    procedure PushState; virtual;
+    procedure PopState; virtual;
+    procedure SetColors(const AColors: TColors); virtual;
+    procedure InitActions; virtual;
+    procedure InitControls; virtual;
+    procedure Initialized; virtual;
+    procedure ActionExecute(ASender: PActionControl; AAction: PAction); virtual;
+    procedure UpdateActionControl(AControl: PActionControl); virtual;
+    procedure SetActiveControl(AControl: PFocusControl);
+    procedure CloseAllMenus;
+    procedure StoreSpecialControlState;
+    procedure RestoreSpecialControlState;
+    procedure ClearSpecialControlState;
+    function FocusNext(AControl: PControl; AReverse: boolean): boolean;
+    function FocusFirst: boolean;
+    function FocusLast: boolean;
+    function GetMouseControl(AControl: PControl; var AMouseState: TMouseState): PControl;
+    function TaskBarHeight: integer;
+    function MenuBarHeight: integer;
   end;
 
 var
   VeridianApp: PVeridianApp;
-  AppDir: string;
-  MessageQueue: TObjectQueue;
 
 implementation
 
 uses
   AplUtils,
-  AplMem,
-  AplStr,
-  Views;
+  Dos,
+  KeyDrv;
 
 var
   PreviousExitProc: PProc;
@@ -163,46 +194,97 @@ begin
   end;
 end;
 
-function TVeridianApp.CheckError(ASender: PStatusObject): boolean;
-begin
-  CheckError := true;
-  if not ASender^.HasException then
-    exit;
-  CheckError := false;
-  Error(ASender, ASender^.Exception^.Code);
-  ASender^.ClearException;
-end;
-
-
-procedure TVeridianApp.UpdateActionControl(AControl: PActionControl);
-begin
-end;
-
-procedure TVeridianApp.InitMouseCursors;
+constructor TVeridianApp.Create(ADriver: TGraphDrivers; AWidth: integer;
+  AHeight: integer; ABpp: integer);
 var
-  cursor: PMouseCursor;
-  sens: integer;
+  modeId: integer;
 begin
-  MouseCursors := New(PMouseCursorList, Create);
-  cursor := New(PMouseCursor, Create('Default', 8, 15, @DefaultMouseCursor));
-  MouseCursors^.Add(cursor);
-  cursor := New(PMouseCursor, Create('Beam', 8, 15, @DefaultBeamMouseCursor));
-  cursor^.OffsetX := 4;
-  cursor^.OffsetY := 7;
-  MouseCursors^.Add(cursor);
-  Graph8^.MouseCursor := MouseCursors^.GetItemById('Default');
+  VeridianApp := @self;
+  inherited Create(ADriver);
+  if CheckReRaise(Graph) then begin
+    VeridianApp := nil;
+    exit;
+  end;
+  modeId := GetGraphicsModeId(AWidth, AHeight, ABpp);
+  if not SetMode(modeId) then begin
+    VeridianApp := nil;
+    Raise(ecGraphicsModeNotFound);
+    exit;
+  end;
+  Initialized;
 end;
 
-procedure TVeridianApp.ParseParameters;
+procedure TVeridianApp.Initialized;
+begin
+  LoadFonts;
+  Desktop := CreateDesktop;
+  Desktop^.Font := SystemFont;
+  InitActions;
+  InitControls;
+  Desktop^.Layout;
+  MenuBar^.Layout;
+  Keyboard.GetKey;
+  FNewWindowX := 10;
+  FNewWindowY := MenuBar^.Height + 10;
+end;
+
+destructor TVeridianApp.Free;
+begin
+  StateStack.DisposeObjects := true;
+  StateStack.Free;
+  Parameters.Free;
+  Settings.Free;
+  FSpecialControls.Free;
+  FreeAndNil(Fonts);
+  inherited Free;
+end;
+
+procedure TVeridianApp.InitActions;
+begin
+end;
+
+procedure TVeridianApp.InitControls;
+var
+  rect: TRect;
+begin
+  MenuBar := New(PMenuBar, Create);
+  Taskbar := New(PTaskbar, Create);
+  {$IFDEF debug}
+  FMemLabel := New(PLabel, CreateParent('MemLabel', MenuBar));
+  FMemLabel^.TransparentBack := false;
+  FMemLabel^.SetForeColor(MenuBar^.ForeColor);
+  FMemLabel^.SetBackColor(MenuBar^.BackColor);
+  FMemLabel^.Font := Fonts^.GetItemById('editor');
+  {$ENDIF}
+end;
+
+function TVeridianApp.LoadFont(const AFilename: string): PFont;
+var
+  newFont: PFont;
+begin
+  if FileExists(AFilename) then begin
+    newFont := New(PProportionalFont, Create);
+    newFont^.LoadFromFile(AFilename);
+    if newFont^.HasException then begin
+      newFont^.ClearException;
+      newFont := New(PSystemFont, CreateId('System'));
+    end;
+  end
+  else
+    newFont := New(PSystemFont, CreateId('System'));
+  LoadFont := newFont;
+  Fonts^.Add(newFont);
+end;
+
+function TVeridianApp.GetFont(const AId: string): PFont;
 var
   index: integer;
-  dir, name, ext: string;
+  font: PFont;
 begin
-  Parameters := New(PStringList, Create);
-  FSplit(ParamStr(0), dir, name, ext);
-  AppDir := dir;
-  for index := 1 to ParamCount do
-    Parameters^.AddString(ParamStr(index));
+  font := Fonts^.GetItemById(AId);
+  if not Assigned(font) then
+    font := SystemFont;
+  GetFont := font;
 end;
 
 procedure TVeridianApp.LoadFonts;
@@ -211,129 +293,585 @@ var
 begin
   Fonts := New(PFontList, Create);
   if Graph^.Mode^.Width <= 320 then begin
-    font := LoadFont('syssmall.fnt');
-    font^.SetId('system');
-    SystemFont := font;
-    font := LoadFont('syssmall.fnt');
-    font^.SetId('editor');
-    EditorFont := font;
-    font := LoadFont('symbolsmall.fnt');
-    font^.SetId('symbol');
-    EditorFont := font;
   end
   else begin
     font := LoadFont('system.fnt');
+    font^.SetId('system');
     SystemFont := font;
-    font := LoadFont('editor.fnt');
+    font := LoadFont('seattle.fnt');
+    font^.SetId('editor');
     EditorFont := font;
     font := LoadFont('symbol.fnt');
+    font^.SetId('symbol');
     SymbolFont := font;
-    LoadFont('seattle.fnt');
   end;
-end;
-
-procedure TVeridianApp.CreateDesktop;
-begin
-  Desktop := New(PDesktop, CreateParent('Desktop', nil));
-  Desktop^.MenuBar := New(PMenuBar, CreateParent('DesktopMenuBar', Desktop));
-  Desktop^.StatusBar := New(PStatusBar, CreateParent('DesktopStatusBar', Desktop));
 end;
 
 procedure TVeridianApp.CreateObjects;
 begin
+  FKeyEvent.Create;
+  FMouseEvent.Create;
   FMouseState.Create;
   FOldMouseState.Create;
-  MessageQueue.Create;
-  FMouseEvent.Create;
-  FKeyEvent.Create;
+  FBlinkElapsed.Create;
   FDoubleClickStart.Create;
   FBlinkCurrentTime.Create;
-  FBlinkElapsed.Create;
-  Settings.Create;
-  State.Create;
-  StateStack.Create;
+  FSpecialControls.Create;
+  FSpecialControls.DisposeObjects := false;
   CursorBlinkTime.Create;
-end;
-
-procedure TVeridianApp.ApplySettings;
-begin
-  SetMouseSensitivity(Settings.MouseSensitivity);
+  StateStack.Create;
+  Settings.Create;
+  DragRect.Create;
+  LastDragRect.Create;
+  Colors := LightColors;
+  State.Create;
+  DragInitialPos.Create;
+  DragInitialSize.Create;
+  Parameters.Create;
+  FDoubleClickPos.Create;
+  ParseParameters;
 end;
 
 procedure TVeridianApp.Init;
 begin
   inherited Init;
-  {$IFDEF debug}
-  FMemAvail := 0;
-  FMaxAvail := 0;
-  {$ENDIF}
-  ParseParameters;
-  CreateObjects;
-  VeridianApp := @self;
-  FCursorBlinkVisible := false;
   Memory.OnAllocError := @OnAllocError;
-  FMouseOverControl := nil;
-  FDragControl := nil;
+  FCursorBlinkVisible := false;
+  CreateObjects;
+  SwitchingWindows := false;
+  MenuBar := nil;
+  Mouse.UseSystemCursor := false;
+  Mouse.HideMouse;
+  DragRectVisible := false;
+  ActiveControl := nil;
+  ActiveWindow := nil;
+  MouseOverControl := nil;
   LeftMouseDownControl := nil;
   RightMouseDownControl := nil;
+  DoubleClickControl := nil;
   SelectingControl := nil;
-  CurrentScrollSlider := nil;
-  FDoubleClickControl := nil;
-  InitMouseCursors;
-  LoadFonts;
-  CreateDesktop;
-  InitControls;
+  DragControl := nil;
+  ScrollSlider := nil;
+  ActiveDropDown := nil;
+  ActiveDialog := nil;
+  {$IFDEF debug}
+  FMemAvail := MemAvail;
+  FMemMaxAvail := MaxAvail;
+  FMemLabel := nil;
+  {$ENDIF}
 end;
 
-destructor TVeridianApp.Free;
+function TVeridianApp.CreateDesktop: PDesktop;
 begin
-  StateStack.DisposeObjects := true;
-  StateStack.Free;
-  FreeAndNil(Desktop);
-  FreeAndNil(Fonts);
-  FreeAndNil(MouseCursors);
-  FreeAndNil(Parameters);
-  State.Free;
-  inherited Free;
+  CreateDesktop := New(PDesktop, CreateParent('Desktop', nil, nil));
 end;
 
-constructor TVeridianApp.Create(ADriverId: TGraphDrivers; AWidth, AHeight, ABpp: integer);
+procedure TVeridianApp.UpdateActionControl(AControl: PActionControl);
+begin
+end;
+
+procedure TVeridianApp.ActionExecute(ASender: PActionControl; AAction: PAction);
 var
-  ident: integer;
+  event: TActionEvent;
 begin
-  InitGraphics(ADriverId);
-  ident := GetGraphicsModeId(AWidth, AHeight, ABpp);
-  if ident = -1 then begin
-    WriteLn('Mode not found');
+  if not (Assigned(ASender) and Assigned(AAction)) then
+    exit;
+  UpdateActionControl(ASender);
+  if not (ASender^.IsVisibleAndEnabled) then
+    exit;
+  if Assigned(ActiveDialog) then
+    ActiveDialog^.ActionExecute(ASender, AAction);
+  if Assigned(AAction^.OnExecute) then begin
+    event.Create;
+    event.Action := AAction;
+    event.Sender := ASender;
+    TActionExecuteEventProc(AAction^.OnExecute)(event);
+  end;
+end;
+
+procedure TVeridianApp.HandleMouseEnter(AControl: PControl; var AEvent: TMouseEvent);
+var
+  index: integer;
+  control: PControl;
+begin
+  if Assigned(DragControl) then
+    exit;
+  if Assigned(MouseOverControl) and (MouseOverControl <> AControl) then begin
+    MouseOverControl^.MouseLeave(AEvent);
+    MouseOverControl := nil;
+  end;
+  if AControl^.IsMouseOver then
+    exit;
+  MouseOverControl := AControl;
+  if (MouseCursor <> AControl^.MouseCursor) then begin
+    EraseMouseCursor(AEvent.NewMouseState);
+    MouseCursor := AControl^.MouseCursor;
+    DrawMouseCursor(AEvent.NewMouseState);
+  end;
+  if AControl^.IsVisibleAndEnabled then
+    AControl^.MouseEnter(AEvent);
+end;
+
+procedure TVeridianApp.HandleMouseMove(AControl: PControl; var AEvent: TMouseEvent);
+begin
+  AControl^.MouseMove(AEvent);
+end;
+
+procedure TVeridianApp.HandleMouseWheelChanged(AControl: PControl; var AEvent: TMouseEvent);
+var
+  rect: TRect;
+begin
+  if not AControl^.IsVisibleAndEnabled then
+    exit;
+  AControl^.GetScreenBounds(rect);
+  if rect.Contains(AEvent.NewMouseState.X, AEvent.NewMouseState.Y) then begin
+    AControl^.MouseWheelChanged(AEvent);
+  end;
+end;
+
+procedure TVeridianApp.HandleMouseUp(AControl: PControl; var AEvent: TMouseEvent;
+  AButton: TButtonState);
+var
+  selecting: boolean;
+  dragEvent: TDragEvent;
+  now: TDateTime;
+  scrollParent: PScrollBar;
+  scrollEvent: TScrollEvent;
+begin
+  if AButton in AEvent.NewMouseState.ButtonState then
+    exit;
+  if not (AButton in AEvent.OldMouseState.ButtonState) then
+    exit;
+
+  if Assigned(DragControl) then begin
+    dragEvent.Create;
+    dragEvent.InitialX := DragInitialPos.X;
+    dragEvent.InitialY := DragInitialPos.Y;
+    dragEvent.X := AEvent.NewMouseState.X;
+    dragEvent.Y := AEvent.NewMouseState.Y;
+    DragControl^.DragEnd(dragEvent);
+  end;
+  DragControl := nil;
+
+  selecting := false;
+{  selecting := SelectingControl = AControl;
+  SelectingControl := nil;}
+  if Assigned(ScrollSlider) and Assigned(ScrollSlider^.Parent) then begin
+    scrollParent := PScrollBar(ScrollSlider^.Parent);
+    scrollEvent.Create;
+    scrollEvent.ScrollPosition := scrollParent^.ScrollPosition;
+    scrollEvent.Orientation := scrollParent^.Orientation;
+    scrollParent^.PositionChanged(scrollEvent);
+  end;
+  ScrollSlider := nil;
+  now.CreateNow;
+  if ((LeftMouseDownControl = AControl) and (AButton = bsLeft))
+      or ((RightMouseDownControl = AControl) and (AButton = bsRight)) or selecting then begin
+    AControl^.MouseUp(AEvent);
+    AControl^.MouseClick(AEvent);
+    HandleDoubleClick(now, AControl, AEvent);
+  end;
+
+  if AButton = bsLeft then
+    LeftMouseDownControl := nil
+  else
+    RightMouseDownControl := nil;
+
+  if AControl^.IsActionControl then
+    ActionExecute(PActionControl(AControl), PActionControl(AControl)^.Action);
+end;
+
+procedure TVeridianApp.HandleMouseDown(AControl: PControl; var AEvent: TMouseEvent;
+  AButton: TButtonState);
+var
+  rect: TRect;
+  intersects: boolean;
+  container: PMenuItemContainer;
+  index: integer;
+  parent: PControl;
+  window: PWindow;
+begin
+  if not (AButton in AEvent.NewMouseState.ButtonState) then
+    exit;
+  if AButton in AEvent.OldMouseState.ButtonState then
+    exit;
+  if not AControl^.IsVisibleAndEnabled then
+    exit;
+  if Assigned(ActiveDropDown) then begin
+    ActiveDropDown^.GetScreenBounds(rect);
+    intersects := rect.Contains(AEvent.NewMouseState.X, AEvent.NewMouseState.Y);
+    if not intersects then begin
+      ActiveDropDown^.HideList;
+      ActiveDropDown := nil;
+    end;
+  end;
+
+  intersects := false;
+  for index := 0 to MenuManager.OpenMenus^.Count - 1 do begin
+    container := MenuManager.OpenMenus^.GetItem(index);
+    container^.GetScreenBounds(rect);
+    if rect.Contains(AEvent.NewMouseState.X, AEvent.NewMouseState.Y) then
+      intersects := true;
+    if Assigned(container^.ParentMenuItem) then begin
+      container^.ParentMenuItem^.GetScreenBounds(rect);
+      if rect.Contains(AEvent.NewMouseState.X, AEvent.NewMouseState.Y) then
+        intersects := true;
+    end;
+  end;
+  if not intersects then
+    MenuManager.CloseAllMenus;
+
+  if AButton = bsLeft then
+    LeftMouseDownControl := AControl
+  else
+    RightMouseDownControl := AControl;
+
+  parent := AControl^.Parent;
+  window := nil;
+  while Assigned(parent) do begin
+    if parent^.IsWindow then
+      window := PWindow(parent);
+    parent := parent^.Parent;
+  end;
+  if Assigned(window) and (ActiveWindow <> window)
+    and window^.IsVisibleAndEnabled then
+    window^.Activate;
+
+  if Assigned(ActiveControl) and (AControl^.IsFocusControl)
+    and (AControl <> PControl(ActiveControl)) then begin
+    PFocusControl(AControl)^.Focus;
+  end;
+  AControl^.MouseDown(AEvent);
+end;
+
+procedure TVeridianApp.HandleCursor;
+var
+  seconds: Double;
+begin
+  if not (Assigned(ActiveControl)
+    and ActiveControl^.Focused
+    and ActiveControl^.UsesCursor
+    and ActiveControl^.IsVisibleAndEnabled) then
+    exit;
+  if State.CursorOn then begin
+    FBlinkCurrentTime.SetNow;
+    FBlinkElapsed.Ticks := FBlinkCurrentTime.Ticks - CursorBlinkTime.Ticks;
+    seconds := FBlinkElapsed.TotalSeconds;
+    if seconds > Settings.CursorBlinkRate then begin
+      FCursorBlinkVisible := not FCursorBlinkVisible;
+      CursorBlinkTime.SetNow;
+      DrawCursor;
+    end;
+  end;
+end;
+
+procedure TVeridianApp.InitMouseEvent(AControl: PControl; var AEvent: TMouseEvent);
+var
+  rect: TRect;
+begin
+  AEvent.Clear;
+  AEvent.NewMouseState.Assign(FMouseState);
+  AEvent.OldMouseState.Assign(FOldMouseState);
+  AEvent.X := AEvent.NewMouseState.X;
+  AEvent.Y := AEvent.NewMouseState.Y;
+
+  { Get the state in relation to the control's coordinates }
+  AControl^.GetScreenBounds(rect);
+  Dec(AEvent.X, rect.X);
+  Dec(AEvent.Y, rect.Y);
+end;
+
+function TVeridianApp.GetMouseControl(AControl: PControl; var AMouseState: TMouseState): PControl;
+var
+  index: integer;
+  rect, parentRect: TRect;
+  control: PControl;
+begin
+  GetMouseControl := nil;
+  if not AControl^.IsVisible then
+    exit;
+
+  if AControl^.Controls^.Count > 0 then begin
+    for index := AControl^.Controls^.Count - 1 downto 0 do begin
+      control := AControl^.Controls^.GetItem(index);
+      control := GetMouseControl(control, AMouseState);
+      if Assigned(control) then begin
+        GetMouseControl := control;
+        exit;
+      end;
+    end;
+  end;
+
+  AControl^.GetClipRect(rect);
+  if rect.Contains(AMouseState.X, AMouseState.Y) then
+    GetMouseControl := AControl;
+end;
+
+procedure TVeridianApp.HandleMouseEvent(AControl: PControl;  var AEvent: TMouseEvent);
+var
+  index: integer;
+  control: PControl;
+  dragEvent: TDragEvent;
+begin
+  if AEvent.Handled then
+    exit;
+  control := GetMouseControl(Desktop, AEvent.NewMouseState);
+
+  AEvent.Sender := control;
+  InitMouseEvent(control, FMouseEvent);
+  InitMouseEvent(control, FMouseEvent);
+  if (FMouseState.WheelCounter <> FOldMouseState.WheelCounter) then
+    HandleMouseWheelChanged(control, FMouseEvent);
+  if (FMouseState.ButtonState <> FOldMouseState.ButtonState) then begin
+    HandleMouseDown(control, FMouseEvent, bsLeft);
+    HandleMouseDown(control, FMouseEvent, bsRight);
+    HandleMouseUp(control, FMouseEvent, bsLeft);
+    HandleMouseUp(control, FMouseEvent, bsRight);
+  end;
+  if (FMouseState.X <> FOldMouseState.X) or (FMouseState.Y <> FOldMouseState.Y) then begin
+    if Assigned(ScrollSlider) then
+      PScrollSlider(ScrollSlider)^.MouseMove(FMouseEvent);
+    HandleMouseMove(control, FMouseEvent);
+    if Assigned(DragControl) then begin
+      dragEvent.Create;
+      dragEvent.InitialX := DragInitialPos.X;
+      dragEvent.InitialY := DragInitialPos.Y;
+      dragEvent.X := AEvent.NewMouseState.X;
+      dragEvent.Y := AEvent.NewMouseState.Y;
+      DragControl^.DragMove(dragEvent);
+    end;
+    if Assigned(LeftMouseDownControl)
+      and (coCanDrag in LeftMouseDownControl^.ControlOptions)
+      and not Assigned(DragControl) then begin
+      if not LeftMouseDownControl^.IsVisibleAndEnabled then
+        exit;
+      DragControl := LeftMouseDownControl;
+      DragInitialPos.SetCoords(AEvent.NewMouseState.X, AEvent.NewMouseState.Y);
+      dragEvent.Create;
+      dragEvent.InitialX := DragInitialPos.X;
+      dragEvent.InitialY := DragInitialPos.Y;
+      dragEvent.X := DragInitialPos.X;
+      dragEvent.Y := DragInitialPos.Y;
+      DragInitialSize.CreateDims(DragControl^.Width, DragControl^.Height);
+        LeftMouseDownControl^.DragStart(dragEvent);
+    end;
+    HandleMouseEnter(control, FMouseEvent);
+  end;
+end;
+
+procedure TVeridianApp.HandleActionKey(AControl: PActionControl; var AEvent: TKeyEvent);
+var
+  index: integer;
+  action: PAction;
+begin
+  for index := 0 to Desktop^.ActionList^.Count - 1 do begin
+    action := Desktop^.ActionList^.GetItem(index);
+    if (action^.Shortcut <> AEvent.Key) or not action^.Enabled then
+      continue;
+    ActionExecute(PActionControl(AControl), action);
+    AEvent.Handled := true;
+    break;
+  end;
+end;
+
+procedure TVeridianApp.GetFocusList(AList: PObjectList; AControl: PControl);
+var
+  control: PControl;
+  focusControl: PFocusControl;
+  index: integer;
+begin
+  for index := 0 to AControl^.Controls^.Count - 1 do begin
+    control := AControl^.Controls^.GetItem(index);
+    GetFocusList(AList, control);
+    if not control^.IsFocusControl then
+      continue;
+    focusControl := PFocusControl(control);
+    if focusControl^.IsVisibleAndEnabled and focusControl^.CanFocus then
+      AList^.Add(focusControl);
+  end;
+end;
+
+function TVeridianApp.FocusNext(AControl: PControl; AReverse: boolean): boolean;
+var
+  parent: PControl;
+  current: PControl;
+  next: PFocusControl;
+  focusList: PObjectList;
+  controlIndex: integer;
+  currentIndex: integer;
+begin
+  if not Assigned(ActiveControl) then
+    exit;
+  parent := AControl^.Parent;
+  current := parent;
+  while Assigned(current^.Parent) do
+    current := current^.Parent;
+  if not Assigned(current) then
+    exit;
+  focusList := New(PObjectList, Create);
+  focusList^.DisposeObjects := false;
+  if Assigned(ActiveWindow) then
+    GetFocusList(focusList, ActiveWindow)
+  else
+    GetFocusList(focusList, Desktop);
+  controlIndex := focusList^.IndexOf(AControl);
+  if AReverse then begin
+    currentIndex := controlIndex - 1;
+    if currentIndex < 0 then
+      currentIndex := focusList^.Count - 1;
+  end
+  else begin
+    currentIndex := controlIndex + 1;
+    if currentIndex > focusList^.Count - 1 then
+      currentIndex := 0;
+  end;
+  if currentIndex <> controlIndex then begin
+    next := PFocusControl(focusList^.GetItem(currentIndex));
+    next^.Focus;
+  end;
+  FreeAndNil(focusList);
+end;
+
+function TVeridianApp.FocusFirst: boolean;
+var
+  focusList: PObjectList;
+  control: PControl;
+begin
+  focusList := New(PObjectList, Create);
+  focusList^.DisposeObjects := false;
+  GetFocusList(focusList, Desktop);
+  if focusList^.Count >= 0 then begin
+    control := PControl(focusList^.GetItem(focusList^.Count - 1));
+    if Assigned(control) then
+      PFocusControl(control)^.Focus;
+  end;
+  FreeAndNil(focusList);
+end;
+
+function TVeridianApp.FocusLast: boolean;
+var
+  focusList: PObjectList;
+  control: PControl;
+begin
+  focusList := New(PObjectList, Create);
+  focusList^.DisposeObjects := false;
+  GetFocusList(focusList, Desktop);
+  if focusList^.Count >= 0 then begin
+    control := PControl(focusList^.GetItem(0));
+    if Assigned(control) then
+      PFocusControl(control)^.Focus;
+  end;
+  FreeAndNil(focusList);
+end;
+
+procedure TVeridianApp.HandleSpecialKeys(AControl: PControl; var AEvent: TKeyEvent);
+var
+  container: PMenuItemContainer;
+begin
+  case AEvent.Key of
+    kyTab: begin
+      MenuManager.CloseAllMenus;
+      if Assigned(ActiveDropDown) then
+        ActiveDropDown^.HideList;
+      if Assigned(ActiveDropDown) then
+        ActiveDropDown^.HideList;
+      if Assigned(ActiveControl) then begin
+        if ActiveControl^.AcceptsTab or not ActiveControl^.CanFocus then
+          exit;
+        FocusNext(ActiveControl, true);
+      end
+      else begin
+        FocusFirst;
+      end;
+      AEvent.Handled := true;
+      exit;
+    end;
+    kyShiftTab: begin
+      MenuManager.CloseAllMenus;
+      if Assigned(ActiveDropDown) then
+        ActiveDropDown^.HideList;
+      if Assigned(ActiveControl) then begin
+        if ActiveControl^.AcceptsTab or not ActiveControl^.CanFocus then
+          exit;
+        FocusNext(ActiveControl, false);
+      end
+      else begin
+        FocusLast;
+      end;
+      AEvent.Handled := true;
+      exit;
+    end;
+    kyEsc: begin
+      Desktop^.BeginDrawing;
+      container := MenuManager.PopAndCloseMenu;
+      if Assigned(ActiveDropDown) then
+        ActiveDropDown^.HideList;
+      Desktop^.EndDrawing;
+    end;
+  end;
+  if AEvent.Handled then
+    exit;
+  if AControl^.IsActionControl then
+    HandleActionKey(PActionControl(AControl), AEvent);
+end;
+
+procedure TVeridianApp.HandleKeyEvent(AControl: PControl; var AEvent: TKeyEvent);
+var
+  index: integer;
+  control: PControl;
+  controlEnabled: boolean;
+begin
+  {$IFDEF debug}
+  if AEvent.Key = kyAltZ then begin
+    Close;
     exit;
   end;
-  if not SetMode(ident) then begin
-    WriteLn('Could not set text mode.');
+  {$ENDIF}
+  if Assigned(DragControl) then
     exit;
+  if not Assigned(Desktop) then
+    exit;
+
+  if (AEvent.Key = kyAltF1) and not SwitchingWindows then begin
+    SwitchingWindows := true;
+    AEvent.Handled := true;
   end;
-  inherited Create;
+
+  if AEvent.Handled then
+    exit;
+  HandleSpecialKeys(AControl, AEvent);
+  if AEvent.Handled then
+    exit;
+  for index := AControl^.Controls^.Count - 1 downto 0 do begin
+    control := AControl^.Controls^.GetItem(index);
+    if not control^.IsVisible then
+      continue;
+    controlEnabled := control^.IsEnabled;
+    if controlEnabled then
+      HandleKeyEvent(control, AEvent);
+    if AEvent.Handled then
+      exit;
+  end;
+  if AEvent.Handled then
+    exit;
+  AEvent.Sender := AControl;
+  AControl^.KeyPress(AEvent);
 end;
 
-procedure TVeridianApp.InitControls;
+function TVeridianApp.DefaultWindowX: integer;
 begin
-  InitActions;
-  Desktop^.SetBounds(0, 0, Graph^.Mode^.Width, Graph^.Mode^.Height);
-  Desktop^.SetupControls;
+  FNewWindowX := FNewWindowX + 10;
+  if FNewWindowX > Graph^.Mode^.Width div 2 then
+    FNewWindowX := 10;
+  DefaultWindowX := FNewWindowX;
 end;
 
-procedure TVeridianApp.InitActions;
+function TVeridianApp.DefaultWindowY: integer;
 begin
-end;
-
-function TVeridianApp.Scale(AValue: real): integer;
-begin
-  Scale := Round(AValue * SystemFont^.Height);
-end;
-
-procedure TVeridianApp.ResetDoubleClick;
-begin
-  FDoubleClickStart.Ticks := 0;
-  FDoubleClickControl := nil;
+  FNewWindowY := FNewWindowY + 10;
+  if FNewWindowY > Graph^.Mode^.Height div 2 then
+    FNewWindowY := 10;
+  DefaultWindowY := FNewWindowY;
 end;
 
 procedure TVeridianApp.CursorOn;
@@ -355,20 +893,20 @@ begin
   DrawCursor;
 end;
 
-procedure TVeridianApp.RedrawMouseCursor(AViewPort: TRect);
-var
-  oldViewPort: TRect;
-  drawRect: TRect;
+function TVeridianApp.MenuBarHeight: integer;
 begin
-  if not Graph8^.MouseCursor^.Visible then
-    exit;
-  drawRect.CreateDims(FMouseState.X, FMouseState.Y, Graph8^.MouseCursor^.Width, Graph8^.MouseCursor^.Height);
-  drawRect.Translate(-Graph8^.MouseCursor^.OffsetX, -Graph8^.MouseCursor^.OffsetY);
-  drawRect.Intersect(AViewPort);
-  if drawRect.IsEmpty then
-    exit;
-  Graph^.WaitForVSync;
-  Graph8^.MouseCursor^.Draw;
+  if Assigned(MenuBar) then
+    MenuBarHeight := MenuBar^.Height
+  else
+    MenuBarHeight := 0;
+end;
+
+function TVeridianApp.TaskBarHeight: integer;
+begin
+  if Assigned(Taskbar) then
+    TaskBarHeight := Taskbar^.Height
+  else
+    TaskBarHeight := 0;
 end;
 
 procedure TVeridianApp.DrawCursor;
@@ -376,354 +914,221 @@ var
   rect: TRect;
   mouseRect: TRect;
   cursorColor: byte;
-  activeControl: PControl;
+  control: PTextControl;
+  clipRect: TRect;
 begin
   if not State.DrawEnabled then
     exit;
-  activeControl := Desktop^.ActiveControl;
-  if not Assigned(activeControl) then
+  if not Assigned(ActiveControl) then
     exit;
-  if not activeControl^.Focused then
+  if not ActiveControl^.IsTextControl then
     exit;
-  activeControl^.GetCursorRect(rect);
-  rect.Intersect(Graph^.State^.ViewPort);
+  control := PTextControl(ActiveControl);
+  control^.GetCursorRect(rect);
+  control^.GetClipRect(clipRect);
+  rect.Intersect(clipRect);
   if rect.IsEmpty then
     exit;
   if FCursorBlinkVisible then
-    cursorColor := activeControl^.GetCursorForeColor
+    cursorColor := control^.GetCursorForeColor
   else
-    cursorColor := activeControl^.GetCursorBackColor;
+    cursorColor := control^.GetCursorBackColor;
 
   Graph^.SetBackColor(cursorColor);
   Graph^.FillRect(rect);
-  RedrawMouseCursor(rect);
+  RedrawMouseCursor(rect, FMouseState);
 end;
 
-procedure TVeridianApp.HandleCursor;
-var
-  seconds: Double;
+procedure TVeridianApp.CloseAllMenus;
 begin
-  if not Assigned(Desktop^.ActiveControl) then
-    exit;
-  if not (Desktop^.ActiveControl^.CanFocus and Desktop^.ActiveControl^.Focused) then
-    exit;
-  if State.CursorOn and Desktop^.ActiveControl^.Focused
-    and Desktop^.ActiveControl^.UsesCursor then begin
-    FBlinkCurrentTime.SetNow;
-    FBlinkElapsed.Ticks := FBlinkCurrentTime.Ticks - CursorBlinkTime.Ticks;
-    seconds := FBlinkElapsed.TotalSeconds;
-    if seconds > Settings.CursorBlinkRate then begin
-      FCursorBlinkVisible := not FCursorBlinkVisible;
-      CursorBlinkTime.SetNow;
-      DrawCursor;
-    end;
-  end;
+  MenuManager.CloseAllMenus;
 end;
 
-procedure TVeridianApp.ProcessMessages;
+{$IFDEF debug}
+procedure TVeridianApp.UpdateDebugInfo;
 var
-  message: PMessage;
-  procedure Process(AControl: PControl; AMessage: PMessage);
-  var
-    index: integer;
-    control: PControl;
-  begin
-    if message^.Processed then
-      exit;
-    for index := AControl^.Controls^.Count - 1 downto 0 do begin
-      control := AControl^.Controls^.Items^[index];
-      if pointer(control) <> AMessage^.Target then
-        continue;
-      Process(control, message);
-      if message^.Processed then
-        exit;
-    end;
-    if message^.Code = vmClose then begin
-      FreeAndNil(AControl);
-      message^.Processed := true;
-      Desktop^.Draw;
-    end;
-    AControl^.ProcessMessage(message);
-  end;
-begin
-  while MessageQueue.Count > 0 do begin
-    message := MessageQueue.Deq;
-    Process(Desktop, message);
-    FreeAndNil(message);
-  end;
-end;
-
-procedure TVeridianApp.DeactivateActiveControl;
-begin
-  Desktop^.ActiveControl := nil;
-  FMouseOverControl := nil;
-end;
-
-procedure TVeridianApp.InitMouseEvent(AControl: PControl; var AEvent: TMouseEvent);
-var
+  txt: string;
+  width: word;
   rect: TRect;
 begin
-  AEvent.Clear;
-  AEvent.NewMouseState.Assign(FMouseState);
-  AEvent.OldMouseState.Assign(FOldMouseState);
-  AEvent.X := FMouseEvent.NewMouseState.X;
-  AEvent.Y := FMouseEvent.NewMouseState.Y;
-
-  AControl^.GetScreenBounds(rect);
-  AEvent.X := AEvent.NewMouseState.X;
-  AEvent.Y := AEvent.NewMouseState.Y;
-
-  { Get the state in relation to the control's coordinates }
-  Dec(AEvent.X, rect.X);
-  Dec(AEvent.Y, rect.Y);
+  if Assigned(FMemLabel) and Assigned(MenuBar) and
+    ((FMemAvail <> MemAvail) or (FMemMaxAvail <> MaxAvail)) then begin
+    MenuBar^.GetScreenBounds(rect);
+    txt := 'MemAvail: ' + FormatLong(MemAvail) + ' MaxAvail: ' + FormatLong(MaxAvail);
+    width := desktop^.Font^.AverageWidth * Length(txt);
+    rect.Height := Menubar^.Font^.Height;
+    rect.X := rect.Right - width;
+    rect.Y := rect.Y + (MenuBar^.Height - MenuBar^.Font^.Height) div 2 + 1;
+    FMemLabel^.SetBoundsRect(rect);
+    FMemAvail := MemAvail;
+    FMemMaxAvail := MaxAvail;
+    FMemLabel^.SetCaption(txt);
+  end;
 end;
+{$ENDIF}
 
-function TVeridianApp.GetMouseControl(AControl: PControl; var AMouseState: TMouseState): PControl;
-var
-  index: integer;
-  rect: TRect;
-  result: PControl;
-  control: PControl;
+function TVeridianApp.HandleWindowSwitch: boolean;
 begin
-  result := nil;
-
-  if AControl^.Controls^.Count > 0 then begin
-    for index := AControl^.Controls^.Count - 1 downto 0 do begin
-      control := AControl^.Controls^.GetItem(index);
-      if not (control^.GetVisible) then
-        continue;
-      control := GetMouseControl(control, AMouseState);
-      if control <> nil then begin
-        result := control;
-        break;
-      end;
+  HandleWindowSwitch := false;
+  if AltkeyDown and SwitchingWindows then begin
+    if Keyboard.KeyPressed then begin
+      if Keyboard.GetKey = kyAltF1 then
+        SwitchWindow
+      else
+        BeginWindowSwitch;
     end;
   end;
-
-  if result = nil then begin
-    AControl^.GetScreenBounds(rect);
-    if (AControl^.Modal and (PControl(Desktop^.ActiveView) = AControl))
-      or (SelectingControl = AControl) or (rect.Contains(AMouseState.X, AMouseState.Y)) then
-      result := AControl;
-  end;
-
-  GetMouseControl := result;
+  if not AltKeyDown and SwitchingWindows then
+     EndWindowSwitch;
 end;
 
-procedure TVeridianApp.ProcessMouseEvents;
+procedure TVeridianApp.HandleMouseCursor;
 var
-  control, oldControl: PControl;
+  newRect, oldRect: TRect;
 begin
-  control := GetMouseControl(Desktop, FMouseState);
-  if control = nil then
-    exit;
-
-  InitMouseEvent(control, FMouseEvent);
-  if (FMouseState.X <> FOldMouseState.X) or (FMouseState.Y <> FOldMouseState.Y) then begin
-    if Assigned(CurrentScrollSlider) then
-      PScrollSlider(CurrentScrollSlider)^.ProcessMouseMove(FMouseEvent);
-    HandleMouseEnter(control, FMouseEvent);
-    HandleMouseMove(control, FMouseEvent);
-  end;
-  InitMouseEvent(control, FMouseEvent);
-  if (FMouseState.WheelCounter <> FOldMouseState.WheelCounter) then
-    HandleMouseWheelChanged(control, FMouseEvent);
-  if (FMouseState.ButtonState <> FOldMouseState.ButtonState) then begin
-    HandleMouseDown(control, FMouseEvent, bsLeft);
-    HandleMouseDown(control, FMouseEvent, bsRight);
-    HandleMouseUp(control, FMouseEvent, bsLeft);
-    HandleMouseUp(control, FMouseEvent, bsRight);
-  end;
-end;
-
-procedure TVeridianApp.HandleMouseMove(AControl: PControl; var AEvent: TMouseEvent);
-begin
-  AControl^.MouseMove(AEvent);
-end;
-
-procedure TVeridianApp.HandleMouseEnter(AControl: PControl; var AEvent: TMouseEvent);
-var
-  index: integer;
-  control: PControl;
-begin
-  if Assigned(FMouseOverControl) and (FMouseOverControl <> AControl) then begin
-    FMouseOverControl^.MouseLeave(AEvent);
-    FMouseOverControl^.IsMouseOver := false;
-    FMouseOverControl := nil;
-  end;
-
-  if AControl^.IsMouseOver then
-    exit;
-
-  FMouseOverControl := AControl;
-  AControl^.IsMouseOver := true;
-  if Graph8^.MouseCursor <> AControl^.MouseCursor then begin
-    Graph8^.EraseMouseCursor(AEvent.NewMouseState);
-    Graph8^.MouseCursor := AControl^.MouseCursor;
-    Graph8^.DrawMouseCursor(AEvent.NewMouseState);
-  end;
-  AControl^.MouseEnter(AEvent);
-end;
-
-procedure TVeridianApp.HandleMouseWheelChanged(AControl: PControl; AEvent: TMouseEvent);
-var
-  rect: TRect;
-begin
-  AControl^.GetScreenBounds(rect);
-  if rect.Contains(AEvent.NewMouseState.X, AEvent.NewMouseState.Y) then begin
-    AControl^.MouseWheelChanged(AEvent);
-  end;
-end;
-
-procedure TVeridianApp.HandleMouseDown(AControl: PControl; var AEvent: TMouseEvent; AButton: TButtonState);
-var
-  rect: TRect;
-  intersects: boolean;
-  parentItem: PMenuItem;
-begin
-  if not (AButton in AEvent.NewMouseState.ButtonState) then
-    exit;
-  if AButton in AEvent.OldMouseState.ButtonState then
-    exit;
-
-  if Assigned(Desktop^.ActiveDropDown) then begin
-    Desktop^.ActiveDropDown^.GetScreenBounds(rect);
-    intersects := rect.Contains(AEvent.NewMouseState.X, AEvent.NewMouseState.Y);
-    if not intersects then begin
-      Desktop^.ActiveDropDown^.HideList;
-      Desktop^.ActiveDropDown := nil;
-    end;
-  end;
-  if Assigned(Desktop^.ActiveMenu) then begin
-    Desktop^.ActiveMenu^.GetScreenBounds(rect);
-    intersects := rect.Contains(AEvent.NewMouseState.X, AEvent.NewMouseState.Y);
-    parentItem := Desktop^.ActiveMenu^.ParentItem;
-    if Assigned(parentItem) then begin
-      parentItem^.GetScreenBounds(rect);
-      intersects := intersects or rect.Contains(AEvent.NewMouseState.X, AEvent.NewMouseState.Y)
-    end;
-    if not intersects then begin
-      Desktop^.DeactivateCurrentMenu;
-      PopState;
-      if State.CursorOn then
-        CursorOn;
-    end;
-  end;
-
-  if AButton = bsLeft then
-    LeftMouseDownControl := AControl
-  else
-    RightMouseDownControl := AControl;
-
-  AControl^.MouseDown(AEvent);
-end;
-
-procedure TVeridianApp.HandleDblClick(ATime: TDateTime; AControl: PControl; var AEvent: TMouseEvent);
-begin
-  if FDoubleClickStart.Ticks = 0 then begin
-    FDoubleClickStart.Ticks := ATime.Ticks;
-    FDoubleClickControl := AControl;
+  if not Assigned(DragControl) then
+    DragRectVisible := false;
+  if Assigned(DragControl) and not DragRectVisible then begin
+    DragRectVisible := true;
+    MoveMouseCursor(FMouseState, FOldMouseState, false);
+    Graph^.InverseRectangle(DragRect);
+    LastDragRect.Assign(DragRect);
   end
-  else begin
-    if (ATime.Ticks <= FDoubleClickStart.Ticks + Settings.DoubleClickDelay.Ticks)
-      and (FDoubleClickControl = AControl) then begin
-      AControl^.MouseDblClick(AEvent);
-    end;
-    FDoubleClickStart.Ticks := 0;
-    FDoubleClickControl := nil;
-  end;
-end;
-
-procedure TVeridianApp.HandleMouseUp(AControl: PControl; var AEvent: TMouseEvent; AButton: TButtonState);
-var
-  selecting: boolean;
-  scrollParent: PScrollBar;
-  scrollEvent: TScrollEvent;
-  now: TDateTime;
-begin
-  if AButton in AEvent.NewMouseState.ButtonState then
-    exit;
-  if not (AButton in AEvent.OldMouseState.ButtonState) then
-    exit;
-
-  now.CreateNow;
-  selecting := SelectingControl = AControl;
-  if Assigned(CurrentScrollSlider) and Assigned(CurrentScrollSlider^.Parent) then begin
-    scrollParent := PScrollBar(CurrentScrollSlider^.Parent);
-    if Assigned(scrollParent^.OnCurrentPosChanged) then begin
-      scrollEvent.Create;
-      scrollEvent.CurrentPos := scrollParent^.CurrentPos;
-      TScrollEventProc(scrollParent^.OnCurrentPosChanged)(scrollParent, scrollEvent);
-    end;
-  end;
-  CurrentScrollSlider := nil;
-  if Assigned(Desktop^.ActiveMenu) and (AControl = PControl(Desktop^.ActiveMenu^.ActiveItem)) then
-    selecting := true;
-  if ((LeftMouseDownControl = AControl) and (AButton = bsLeft))
-      or ((RightMouseDownControl = AControl) and (AButton = bsRight)) or selecting then begin
-    AControl^.MouseUp(AEvent);
-    AControl^.MouseClick(AEvent);
-    HandleDblClick(now, AControl, AEvent);
-  end;
-
-  SelectingControl := nil;
-  if AButton = bsLeft then
-    LeftMouseDownControl := nil
+  else if Assigned(DragControl) and DragRectVisible then begin
+    newRect.CreateRect(DragRect);
+    oldRect.CreateRect(LastDragRect);
+    Graph^.InverseRectangle(oldRect);
+    MoveMouseCursor(FMouseState, FOldMouseState, false);
+    Graph^.InverseRectangle(newRect);
+    MouseCursor^.Draw;
+    LastDragRect.Assign(DragRect);
+  end
   else
-    RightMouseDownControl := nil;
+    MoveMouseCursor(FMouseState, FOldMouseState, true);
 end;
 
-procedure TVeridianApp.ProcessKeyEvents(AControl: PControl; var AEvent: TKeyEvent);
+procedure TVeridianApp.HandleDoubleClick(ATime: TDateTime; AControl: PControl; var AEvent: TMouseEvent);
 var
-  index: integer;
-  action: PAction;
-  intersects: boolean;
-  rect: TRect;
+  elapsed: TTimeSpan;
 begin
-  if AEvent.Key = kyAlt0 then begin
-    Close;
+  if not Assigned(AControl) then begin
+    FDoubleClickStart.Ticks := 0;
     exit;
   end;
-  if AEvent.Handled then
-    exit;
-  if AEvent.Key = kyTab then begin
-    if (Assigned(Desktop^.ActiveControl) and Desktop^.ActiveControl^.AcceptTab) then begin
-      if Desktop^.ActiveControl^.Parent = PControl(Desktop^.ActiveDropDown) then begin
-        Desktop^.ActiveDropDown^.HideList;
-        Desktop^.ActiveDropDown := nil;
-      end;
-      FocusNext(Desktop^.ActiveControl, false);
-      AControl^.KeyPress(AEvent);
-      AEvent.Handled := true;
-      exit;
-    end;
-  end;
-  if AEvent.Key = kyShiftTab then begin
-    if (Assigned(AControl) and AControl^.AcceptTab) then begin
-      FocusNext(Desktop^.ActiveControl, true);
-      AControl^.KeyPress(AEvent);
-      AEvent.Handled := true;
-      exit;
-    end;
-  end;
-  if (AEvent.Key = kyEsc) and Assigned(Desktop^.ActiveDropDown) then begin
-    Desktop^.ActiveDropDown^.GetScreenBounds(rect);
-    Desktop^.ActiveDropDown^.HideList;
-    Desktop^.ActiveDropDown := nil;
-    AEvent.Handled := true;
+  if (FDoubleClickStart.Ticks = 0) or (AControl <> DoubleClickControl) then begin
+    FDoubleClickStart.SetNow;
+    FDoubleClickPos.X := AEvent.NewMouseState.X;
+    FDoubleClickPos.Y := AEvent.NewMouseState.Y;
+    DoubleClickControl := AControl;
     exit;
   end;
-  for index := 0 to Desktop^.ActionList^.Count - 1 do begin
-    action := Desktop^.ActionList^.GetItem(index);
-    if (action^.Shortcut <> AEvent.Key) or not action^.Enabled then
-      continue;
-    Desktop^.DeactivateCurrentMenu;
-    HandleActionExecute(AControl, action);
-    AEvent.Handled := true;
-    break;
+  elapsed.CreateTicks(ATime.Ticks - FDoubleClickStart.Ticks);
+  if elapsed.Ticks < Settings.DoubleClickDelay.Ticks then begin
+    if (AEvent.NewMouseState.X = FDoubleClickPos.X)
+      and (AEvent.NewMouseState.Y = FDoubleClickPos.Y) then
+      AControl^.MouseDoubleClick(AEvent);
+    FDoubleClickStart.Ticks := 0;
+    DoubleClickControl := nil;
+    exit;
   end;
-  if not AEvent.Handled then
-    AControl^.KeyPress(AEvent);
+  FDoubleClickStart.SetNow;
+  DoubleClickControl := AControl;
+end;
+
+procedure TVeridianApp.BeginWindowSwitch;
+begin
+  SwitchingWindows := true;
+end;
+
+procedure TVeridianApp.EndWindowSwitch;
+begin
+  SwitchingWindows := false;
+end;
+
+procedure TVeridianApp.SwitchWindow;
+begin
+end;
+
+procedure TVeridianApp.StoreSpecialControlState;
+begin
+  FSpecialControls.Clear;
+  FSpecialControls.Push(DoubleClickControl);
+  FSpecialControls.Push(MouseOverControl);
+  FSpecialControls.Push(LeftMouseDownControl);
+  FSpecialControls.Push(RightMouseDownControl);
+  FSpecialControls.Push(SelectingControl);
+  FSpecialControls.Push(ActiveDialog);
+  FSpecialControls.Push(ActiveControl);
+  FSpecialControls.Push(ActiveWindow);
+  FSpecialControls.Push(ActiveDropDown);
+  FSpecialControls.Push(DragControl);
+  FSpecialControls.Push(ScrollSlider);
+end;
+
+procedure TVeridianApp.ClearSpecialControlState;
+begin
+  DoubleClickControl := nil;
+  MouseOverControl := nil;
+  LeftMouseDownControl := nil;
+  RightMouseDownControl := nil;
+  SelectingControl := nil;
+  ActiveControl := nil;
+  ActiveWindow := nil;
+  ActiveDropDown := nil;
+  DragControl := nil;
+  ActiveDialog := nil;
+  ScrollSlider := nil;
+end;
+
+procedure TVeridianApp.RestoreSpecialControlState;
+begin
+  ScrollSlider := PControl(FSpecialControls.Pop);
+  DragControl := PControl(FSpecialControls.Pop);
+  ActiveDropDown := PDropDownList(FSpecialControls.Pop);
+  ActiveWindow := PWindow(FSpecialControls.Pop);
+  ActiveControl := PFocusControl(FSpecialControls.Pop);
+  ActiveDialog := PDialog(FSpecialControls.Pop);
+  SelectingControl := PControl(FSpecialControls.Pop);
+  RightMouseDownControl := PControl(FSpecialControls.Pop);
+  LeftMouseDownControl := PControl(FSpecialControls.Pop);
+  MouseOverControl := PControl(FSpecialControls.Pop);
+  DoubleClickControl := PControl(FSpecialControls.Pop);
+  FSpecialControls.Clear;
+end;
+
+procedure TVeridianApp.ProcessEvents;
+var
+  ch: word;
+  flags: TKeyboardFlags;
+begin
+  Mouse.UpdateState;
+  Keyboard.GetFlags(flags);
+  AltKeyDown := kfAlt in flags;
+  if Assigned(MenuBar) then
+    MenuBar^.BringToFront;
+
+  FMouseState.Assign(Mouse.State);
+  HandleCursor;
+  if not FMouseState.Equals(FOldMouseState) then begin
+    HandleMouseCursor;
+    if State.CursorOn then
+      DrawCursor;
+    FMouseEvent.NewMouseState.Assign(FMouseState);
+    FMouseEvent.OldMouseState.Assign(FOldMouseState);
+    FMouseEvent.Handled := false;
+    HandleMouseEvent(Desktop, FMouseEvent);
+    FOldMouseState.Assign(FMouseState);
+  end;
+
+  if (not HandleWindowSwitch) and Keyboard.KeyPressed then begin
+    ch := Keyboard.GetKey;
+    FKeyEvent.Key := ch;
+    FKeyEvent.Handled := false;
+    HandleKeyEvent(Desktop, FKeyEvent);
+  end;
+  {$IFDEF debug}
+  UpdateDebugInfo;
+  {$ENDIF}
 end;
 
 procedure TVeridianApp.PushState;
@@ -750,171 +1155,81 @@ begin
   FreeAndNil(oldState);
 end;
 
-function TVeridianApp.LoadFont(const AFilename: string): PFont;
+procedure TVeridianApp.ParseParameters;
 var
-  newFont: PFont;
+  index: integer;
+  dir, name, ext: string;
 begin
-  if FileExists(AFilename) then begin
-    newFont := New(PProportionalFont, Create);
-    newFont^.LoadFromFile(AFilename);
-    if newFont^.HasException then begin
-      newFont^.ClearException;
-      newFont := New(PSystemFont, CreateId('System'));
-    end;
-  end
-  else
-    newFont := New(PSystemFont, CreateId('System'));
-  LoadFont := newFont;
-  Fonts^.Add(newFont);
+  FSplit(ParamStr(0), dir, name, ext);
+  AppDir := dir;
+  for index := 1 to ParamCount do
+    Parameters.AddString(ParamStr(index));
 end;
 
-function TVeridianApp.HandleActionExecute(ASender: PObject; AAction: PAction): boolean;
+function TVeridianApp.CheckNilPtr(APtr: pointer): boolean;
 begin
-  HandleActionExecute := false;
-  if Assigned(AAction) and Assigned(AAction^.OnExecute) then begin
-    if Assigned(ASender) and PControl(ASender)^.IsActionControl then
-      UpdateActionControl(PActionControl(ASender));
-    TActionExecuteProc(AAction^.OnExecute)(ASender, AAction);
-    HandleActionExecute := true;
-  end;
-end;
-
-function TVeridianApp.FocusNext(AControl: PControl; AReverse: boolean): boolean;
-var
-  parent: PControl;
-  current: PControl;
-  next: PControl;
-  focusList: PObjectList;
-  controlIndex: integer;
-  currentIndex: integer;
-begin
-  parent := AControl^.Parent;
-  current := parent;
-  while Assigned(current^.Parent) do
-    current := current^.Parent;
-  if not Assigned(current) then
+  CheckNilPtr := false;
+  if Assigned(APtr) then
     exit;
-  focusList := New(PObjectList, Create);
-  focusList^.DisposeObjects := false;
-  Desktop^.GetFocusList(focusList, Desktop);
-  controlIndex := focusList^.IndexOf(AControl);
-  if AReverse then begin
-    currentIndex := controlIndex - 1;
-    if currentIndex < 0 then
-      currentIndex := focusList^.Count - 1;
-  end
-  else begin
-    currentIndex := controlIndex + 1;
-    if currentIndex > focusList^.Count - 1 then
-      currentIndex := 0;
-  end;
-  if currentIndex <> controlIndex then begin
-    next := PControl(focusList^.GetItem(currentIndex));
-    next^.Focus;
-  end;
-  FreeAndNil(focusList);
+  CheckNilPtr := true;
+  VeridianApp^.Error(self, ecNotEnoughMemory);
 end;
 
-function TVeridianApp.MenuBar: PMenuBar;
+procedure TVeridianApp.SetColors(const AColors: TColors);
 begin
-  MenuBar := Desktop^.MenuBar;
+  Colors := AColors;
+  Desktop^.Draw;
 end;
 
-function TVeridianApp.StatusBar: PStatusBar;
+procedure TVeridianApp.SetActiveControl(AControl: PFocusControl);
 begin
-  StatusBar := Desktop^.StatusBar;
+  if not Assigned(AControl) then
+    exit;
+  if AControl = ActiveControl then
+    exit;
+  AControl^.Focus;
 end;
-
-{$IFDEF debug}
-procedure TVeridianApp.DrawDebugInfo;
-var
-  txt: string;
-  rect: TRect;
-  max, mem: longint;
-  yPos: integer;
-  xPos: integer;
-begin
-  max := MaxAvail;
-  mem := MemAvail;
-  Graph^.PushState;
-  Graph^.SetForeColor(Desktop^.ForeColor);
-  Graph^.SetBackColor(Desktop^.BackColor);
-  Graph^.State^.Font := SystemFont;
-  yPos := Desktop^.Height - Desktop^.StatusBar^.Height - 2 * Desktop^.Font^.Height + 3;
-  xPos := 2;
-  txt := 'MemAvail: ' + FormatLong(FMemAvail);
-  if mem <> FMemAvail then begin
-    rect.SetDims(xPos, yPos, 150, SystemFont^.Height);
-    Graph^.FillRect(rect);
-    txt := 'MemAvail: ' + FormatLong(mem);
-    FMemAvail := mem;
-    Graph^.DrawText(rect.X, rect.Y, txt);
-  end;
-  Inc(yPos, SystemFont^.Height);
-  if max <> FMaxAvail then begin
-    txt := 'MaxAvail: ' + FormatLong(FMaxAvail);
-    rect.SetDims(xPos, yPos, 150, SystemFont^.Height);
-    Graph^.FillRect(rect);
-    txt := 'MaxAvail: ' + FormatLong(max);
-    FMaxAvail := max;
-    Graph^.DrawText(rect.X, rect.Y, txt);
-  end;
-
-  Graph^.PopState;
-end;
-{$ENDIF}
 
 procedure TVeridianApp.SetMouseSensitivity(ASens: real);
 var
   aspectRatio: real;
 begin
   aspectRatio := Graph^.Mode^.Height / Graph^.Mode^.Width;
-  Mouse.SetSensitivity(ASens, aspectRatio *ASens);
+  Mouse.SetSensitivity(ASens, aspectRatio * ASens);
 end;
 
-procedure TVeridianApp.ClearMouseOver;
+procedure TVeridianApp.ApplySettings;
 begin
-  if not Assigned(FMouseOverControl) then
-    exit;
-  FMouseOverControl^.IsMouseOver := false;
-  FMouseOverControl := nil;
-end;
-
-procedure TVeridianApp.ProcessEvents;
-begin
-  Desktop^.MenuBar^.BringToFront;
-  Desktop^.StatusBar^.BringToFront;
-  Mouse.UpdateState;
-  FMouseState.Assign(Mouse.State);
-  HandleCursor;
-  ProcessMessages;
-  {$IFDEF debug}
-  DrawDebugInfo;
-  {$ENDIF}
-  if not FMouseState.Equals(FOldMouseState) then begin
-    Graph8^.MoveMouseCursor(FMouseState, FOldMouseState);
-    if State.CursorOn then
-      DrawCursor;
-    ProcessMouseEvents;
-    FOldMouseState.Assign(FMouseState);
-  end;
-  if Keyboard.KeyPressed then begin
-    FKeyEvent.Clear;
-    FKeyEvent.Key := Keyboard.GetKey;
-    ProcessKeyEvents(Desktop, FKeyEvent);
-  end;
+  SetMouseSensitivity(Settings.MouseSensitivity);
 end;
 
 procedure TVeridianApp.Run;
+  procedure DoRun(AControl: PControl);
+  var
+    index: integer;
+    control: PControl;
+  begin
+    for index := 0 to AControl^.Controls^.Count - 1 do begin
+      control := AControl^.Controls^.GetItem(index);
+      DoRun(control);
+    end;
+    AControl^.Run;
+  end;
 begin
   ApplySettings;
   State.DrawEnabled := true;
+  {$IFDEF debug}
+  UpdateDebugInfo;
+  {$ENDIF}
   Desktop^.Draw;
   Mouse.SetMousePosition(Graph^.Mode^.Width div 2, Graph^.Mode^.Height div 2);
   Mouse.ShowMouse;
-  Graph8^.ShowMouseCursor;
+  ShowMouseCursor;
   FMouseState.Assign(Mouse.State);
   FOldMouseState.Assign(FMouseState);
+  DoRun(Desktop);
+  if State.CursorOn then
+    CursorOn;
   inherited Run;
 end;
 
@@ -922,7 +1237,7 @@ procedure TAppState.Init;
 begin
   inherited Init;
   CursorOn := false;
-  MouseCursor := nil;
+  MouseVisible := false;
   DrawEnabled := false;
 end;
 
@@ -933,8 +1248,8 @@ begin
   inherited Assign(ASource);
   source := PAppState(@ASource);
   CursorOn := source^.CursorOn;
-  MouseCursor := source^.MouseCursor;
   DrawEnabled := source^.DrawEnabled;
+  MouseVisible := source^.MouseVisible;
 end;
 
 procedure TVeridianAppSettings.Init;
@@ -943,7 +1258,7 @@ begin
   CursorBlinkRate := DefaultCursorBlinkRate;
   DoubleClickDelay.CreateSeconds(DefaultDoubleClickDelay);
   MouseSensitivity := DefaultMouseSensitivity;
-  UpdateScrollContents := true;
+  UpdateScrollContents := false;
 end;
 
 procedure TVeridianAppSettings.Assign(var ASource: TObject);

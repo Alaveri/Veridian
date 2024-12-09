@@ -8,12 +8,13 @@ uses
   AplTypes,
   AplConst,
   AplMath,
-  AplLists,
-  AplDraw,
+  Lists,
+  Drawing,
   AplUtils,
-  AplMem,
-  AplGrap8,
-  VTypes,
+  MemDrv,
+  Gr8Drv,
+  VeriType,
+  VeriCons,
   Views,
   Controls;
 
@@ -111,11 +112,9 @@ implementation
 
 uses
   AplStr,
-  AplGrApp,
-  AplKeys,
-  AplMouse,
-  AplGraph,
-  Desk,
+  Graphics,
+  KeyDrv,
+  MouseDrv,
   Veridian,
   Strings;
 
@@ -130,12 +129,12 @@ function TEdit.GetCursorForeColor: byte;
 begin
   GetCursorForeColor := ForeColor;
   if CanFocus and Focused then
-    GetCursorForeColor := FocusedForeColor;
+    GetCursorForeColor := FocusedColor;
   if not CheckSelection then
     exit;
   if (longint(FCursorPos) - 1 < SelectStart) or (longint(FCursorPos) - 1 > SelectEnd + 1) then
     exit;
-  GetCursorForeColor := Desktop^.Colors^.Select;
+  GetCursorForeColor := VeridianApp^.Colors.Select;
 end;
 
 function TEdit.GetCursorBackColor: byte;
@@ -147,18 +146,18 @@ begin
     exit;
   if (longint(FCursorPos) - 1 < SelectStart) or (longint(FCursorPos) - 1 > SelectEnd) then
     exit;
-  GetCursorBackColor := Desktop^.Colors^.SelectBack;
+  GetCursorBackColor := VeridianApp^.Colors.SelectBack;
 end;
 
 procedure TEdit.GetCursorRect(var ARect: TRect);
 var
   clipRect: TRect;
-  xPos, yPos: integer;
+  pos: TPoint;
 begin
   inherited GetCursorRect(ARect);
   GetScreenBounds(clipRect);
-  GetTextAlign(clipRect, xPos, yPos);
-  ARect.SetDims(xPos + FCursorX - ScrollPos - 1, yPos - 1, 1, Font^.Height + 1);
+  GetTextAlign(clipRect, pos);
+  ARect.SetDims(pos.X + FCursorX - ScrollPos, pos.Y - 1, 1, Font^.Height + 1);
 end;
 
 function TEdit.GetIndexAt(AX, AY: integer): longint;
@@ -166,7 +165,7 @@ var
   index: word;
   pos: longint;
 begin
-  Inc(AX, ScrollPos - Margin - 1);
+  Inc(AX, ScrollPos - Padding.Left - 1);
   index := 0;
   pos := 0;
   while index < Length do begin
@@ -224,20 +223,20 @@ begin
   CanEdit := true;
   UsesCursor := true;
   SelectAllOnFocus := true;
-  ForeColor := Desktop^.Colors^.Editor;
-  BackColor := Desktop^.Colors^.EditorBack;
-  DisabledForeColor := Desktop^.Colors^.EditorDisabled;
-  FocusedForeColor := Desktop^.Colors^.Focused;
-  FocusedBackColor := Desktop^.Colors^.FocusedBack;
-  SelectForeColor := Desktop^.Colors^.Select;
-  SelectBackColor := Desktop^.Colors^.SelectBack;
+  ForeColor := VeridianApp^.Colors.Editor;
+  BackColor := VeridianApp^.Colors.EditorBack;
+  DisabledColor := VeridianApp^.Colors.EditorDisabled;
+  FocusedColor := VeridianApp^.Colors.Focused;
+  FocusedBackColor := VeridianApp^.Colors.FocusedBack;
+  SelectForeColor := VeridianApp^.Colors.Select;
+  SelectBackColor := VeridianApp^.Colors.SelectBack;
   TextAlign := haLeft;
   VertAlign := vaCenter;
-  Margin := 3;
+  Padding.CreateValue(3);
   CanFocus := true;
   BorderStyle := bsSingle;
   MouseCursor := VeridianApp^.MouseCursors^.GetItemById('Beam');
-  DrawBackground := true;
+  TransparentBack := false;
   FCursorX := 0;
   ScrollPos := 0;
   SelectStart := 0;
@@ -248,6 +247,7 @@ begin
   FCursorPos := 0;
   WordDelimiters := DefaultWordDelimiters;
   ValidChars := [#32..#126];
+  Position := spContent;
 end;
 
 procedure TEdit.SelectNone;
@@ -278,70 +278,58 @@ end;
 
 procedure TEdit.Paint;
 var
-  drawRect, bounds, charRect: TRect;
+  drawRect, charRect: TRect;
   buffer: PByte;
   index: integer;
-  xPos, yPos: integer;
+  pos: TPoint;
   charWidth: integer;
   ch: char;
   selected: boolean;
 begin
-  if not GetVisible then
+  TControl.Paint;
+  if not IsVisible then
     exit;
 
   selected := CheckSelection;
-  GetScreenBounds(bounds);
-  drawRect.CreateRect(bounds);
+  GetScreenBounds(drawRect);
 
-  Graph^.PushState;
-  buffer := nil;
-  Graph^.BeginDrawBuffer(buffer, drawRect);
-  if Graph^.HasException then begin
-    Graph^.ClearException;
-    VeridianApp^.Error(self, ecNotEnoughMemory);
-    exit;
-  end;
+  Graph^.WaitForVSync;
   Graph^.State^.Font := Font;
   Graph^.SetForeColor(ForeColor);
   Graph^.SetBackColor(BackColor);
   if CanFocus and Focused then
     Graph^.SetBackColor(FocusedBackColor);
-  if DrawBackground then
+  if not TransparentBack then
     Graph^.FillRect(drawRect);
-  xPos := drawRect.X + Margin - ScrollPos + BorderWidth;
-  GetTextAlign(drawRect, xPos, yPos);
+  GetTextAlign(drawRect, pos);
+  pos.X := drawRect.X + Padding.Left - ScrollPos + BorderWidth;
   charRect.Create;
-
   index := 0;
   while index < Length do begin
     Graph^.SetForeColor(ForeColor);
     Graph^.SetBackColor(BackColor);
     if CanFocus and Focused then begin
-      Graph^.SetForeColor(FocusedForeColor);
+      Graph^.SetForeColor(FocusedColor);
       Graph^.SetBackColor(FocusedBackColor);
     end;
     ch := FBuffer.AsString[index];
     charWidth := Font^.TextWidth(ch);
-    if xPos > drawRect.Right then
+    if pos.X > drawRect.Right then
       break;
-    charRect.SetDims(xPos, yPos - 1, charWidth, Font^.Height + 1);
+    charRect.SetDims(pos.X, pos.Y - 1, charWidth, Font^.Height + 1);
     charRect.Intersect(Graph^.State^.ViewPort);
     if selected and (index >= SelectStart) and (index < SelectEnd) then begin
       Graph^.SetForeColor(SelectForeColor);
       Graph^.SetBackColor(SelectBackColor);
       Graph^.FillRect(charRect);
     end;
-    if xPos + charWidth > drawRect.X then
-      Graph^.DrawText(xPos, yPos, ch);
+    if pos.X + charWidth > drawRect.X then
+      Graph^.DrawText(pos.X, pos.Y, ch);
     Inc(index);
-    Inc(xPos, charWidth);
+    Inc(pos.X, charWidth);
   end;
   Graph^.SetForeColor(BorderColor);
   Graph^.Rectangle(drawRect);
-  Graph^.EndDrawBuffer;
-  Graph^.PopState;
-  Graph^.DrawImageRect(bounds, buffer);
-  FreeMem(buffer, drawRect.Width * drawRect.Height);
 end;
 
 function TEdit.SetCursorPos(APos: word): boolean;
@@ -352,7 +340,7 @@ var
   charWidth: integer;
 begin
   needsDraw := false;
-  GetClientRect(drawRect);
+  GetClientBounds(drawRect);
   NeedsDraw := false;
   APos := ClampW(APos, 0, Length);
   FCursorPos := APos;
@@ -727,7 +715,7 @@ procedure TEdit.KeyPress(var AEvent: TKeyEvent);
 var
   key: word;
 begin
-  if not (GetVisible and GetEnabled and CanFocus and Focused and CanEdit) then
+  if not (IsVisibleAndEnabled and CanFocus and Focused and CanEdit) then
     exit;
   if AEvent.Handled then
     exit;
@@ -760,12 +748,12 @@ procedure TEdit.MouseDown(var AEvent: TMouseEvent);
 var
   index: longint;
 begin
-  if Desktop^.ActiveControl <> @self then begin
+  if VeridianApp^.ActiveControl <> @self then begin
     SelectStart := 0;
     SelectEnd := 0;
     Focus;
   end;
-  if not (GetVisible and GetEnabled and CanEdit) then
+  if not (IsVisibleAndEnabled and CanEdit) then
     exit;
   if not (CanFocus and Focused) then
     exit;
@@ -775,7 +763,7 @@ begin
   VeridianApp^.SelectingControl := @self;
   SelectStart := index;
   SelectEnd := index;
-  StartDrawing;
+  BeginDrawing;
   VeridianApp^.CursorOff;
   SetCursorPos(index);
   Draw;
@@ -788,7 +776,7 @@ var
   index: longint;
   rect: TRect;
 begin
-  if not (GetVisible and GetEnabled and CanEdit) then
+  if not (IsVisibleAndEnabled and CanEdit) then
     exit;
   if VeridianApp^.SelectingControl = @self then begin
     GetScreenBounds(rect);
@@ -808,7 +796,7 @@ var
   mouseControl: PControl;
   selecting: boolean;
 begin
-  if not (GetVisible and GetEnabled and CanEdit) then
+  if not (IsVisibleAndEnabled and CanEdit) then
     exit;
   selecting := VeridianApp^.SelectingControl = @self;
   VeridianApp^.SelectingControl := nil;
@@ -816,9 +804,9 @@ begin
   if not Assigned(mouseControl) then
     mouseControl := @self;
   if selecting then begin
-    Graph8^.EraseMouseCursor(AEvent.NewMouseState);
-    Graph8^.MouseCursor := mouseControl^.MouseCursor;
-    Graph8^.DrawMouseCursor(AEvent.NewMouseState);
+    VeridianApp^.EraseMouseCursor(AEvent.NewMouseState);
+    VeridianApp^.MouseCursor := mouseControl^.MouseCursor;
+    VeridianApp^.DrawMouseCursor(AEvent.NewMouseState);
   end;
 end;
 
