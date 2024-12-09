@@ -244,8 +244,8 @@ begin
   GetItemRect(SelectedIndex, itemRect);
   if itemRect.Y >= rect.Bottom then
     ScrollVert(itemRect.Y - rect.Bottom + ItemHeight);
-  if itemRect.Y < rect.Y then
-    ScrollVert(-(rect.Y - itemRect.Y));
+  if itemRect.Y - ScrollY < rect.Y then
+    ScrollVert(-(rect.Y - itemRect.Y + ScrollY + 1));
   BeginDrawing;
   PaintItem(previousIndex);
   PaintItem(SelectedIndex);

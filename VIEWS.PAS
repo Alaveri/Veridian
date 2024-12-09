@@ -1271,11 +1271,14 @@ var
 begin
   if AEvent.Handled then
     exit;
+  ParentWindow^.GetScreenBounds(rect);
+  if rect.Equals(VeridianApp^.DragRect) then
+    exit;
   ParentWindow^.CreateMovingEvent(movingEvent);
   ParentWindow^.CreateMovedEvent(movedEvent);
   if movingEvent.CanMove then begin
     desktop^.BeginDrawing;
-    ParentWindow^.Hide;
+    ParentWindow^.HideEx(rect, VeridianApp^.DragRect);
     ParentWindow^.SetBoundsRect(VeridianApp^.DragRect);
     ParentWindow^.WindowState := wsNormal;
     ParentWindow^.Show;
@@ -1923,7 +1926,7 @@ var
   sizeAdjust: integer;
   scrollSize: integer;
   parentView: PView;
-  contentRect, rect: TRect;
+  contentRect, clipRect: TRect;
   newCoord: integer;
 begin
   if Max = 0 then
@@ -1939,6 +1942,8 @@ begin
 
   parentView^.BeginDrawing;
   parentView^.GetClientScreenBounds(contentRect);
+  parentView^.GetClipRect(clipRect);
+  contentRect.Intersect(ClipRect);
   parentView^.PaintRegion(contentRect, @self);
   parentView^.EndDrawing;
 
