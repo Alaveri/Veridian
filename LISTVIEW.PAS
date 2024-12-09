@@ -87,6 +87,7 @@ type
     function SelectedItem: PListItem;
     function GetSelectedIndex(AEvent: TMouseEvent): integer;
     function ItemHeight: integer;
+    function ListInnerHeight: integer;
     procedure GetContentExtent(var ASize: TSize); virtual;
     procedure Focus; virtual;
     procedure UnFocus; virtual;
@@ -234,6 +235,7 @@ var
   rect, itemRect: TRect;
   previousIndex: integer;
   event: TIndexChangedEvent;
+  listHeight: integer;
 begin
   index := Clamp(AIndex, 0, Items^.Count - 1);
   if index = SelectedIndex then
@@ -242,10 +244,10 @@ begin
   SelectedIndex := index;
   GetScreenBounds(rect);
   GetItemRect(SelectedIndex, itemRect);
-  if itemRect.Y >= rect.Bottom then
-    ScrollVert(itemRect.Y - rect.Bottom + ItemHeight);
-  if itemRect.Y - ScrollY < rect.Y then
-    ScrollVert(-(rect.Y - itemRect.Y + ScrollY + 1));
+  if itemRect.Y >= rect.Y + ListInnerHeight + ScrollY then
+    ScrollVert((SelectedIndex - previousIndex) * itemRect.Height);
+  if itemRect.Y < rect.Y + ScrollY then
+    ScrollVert((SelectedIndex - previousIndex) * itemRect.Height);
   BeginDrawing;
   PaintItem(previousIndex);
   PaintItem(SelectedIndex);
@@ -300,6 +302,11 @@ begin
   cy := rect.Y + AIndex * ItemHeight;
   itemWidth := rect.Width;
   ARect.CreateDims(rect.X, cy, itemWidth, ItemHeight);
+end;
+
+function TListView.ListInnerHeight: integer;
+begin
+  ListInnerHeight := Height - 2 * OuterWidth;
 end;
 
 function TListView.ItemHeight: integer;
@@ -423,8 +430,8 @@ begin
   case AEvent.Key of
     kyDown: ChangeSelect(1);
     kyUp: ChangeSelect(-1);
-    kyPageDown: ChangeSelect(rect.Height div Font^.Height - 1);
-    kyPageUp: ChangeSelect(-rect.Height div Font^.Height + 1);
+    kyPageDown: ChangeSelect(ListInnerHeight div ItemHeight);
+    kyPageUp: ChangeSelect(-ListInnerHeight div ItemHeight );
     kyEnd: ChangeSelect(Items^.Count - 1);
     kyHome: ChangeSelect(-Items^.Count - 1);
     else AEvent.Handled := false;

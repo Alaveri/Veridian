@@ -153,8 +153,8 @@ uses
   VeriCons,
   Graphics,
   AplUtils,
-  VeriType,
-  Veridian;
+  Veridian,
+  VeriType;
 
 procedure TMenu.Init;
 begin
@@ -505,6 +505,7 @@ begin
   if Assigned(Action) then begin
     MenuManager.CloseAllMenus;
     VeridianApp^.ActionExecute(@self, Action);
+    AEvent.Handled := true;
   end;
 end;
 

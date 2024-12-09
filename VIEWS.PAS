@@ -676,7 +676,7 @@ begin
   window := PWindow(parent^.ParentWindow);
   window^.Close(button);
   if Assigned(window^.TaskButton) and Assigned(VeridianApp^.TaskBar) then begin
-    VeridianApp^.TaskBar^.RemoveButton(window);
+    VeridianApp^.TaskBar^.RemoveWindow(window);
     VeridianApp^.TaskBar^.Draw;
   end;
   if VeridianApp^.ActiveWindow = window then
@@ -1204,7 +1204,8 @@ begin
   ParentWindow^.Resizing(sizingEvent);
   desktop^.BeginDrawing;
   if sizingEvent.CanResize then begin
-    ParentWindow^.Hide;
+    ParentWindow^.GetScreenBounds(rect);
+    ParentWindow^.HideEx(rect, VeridianApp^.DragRect);
     ParentWindow^.SetBoundsRect(VeridianApp^.DragRect);
     ParentWindow^.Show;
   end;
@@ -1308,7 +1309,7 @@ begin
   LightColor := VeridianApp^.Colors.WindowLight;
   RestoredBounds.Create;
   RestoredState := wsNormal;
-  Exclude(ControlOptions, coCanDrag);;
+  Exclude(ControlOptions, coCanDrag);
   CanFocus := false;
   Position := spClient;
   Options := [Low(TWindowOption)..High(TWindowOption)];
@@ -2163,7 +2164,8 @@ begin
   ParentWindow^.CreateSizedEvent(sizedEvent);
   ParentWindow^.Resizing(sizingEvent);
   if sizingEvent.CanResize then begin
-    ParentWindow^.Hide;
+    ParentWindow^.GetScreenBounds(rect);
+    ParentWindow^.HideEx(rect, VeridianApp^.DragRect);
     ParentWindow^.SetBoundsRect(VeridianApp^.DragRect);
     ParentWindow^.Show;
   end;
@@ -2302,6 +2304,9 @@ var
   index: integer;
 begin
   index := IndexOfWindow(AWindow);
+  if index >= 0 then
+    Windows.Delete(index);
+  index := Controls^.IndexOf(AWindow^.TaskButton);
   if index >= 0 then
     Controls^.Delete(index);
 end;

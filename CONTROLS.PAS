@@ -59,6 +59,9 @@ type
   PTextControl = ^TTextControl;
   PVisualControl = ^TVisualControl;
 
+  TControlPredicate = function(AItem: PControl): boolean;
+
+
   TControlOption = (
     coClipping,
     coCanDrag,
@@ -148,6 +151,7 @@ type
     function ScaleY(APercent: real): integer;
     function FindControl(const AId: string): PControl;
     function ContainsControl(AControl: PControl): boolean;
+    function FindControlThat(AFunc: TControlPredicate): PControl;
 
     function IsVisible: boolean;
     function IsEnabled: boolean;
@@ -167,6 +171,8 @@ type
     function IsMenuItemContainer: boolean; virtual;
     function IsMenuItem: boolean; virtual;
     function IsMainMenuItem: boolean; virtual;
+    function IsCheckBox: boolean; virtual;
+    function IsRadioButton: boolean; virtual;
 
     procedure SetWidthHeight(AWidth, AHeight: word); virtual;
     procedure SetWidth(AWidth: word); virtual;
@@ -562,6 +568,16 @@ begin
   IsMainMenuItem := false;
 end;
 
+function TControl.IsCheckBox: boolean;
+begin
+  IsCheckBox := false;
+end;
+
+function TControl.IsRadioButton: boolean;
+begin
+  IsRadioButton := false;
+end;
+
 function TControl.IsTaskButton: boolean;
 begin
   IsTaskButton := false;
@@ -628,19 +644,18 @@ end;
 
 procedure TControl.Hide;
 var
-  rect: TRect;
+  rect, empty: TRect;
 begin
   GetScreenBounds(rect);
-  HideEx(rect, rect);
+  empty.Create;
+  HideEx(rect, empty);
 end;
 
-{ Hides only non-shared areas, or the whole start area if none. }
+{ Hides only areas that are not intersected by AStart and AEnd. }
 procedure TControl.HideEx(var AStart, AEnd: TRect);
 var
   partialRect, rect: TRect;
 begin
-  if AStart.Equals(AEnd) then
-    exit;
   if not IsVisible then
     exit;
   Visible := false;
@@ -653,43 +668,26 @@ begin
     Desktop^.PaintRegion(AStart, nil)
   else begin
     if (AStart.Width = AEnd.Width) and (AStart.Height = AEnd.Height) then begin
-      { Moved Only }
-      if (AStart.X = AEnd.X) and (AEnd.Y > AStart.Y) then begin
-        { Increased Y Only }
-        partialRect.CreateDims(AStart.X, AStart.Y, AStart.Width, AEnd.Y - AStart.Y);
-        Desktop^.PaintRegion(partialRect, @self);
-      end
-      else if (AStart.X = AEnd.X) and (AEnd.Y < AStart.Y) then begin
-        { Decreased Y Only }
-        partialRect.CreateDims(AStart.X, AEnd.Bottom, AStart.Width, AStart.Y - AEnd.Y + 1);
-        Desktop^.PaintRegion(partialRect, @self);
-      end else if (AStart.Y = AEnd.Y) and (AEnd.X > AStart.X) then begin
-        { Increased X Only }
-        partialRect.CreateDims(AStart.X, AStart.Y, AEnd.X - AStart.X, AStart.Height);
-        Desktop^.PaintRegion(partialRect, @self);
-      end else if (AStart.Y = AEnd.Y) and (AEnd.X < AStart.X) then begin
-        { Decreased X Only }
-        partialRect.CreateDims(AEnd.Right, AStart.Y, AStart.X - AEnd.X + 1, AStart.Height);
-        Desktop^.PaintRegion(partialRect, @self);
-      end else if (AEnd.X > AStart.X) and (AEnd.Y > AStart.Y) then begin
+      { Moved }
+      if (AEnd.X >= AStart.X) and (AEnd.Y >= AStart.Y) then begin
         { Increased X and Y }
         partialRect.CreateDims(AStart.X, AStart.Y, AStart.Width, AEnd.Y - AStart.Y);
         Desktop^.PaintRegion(partialRect, @self);
         partialRect.SetDims(AStart.X, AEnd.Y, AEnd.X - AStart.X, AStart.Height);
         Desktop^.PaintRegion(partialRect, @self);
-      end else if (AEnd.X < AStart.X) and (AEnd.Y < AStart.Y) then begin
+      end else if (AEnd.X <= AStart.X) and (AEnd.Y <= AStart.Y) then begin
         { Decreased X and Y }
         partialRect.CreateDims(AEnd.Right, AStart.Y, AStart.X - AEnd.X + 1, AStart.Height);
         Desktop^.PaintRegion(partialRect, @self);
         partialRect.SetDims(AStart.X, AEnd.Bottom, AEnd.X + AEnd.Width - 1, AStart.Y - AEnd.Y + 1);
         Desktop^.PaintRegion(partialRect, @self);
-      end else if (AEnd.X > AStart.X) and (AEnd.Y < AStart.Y) then begin
+      end else if (AEnd.X >= AStart.X) and (AEnd.Y <= AStart.Y) then begin
         { Increased X and Decreased Y }
         partialRect.CreateDims(AStart.X, AEnd.Bottom, AStart.Width, AStart.Y - AEnd.Y + 1);
         Desktop^.PaintRegion(partialRect, @self);
         partialRect.SetDims(AStart.X, AStart.Y, AEnd.X - AStart.X, AStart.Height - AEnd.Y + AStart.Y);
         Desktop^.PaintRegion(partialRect, @self);
-      end else if (AEnd.X < AStart.X) and (AEnd.Y > AStart.Y) then begin
+      end else if (AEnd.X <= AStart.X) and (AEnd.Y >= AStart.Y) then begin
         { Decreased X and Increased Y }
         partialRect.CreateDims(AStart.X, AStart.Y, AStart.Width, AEnd.Y - AStart.Y);
         Desktop^.PaintRegion(partialRect, @self);
@@ -697,38 +695,19 @@ begin
         Desktop^.PaintRegion(partialRect, @self);
       end;
     end else if (AStart.X = AEnd.X) and (AStart.Y = AEnd.Y) then begin
-      { Resized Only }
-      if (AStart.Width = AEnd.Width) and (AEnd.Height > AStart.Height) then begin
-        { Increased Height Only }
-        partialRect.CreateDims(AStart.X, AStart.Y, AStart.Width, AEnd.Height - AStart.Height);
+      { Resized }
+      if AEnd.Width < AStart.Width then begin
+        partialRect.CreateDims(AEnd.Right, AStart.Y, AStart.Width - AEnd.Width + 1, AStart.Height);
         Desktop^.PaintRegion(partialRect, @self);
-      end else if (AStart.Width = AEnd.Width) and (AEnd.Height < AStart.Height) then begin
-        { Decreased Height Only }
-        partialRect.CreateDims(AStart.X, AEnd.Y, AStart.Width, AStart.Height - AEnd.Height);
+      end else begin
+        partialRect.CreateDims(AStart.X, AStart.Y, AEnd.X - AStart.X, AStart.Height);
         Desktop^.PaintRegion(partialRect, @self);
-      end else if (AStart.Height = AEnd.Height) and (AEnd.Width > AStart.Width) then begin
-        { Increased Width Only }
-        partialRect.CreateDims(AStart.X, AStart.Y, AEnd.Width - AStart.Width, AStart.Height);
+      end;
+      if AEnd.Height < AStart.Height then begin
+        partialRect.CreateDims(AStart.X, AEnd.Bottom, AStart.Width, AStart.Height - AEnd.Height + 1);
         Desktop^.PaintRegion(partialRect, @self);
-      end else if (AStart.Height = AEnd.Height) and (AEnd.Width < AStart.Width) then begin
-        { Decreased Width Only }
-        partialRect.CreateDims(AEnd.X, AStart.Y, AStart.Width - AEnd.Width, AStart.Height);
-        Desktop^.PaintRegion(partialRect, @self);
-      end else if (AEnd.Width > AStart.Width) and (AEnd.Height > AStart.Height) then begin
-        { Increased Width and Height }
-        partialRect.CreateDims(AStart.X, AStart.Y, AEnd.Width - AStart.Width, AEnd.Height - AStart.Height);
-        Desktop^.PaintRegion(partialRect, @self);
-      end else if (AEnd.Width < AStart.Width) and (AEnd.Height < AStart.Height) then begin
-        { Decreased Width and Height }
-        partialRect.CreateDims(AEnd.X, AEnd.Y, AStart.Width - AEnd.Width, AStart.Height - AEnd.Height);
-        Desktop^.PaintRegion(partialRect, @self);
-      end else if (AEnd.Width > AStart.Width) and (AEnd.Height < AStart.Height) then begin
-        { Increased Width and Decreased Height }
-        partialRect.CreateDims(AStart.X, AEnd.Y, AEnd.Width - AStart.Width, AStart.Height - AEnd.Height);
-        Desktop^.PaintRegion(partialRect, @self);
-      end else if (AEnd.Width < AStart.Width) and (AEnd.Height > AStart.Height) then begin
-        { Decreased Width and Increased Height }
-        partialRect.CreateDims(AEnd.X, AStart.Y, AStart.Width - AEnd.Width, AEnd.Height - AStart.Height);
+      end else begin
+        partialRect.CreateDims(AStart.X, AStart.Y, AStart.Width, AEnd.Y - AStart.Y);
         Desktop^.PaintRegion(partialRect, @self);
       end;
     end;
@@ -1018,6 +997,24 @@ begin
   end;
 end;
 
+function TControl.FindControlThat(AFunc: TControlPredicate): PControl;
+var
+  index: integer;
+  control: PControl;
+  found: boolean;
+begin
+  FindControlThat := nil;
+  for index := 0 to Controls^.Count - 1 do begin
+    control := Controls^.GetItem(index);
+    if AFunc(control) then begin
+      FindControlThat := control;
+      exit;
+    end;
+  end;
+  if AFunc(@self) then
+    FindControlThat := @self;
+end;
+
 function TControl.FindControl(const AId: string): PControl;
 var
   index: integer;
@@ -1031,11 +1028,9 @@ begin
       FindControl := control;
       exit;
     end;
-    if control^.FindControl(AId) <> nil then begin
-      FindControl := control;
-      exit;
-    end;
   end;
+  if StrLIComp(Id, @AId[1], Length(AId)) = 0 then
+    FindControl := control;
 end;
 
 procedure TControl.GetBounds(var ARect: TRect);
@@ -1166,6 +1161,8 @@ begin
     spClient: Parent^.GetClientBounds(parentRect);
     spRelative: parent^.GetClientOuterBounds(parentRect);
   end;
+  if Parent^.Position = spAbsolute then
+    exit;
   Parent^.GetClipRect(screenRect);
   parentRect.Translate(screenRect.X, screenRect.Y);
   parentRect.Intersect(screenRect);

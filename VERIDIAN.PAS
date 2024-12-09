@@ -103,6 +103,7 @@ type
       AButton: TButtonState); virtual;
     procedure HandleMouseCursor;
     procedure HandleDoubleClick(ATime: TDateTime; AControl: PControl; var AEvent: TMouseEvent);
+    procedure CleanupWindows;
     procedure InitMouseEvent(AControl: PControl; var AEvent: TMouseEvent);
     procedure GetFocusList(AList: PObjectList; AControl: PControl);
     procedure DrawCursor;
@@ -476,6 +477,9 @@ begin
     LeftMouseDownControl := nil
   else
     RightMouseDownControl := nil;
+
+  if AEvent.Handled then
+    exit;
 
   if AControl^.IsActionControl then
     ActionExecute(PActionControl(AControl), PActionControl(AControl)^.Action);
@@ -1096,11 +1100,49 @@ begin
   FSpecialControls.Clear;
 end;
 
+function IsClosed(AItem: PControl): boolean; far;
+begin
+  IsClosed := Assigned(AItem) and AItem^.IsWindow and PWindow(AItem)^.Closed;
+end;
+
+procedure TVeridianApp.CleanupWindows;
+var
+  index: integer;
+  window: PControl;
+begin
+  window := Desktop^.FindControlThat(IsClosed);
+  if not Assigned(window) then
+    exit;
+  if PControl(ActiveWindow) = window then
+    ActiveWindow := nil;
+  if window^.ContainsControl(ActiveControl) then
+    ActiveControl := nil;
+  if window^.ContainsControl(LeftMouseDownControl) then
+    LeftMouseDownControl := nil;
+  if window^.ContainsControl(RightMouseDownControl) then
+    RightMouseDownControl := nil;
+  if window^.ContainsControl(MouseOverControl) then
+    MouseOverControl := nil;
+  if window^.ContainsControl(SelectingControl) then
+    SelectingControl := nil;
+  if window^.ContainsControl(DragControl) then
+    DragControl := nil;
+  if window^.ContainsControl(ActiveDropDown) then
+    ActiveDropDown := nil;
+  if window^.ContainsControl(ActiveDialog) then
+    ActiveDialog := nil;
+  while Assigned(window) and Assigned(window^.Parent) do begin
+    window^.Parent^.Controls^.DeleteItem(window);
+    window := Desktop^.FindControlThat(IsClosed);
+  end;
+end;
+
 procedure TVeridianApp.ProcessEvents;
 var
   ch: word;
   flags: TKeyboardFlags;
 begin
+  CleanupWindows;
   Mouse.UpdateState;
   Keyboard.GetFlags(flags);
   AltKeyDown := kfAlt in flags;

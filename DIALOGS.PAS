@@ -788,6 +788,7 @@ begin
   LastDir := nil;
   TString.AssignString(LastDir, GetCurrentDirectory);
   FileOptions := [];
+  Include(Options, woResizeable);
   Title := nil;
   ScrollType := scNone;
   ButtonAlign := haRight;
@@ -799,10 +800,13 @@ begin
   FilenameEntry^.MaxLength := 255;
 
   FileView := New(PFileListView, CreateParent('FileListView', @self));
+  FileView^.AutoHeight := true;
+  FileView^.VisibleItems := 15;
 
   DirectoryLabel := New(PLabel, CreateCaption('DirLabel', InitialPath, @self));
   DirectoryLabel^.AutoSize := false;
   DirectoryLabel^.TransparentBack := false;
+  DirectoryLabel^.Font := VeridianApp^.GetFont('editor');
 
   Width := ScaleX(50);
   Height := ScaleY(70);
@@ -826,6 +830,8 @@ var
 begin
   inherited Layout;
   GetClientOuterBounds(rect);
+  Grip^.Visible := false;
+
 
   lowRes := Graph^.Mode^.Width < 640;
   if lowRes then begin
