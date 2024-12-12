@@ -105,6 +105,7 @@ type
     procedure SelectedIndexChanged(var AEvent: TIndexChangedEvent); virtual;
     procedure GetItemRect(AIndex: integer; var ARect: TRect); virtual;
     procedure ChangeSelect(ADelta: integer); virtual;
+    procedure SetScrollBarBounds(AOrientation: TScrollOrientation); virtual;
     procedure Clear; virtual;
     procedure DrawControls; virtual;
     procedure Draw; virtual;
@@ -297,15 +298,19 @@ procedure TListView.GetItemRect(AIndex: integer; var ARect: TRect);
 var
   cx: integer;
   cy: integer;
-  itemWidth: integer;
   clipRect, rect: TRect;
 begin
   GetDrawRect(rect);
+  rect.Translate(OuterWidth, OuterWidth);
+  rect.Grow(-2 * OuterWidth, -2 * OuterWidth);
+  if VertScrollBar^.Visible then
+    Dec(rect.Width, VertScrollBar^.Width - 1);
+  if HorzScrollBar^.Visible then
+    Dec(rect.Height, HorzScrollBar^.Height - 1);
   GetClipRect(clipRect);
   rect.Intersect(clipRect);
   cy := rect.Y + AIndex * ItemHeight;
-  itemWidth := rect.Width;
-  ARect.CreateDims(rect.X, cy, itemWidth, ItemHeight);
+  ARect.CreateDims(rect.X, cy, rect.Width, ItemHeight);
 end;
 
 function TListView.ListInnerHeight: integer;
@@ -328,7 +333,8 @@ var
   viewRect: TRect;
   clipRect: TRect;
 begin
-exit;
+  if not VeridianApp^.State.DrawEnabled then
+    exit;
   if not IsVisible then
     exit;
   if (AIndex < 0) or (AIndex > Items^.Count - 1) then
@@ -348,16 +354,13 @@ exit;
   end;
   GetItemRect(AIndex, itemRect);
   itemRect.Translate(-ScrollX, -ScrollY);
-  GetDrawRect(rect);
   GetClipRect(clipRect);
-  rect.Intersect(clipRect);
-  rect.Intersect(Graph^.State^.ViewPort);
-  Graph^.State^.ViewPort := rect;
-  if itemRect.IntersectsRect(rect) then begin
-    Graph^.FillRect(itemRect);
-    Graph^.DrawTextLarge(itemRect.X + Padding.Left,
-      itemRect.Y + ItemSpacing div 2, item^.Text);
-  end;
+  clipRect.Translate(OuterWidth, OuterWidth);
+  clipRect.Grow(-2 * OuterWidth, - 2 * OuterWidth);
+  Graph^.State^.ViewPort := clipRect;
+  Graph^.FillRect(itemRect);
+  Graph^.DrawTextLarge(itemRect.X + Padding.Left,
+    itemRect.Y + ItemSpacing div 2, item^.Text);
 end;
 
 function TListView.GetSelectedIndex(AEvent: TMouseEvent): integer;
@@ -443,6 +446,18 @@ begin
   end;
   if not AEvent.Handled then
     inherited KeyPress(AEvent);
+end;
+
+procedure TListView.SetScrollBarBounds(AOrientation: TScrollOrientation);
+begin
+  inherited SetScrollBarBounds(AOrientation);
+  if AOrientation = soHorizontal then begin
+    Inc(VertScrollBar^.X, OuterWidth);
+  end
+  else begin
+    Dec(VertScrollBar^.Y, OuterWidth);
+    Inc(VertScrollBar^.Height, OuterWidth);
+  end;
 end;
 
 procedure TListView.Draw;

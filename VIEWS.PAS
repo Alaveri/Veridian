@@ -950,7 +950,6 @@ begin
     if VertScrollBar^.IsVisible then
       Dec(HorzScrollBar^.Width, BarSize + OuterWidth);
   end;
-  VertScrollBar^.GetBounds(bounds);
 end;
 
 function TView.ContentWidth: integer;
@@ -2278,8 +2277,8 @@ procedure TTaskbar.Init;
 begin
   inherited Init;
   Windows.Create;
-  Padding.CreateValue(2);
-  Margins.CreateValue(1);
+  Padding.CreateAll(2, 0, 0, 0);
+  Margins.CreateValue(0);
   BorderStyle := bsSingle;
   BevelStyle := bvRaised;
   BorderColor := VeridianApp^.Colors.ButtonBorder;
@@ -2366,19 +2365,20 @@ var
   taskButton: PTaskButton;
   controlHeight, barHeight: integer;
   maxHeight: integer;
-  pos: TPoint;
   size: TSize;
 begin
   inherited Layout;
   Desktop^.GetBounds(rect);
   Width := rect.Width + 2 * OuterWidth;
   X := -OuterWidth;
-  xPos := -X + Padding.Left;
+  xPos := 0;
   maxHeight := 0;
   for index := 0 to Controls^.Count - 1 do begin
     control := PContentControl(Controls^.GetItem(index));
-    controlWidth := Min(control^.ContentWidth + Padding.Width + 2 * OuterWidth, MaxButtonWidth);
-    controlHeight := control^.Font^.Height + control^.Padding.Height;
+    controlWidth := control^.Font^.TextWidth(PTaskButton(control)^.GetCaption)
+      + 2 * control^.OuterWidth + control^.Padding.Width;
+    control^.Width := Min(controlWidth, MaxButtonWidth);
+    controlHeight := control^.Font^.Height + control^.Padding.Height + control^.OuterWidth;
     if control^.IsFocusControl then begin
       Inc(controlWidth, 2 * PFocusControl(control)^.FocusRectWidth);
       Inc(controlHeight, 2 * PFocusControl(control)^.FocusRectWidth);
@@ -2386,18 +2386,16 @@ begin
     barHeight := controlHeight + 2 * OuterWidth + Margins.Height;
     if barHeight > maxHeight then
       maxHeight := barHeight;
-    control^.Width := controlWidth;
     Inc(xPos, control^.Margins.Left);
     control^.X := xPos + control^.Margins.left;
-    size.CreateDims(controlWidth, controlHeight);
+    size.CreateDims(control^.Width, control^.Height);
     rect.SetDims(0, 0, controlWidth, barHeight);
-    control^.GetAlign(rect, size, pos);
     control^.Y := 0;
     control^.Height := controlHeight;
-    Inc(xPos, controlWidth + control^.Margins.Right);
+    Inc(xPos, control^.Width + control^.Margins.Right);
   end;
   if maxHeight > 0 then
-    Height := maxHeight;
+    Height := maxHeight + 2 * OuterWidth;
   Desktop^.GetBounds(rect);
   Y := rect.Bottom - Height + OuterWidth + 1;
 end;

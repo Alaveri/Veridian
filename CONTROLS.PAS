@@ -1582,7 +1582,7 @@ end;
 
 function TActionControl.ContentWidth: integer;
 begin
-  ContentWidth := TContentControl.ContentWidth;
+  ContentWidth := TcontentControl.ContentWidth;
 end;
 
 function TActionControl.ContentHeight: integer;
