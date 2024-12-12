@@ -51,8 +51,8 @@ type
     function IsMenuItem: boolean; virtual;
     function CloseMenu: boolean;
     procedure Init; virtual;
-    procedure Paint; virtual;
-    procedure Layout; virtual;
+    procedure Paint(ARect: TRect); virtual;
+    procedure Layout(ARect: TRect); virtual;
     procedure Deselect;
     procedure Select;
     procedure OpenMenu;
@@ -92,8 +92,8 @@ type
   public
     MenuLocation: TMenuLocation;
     procedure Init; virtual;
-    procedure Paint; virtual;
-    procedure Layout; virtual;
+    procedure Paint(ARect: TRect); virtual;
+    procedure Layout(ARect: TRect); virtual;
     procedure KeyPress(var AEvent: TKeyEvent); virtual;
     procedure GetMenuDims(var ADims: TSize);
     function NewSeparator: PMenuItem;
@@ -105,8 +105,8 @@ type
   public
     constructor Create;
     procedure Init; virtual;
-    procedure Layout; virtual;
-    procedure Paint; virtual;
+    procedure Layout(ARect: TRect); virtual;
+    procedure Paint(ARect: TRect); virtual;
     procedure KeyPress(var AEvent: TKeyEvent); virtual;
     function NewMenu(const AId, ACaption: string): PMenu;
   end;
@@ -169,9 +169,9 @@ begin
   Exclude(ControlOptions, coClipping);
 end;
 
-procedure TMenu.Paint;
+procedure TMenu.Paint(ARect: TRect);
 begin
-  inherited Paint;
+  inherited Paint(ARect);
 end;
 
 procedure TMenu.GetMenuDims(var ADims: TSize);
@@ -200,7 +200,7 @@ begin
   ADims.Grow(2 * borderWidth, 2 * borderWidth);
 end;
 
-procedure TMenu.Layout;
+procedure TMenu.Layout(ARect: TRect);
 var
   itemRect, menuRect, parentItemRect: TRect;
   menuDims: TSize;
@@ -208,7 +208,7 @@ var
   itemHeight, index: integer;
   xPos, yPos: integer;
 begin
-  inherited Layout;
+  inherited Layout(ARect);
   GetMenuDims(menuDims);
   menuRect.CreateDims(0, 0, menuDims.Width, menuDims.Height);
   if Assigned(ParentMenuItem) then begin
@@ -385,7 +385,7 @@ begin
   Selected := ParentContainer^.SelectedItem = @self;
 end;
 
-procedure TMenuItem.Paint;
+procedure TMenuItem.Paint(ARect: TRect);
 var
   oldForeColor: byte;
   oldBackColor: byte;
@@ -408,7 +408,7 @@ begin
     Graph^.HLine(rect.X, rect.Y + rect.Height div 2, rect.Width);
     exit;
   end;
-  inherited Paint;
+  inherited Paint(ARect);
   if Assigned(Menu) and not IsMainMenuItem then begin
     bwidth  := 0;
     if Assigned(Parent) then
@@ -422,9 +422,9 @@ begin
   ShortcutColor := oldShortcutColor;
 end;
 
-procedure TMenuItem.Layout;
+procedure TMenuItem.Layout(ARect: TRect);
 begin
-  inherited Layout;
+  inherited Layout(ARect);
 end;
 
 function TMenuItem.CloseMenu: boolean;
@@ -553,7 +553,7 @@ begin
   Position := rpParentClient;
 end;
 
-procedure TMenuBar.Layout;
+procedure TMenuBar.Layout(ARect: TRect);
 var
   txtWidth, xPos, currentHeight, maxHeight, index: integer;
   item: PMenuItem;
@@ -562,7 +562,7 @@ var
   size: TSize;
   txt: string;
 begin
-  inherited Layout;
+  inherited Layout(ARect);
   itemRect.Create;
   xPos := 0;
   maxHeight := 0;
@@ -615,9 +615,9 @@ begin
   end;
 end;
 
-procedure TMenuBar.Paint;
+procedure TMenuBar.Paint(ARect: TRect);
 begin
-  inherited Paint;
+  inherited Paint(ARect);
   Graph^.SetForeColor(BorderColor);
   Graph^.HLine(0, Height - 1, Width);
 end;

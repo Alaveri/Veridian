@@ -88,7 +88,7 @@ type
     procedure Init; virtual;
     procedure BeforeShow; virtual;
     procedure AfterShow; virtual;
-    procedure Layout; virtual;
+    procedure Layout(ARect: TRect); virtual;
     procedure CenterScreenX;
     procedure CenterScreenY;
     procedure Close(ASender: PControl); virtual;
@@ -157,7 +157,7 @@ type
     procedure SelectFile(AFile: PFile); virtual;
     procedure SelectText(AFilename: string); virtual;
     procedure ActionExecute(ASender: PActionControl; AAction: PAction); virtual;
-    procedure Layout; virtual;
+    procedure Layout(ARect: TRect); virtual;
     procedure BeforeShow; virtual;
     procedure AfterShow; virtual;
     procedure Init; virtual;
@@ -171,7 +171,7 @@ type
     Message: string;
     constructor Create(const ATitle, AMessage: string; AButtons: TDialogButtons);
     procedure Init; virtual;
-    procedure Layout; virtual;
+    procedure Layout(ARect: TRect); virtual;
   end;
 
 procedure ShowMessage(const ATitle, AMessage: string);
@@ -376,7 +376,7 @@ procedure TDialog.AfterShow;
 begin
 end;
 
-procedure TDialog.Layout;
+procedure TDialog.Layout(ARect: TRect);
 var
   rect: TRect;
   bx, by, bWidth, bHeight: integer;
@@ -387,14 +387,14 @@ var
   lowRes: boolean;
   fontHeight: integer;
 begin
-  inherited Layout;
+  inherited Layout(ARect);
   if FDialogButtons^.Count = 0 then
     exit;
   lowRes := Graph^.Mode^.Height < 640;
   fontHeight := Font^.Height;
   if lowRes then
     fontHeight := Font^.Height;
-  GetBounds(rect);
+  GetOriginRect(rect);
   totalWidth := 0;
   bWidth := Font^.TextWidth('Cancel') + 12 * Font^.Spacing;
   bHeight := fontHeight + FDialogButtons^.GetItem(0)^.Padding.Height;
@@ -797,6 +797,7 @@ end;
 procedure TFileDialog.Init;
 var
   lowRes: boolean;
+  rect: TRect;
 begin
   inherited Init;
   LastDir := nil;
@@ -825,14 +826,15 @@ begin
   Height := ScaleY(70);
   CenterScreen;
   Padding.CreateValue(4);
-  Layout;
+  GetScreenBounds(rect);
+  Layout(rect);
   VeridianApp^.PushState;
   VeridianApp^.State.DrawEnabled := false;
   ReadPath(InitialPath);
   VeridianApp^.PopState;
 end;
 
-procedure TFileDialog.Layout;
+procedure TFileDialog.Layout(ARect: TRect);
 var
   items: integer;
   lowRes: boolean;
@@ -841,7 +843,7 @@ var
   xPos: integer;
   rect: TRect;
 begin
-  inherited Layout;
+  inherited Layout(ARect);
   GetBounds(rect);
   Grip^.Visible := false;
 
@@ -913,12 +915,12 @@ begin
   Height := ScaleY(20);
 end;
 
-procedure TShowMessageDialog.Layout;
+procedure TShowMessageDialog.Layout(ARect: TRect);
 var
   labelWidth: integer;
   button: PDialogButton;
 begin
-  inherited Layout;
+  inherited Layout(ARect);
   labelWidth := Font^.TextWidthLarge(FLabel^.Caption);
   button := PDialogButton(FDialogButtons^.GetItem(0));
   FLabel^.SetBounds(

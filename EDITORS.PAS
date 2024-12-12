@@ -76,7 +76,7 @@ type
     function GetText: string; virtual;
     function GetTextLarge: PChar; virtual;
     procedure Init; virtual;
-    procedure Paint; virtual;
+    procedure Paint(ARect: TRect); virtual;
     procedure Draw; virtual;
     procedure MouseDown(var AEvent: TMouseEvent); virtual;
     procedure MouseUp(var AEvent: TMouseEvent); virtual;
@@ -276,7 +276,7 @@ begin
   VeridianApp^.PopState;
 end;
 
-procedure TEdit.Paint;
+procedure TEdit.Paint(ARect: TRect);
 var
   drawRect, charRect: TRect;
   buffer: PByte;
@@ -286,7 +286,7 @@ var
   ch: char;
   selected: boolean;
 begin
-  TControl.Paint;
+  TControl.Paint(ARect);
   if not IsVisible then
     exit;
 

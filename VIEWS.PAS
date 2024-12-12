@@ -92,8 +92,8 @@ type
     constructor Create(const AId, ACaption: string; AParentWindow: PWindow);
     procedure GetButtonArea(var ARect: TRect);
     procedure Init; virtual;
-    procedure Layout; virtual;
-    procedure Paint; virtual;
+    procedure Layout(ARect: TRect); virtual;
+    procedure Paint(ARect: TRect); virtual;
     procedure Draw; virtual;
     procedure MouseDown(var AEvent: TMouseEvent); virtual;
     procedure DragStart(var AEvent: TDragEvent); virtual;
@@ -108,7 +108,7 @@ type
   public
     constructor Create(const AId: string; AParentWindow: PWindow);
     procedure Init; virtual;
-    procedure Paint; virtual;
+    procedure Paint(ARect: TRect); virtual;
     procedure MouseDown(var AEvent: TMouseEvent); virtual;
     procedure DragStart(var AEvent: TDragEvent); virtual;
     procedure DragMove(var AEvent: TDragEvent); virtual;
@@ -164,9 +164,9 @@ type
     procedure GetSliderRect(var ARect: TRect); virtual;
     procedure SetScrollPosition(const APosition: longint);
     procedure Init; virtual;
-    procedure Paint; virtual;
+    procedure Paint(ARect: TRect); virtual;
     procedure Draw; virtual;
-    procedure Layout; virtual;
+    procedure Layout(ARect: TRect); virtual;
     procedure SetMinMaxPos(const AMin, AMax, APosition: longint);
     procedure SetIncrement(const AIncrement: longint);
     procedure SetPageIncrement(const AIncrement: longint);
@@ -184,14 +184,16 @@ type
     function GetAutoHeight: longint; virtual;
     function IsView: boolean; virtual;
     procedure Init; virtual;
-    procedure Layout; virtual;
-    procedure Paint; virtual;
+    procedure Layout(ARect: TRect); virtual;
+    procedure Paint(ARect: TRect); virtual;
     procedure Draw; virtual;
     procedure DrawControls; virtual;
     function ContentWidth: integer; virtual;
     function ContentHeight: integer; virtual;
     function ContentOffsetX: integer; virtual;
     function ContentOffsetY: integer; virtual;
+    procedure GetAdjustedDrawRect(var ARect: TRect); virtual;
+    procedure GetAdjustedClipRect(var ARect: TRect); virtual;
     procedure SetScrollBarBounds(AOrientation: TScrollOrientation); virtual;
     procedure ScrollVert(ADelta: integer); virtual;
     procedure ScrollHorz(ADelta: integer); virtual;
@@ -246,7 +248,7 @@ type
     procedure SetCloseVisible(AVisible: boolean);
     procedure GetMaximizedBounds(var ARect: TRect); virtual;
     procedure Initialized; virtual;
-    procedure Layout; virtual;
+    procedure Layout(ARect: TRect); virtual;
     procedure Activate;
     procedure Deactivate;
     procedure Close(ASender: PControl); virtual;
@@ -254,7 +256,7 @@ type
     procedure Minimize; virtual;
     procedure Restore; virtual;
     procedure Init; virtual;
-    procedure Paint; virtual;
+    procedure Paint(ARect: TRect); virtual;
     procedure MouseDown(var AEvent: TMouseEvent); virtual;
     procedure DragStart(var AEvent: TDragEvent); virtual;
     procedure DragMove(var AEvent: TDragEvent); virtual;
@@ -303,7 +305,7 @@ type
     function GetCaption: string; virtual;
     function IsTaskbutton: boolean; virtual;
     procedure Init; virtual;
-    procedure Paint; virtual;
+    procedure Paint(ARect: TRect); virtual;
     procedure MouseClick(var AEvent: TMouseEvent); virtual;
   end;
 
@@ -315,11 +317,11 @@ type
     constructor Create;
     destructor Free; virtual;
     procedure Init; virtual;
-    procedure Layout; virtual;
+    procedure Layout(ARect: TRect); virtual;
     procedure AddWindow(AWindow: PWindow);
     procedure RemoveWindow(AWindow: PWindow);
     procedure SetWindow(AIndex: integer; AWindow: PWindow);
-    procedure Paint; virtual;
+    procedure Paint(ARect: TRect); virtual;
     procedure RemoveButton(AWindow: PWindow);
     function NewButton(AWindow: PWindow): PTaskButton;
     function IndexOfWindow(AWindow: PWindow): integer;
@@ -549,9 +551,9 @@ begin
   Orientation := soVertical;
 end;
 
-procedure TScrollBar.Paint;
+procedure TScrollBar.Paint(ARect: TRect);
 begin
-  inherited Paint;
+  inherited Paint(ARect);
 end;
 
 procedure TScrollBar.PositionChanged(var AEvent: TScrollEvent);
@@ -586,11 +588,11 @@ begin
   PageIncrement := AIncrement;
 end;
 
-procedure TScrollBar.Layout;
+procedure TScrollBar.Layout(ARect: TRect);
 var
   rect: TRect;
 begin
-  inherited Layout;
+  inherited Layout(ARect);
   rect.CreateDims(0, 0, Width, Height);
   DecButton^.SetBounds(0, 0, Size, Size);
   if Orientation = soHorizontal then begin
@@ -695,7 +697,7 @@ begin
   ActiveBackColor := VeridianApp^.Colors.WindowTitleActiveBack;
   VertAlign := vaCenter;
   HorzAlign := haLeft;
-  Padding.CreateAll(4, 0, 0, 0);
+  Padding.CreateAll(4, 0, 2, 0);
   ButtonWidth := 16;
   ButtonHeight := 16;
   Include(ControlOptions, coCanDrag);
@@ -709,6 +711,7 @@ begin
     VertAlign := vaCenter;
     AutoSize := false;
     CanFocus := false;
+    Position := rpParentClient;
     OnMouseClick := @MinimizeButtonClick;
   end;
   MaximizeButton := New(PButton, CreateCaption('MaxButton', #7, @self));
@@ -719,6 +722,7 @@ begin
     VertAlign := vaCenter;
     AutoSize := false;
     CanFocus := false;
+    Position := rpParentClient;
     OnMouseClick := @MaximizeButtonClick;
   end;
   CloseButton := New(PButton, CreateCaption('CloseButton', #8, @self));
@@ -729,12 +733,13 @@ begin
     VertAlign := vaCenter;
     AutoSize := false;
     CanFocus := false;
+    Position := rpParentClient;
     OnMouseClick := @CloseButtonClick;
   end;
   Position := rpParentClient;
 end;
 
-procedure TTitleBar.Layout;
+procedure TTitleBar.Layout(ARect: TRect);
 var
   rect: TRect;
   xPos: integer;
@@ -742,14 +747,14 @@ var
   pos: TPoint;
   size: TSize;
 begin
-  inherited Layout;
-  GetBounds(rect);
-  xPos := rect.Right - Padding.Left;
+  inherited Layout(ARect);
+  GetClientRect(rect);
+  xPos := rect.Right - rect.X - Padding.Right;
   totalWidth := 0;
   size.CreateDims(ButtonWidth, ButtonHeight);
   GetAlign(rect, size, pos);
   if CloseButton^.IsVisible then  begin
-    Dec(xPos, buttonWidth + Padding.Right);
+    Dec(xPos, buttonWidth);
     CloseButton^.SetBounds(
       xPos,
       pos.Y,
@@ -802,7 +807,7 @@ begin
   inherited Draw;
 end;
 
-procedure TTitleBar.Paint;
+procedure TTitleBar.Paint(ARect: TRect);
 var
   fore, back: longint;
 begin
@@ -816,7 +821,7 @@ begin
     ForeColor := ActiveForeColor;
     BackColor := ActiveBackColor;
   end;
-  inherited Paint;
+  inherited Paint(ARect);
   ForeColor := fore;
   BackColor := back;
 end;
@@ -877,6 +882,28 @@ end;
 function TView.ContentOffsetY: integer;
 begin
   ContentOffsetY := -ScrollY;
+end;
+
+procedure TView.GetAdjustedDrawRect(var ARect: TRect);
+begin
+  GetDrawRect(ARect);
+  ARect.Translate(OuterWidth, OuterWidth);
+  ARect.Grow(-2 * OuterWidth, -2 * OuterWidth);
+  if VertScrollBar^.Visible then
+    Dec(ARect.Width, VertScrollBar^.Width - 1);
+  if HorzScrollBar^.Visible then
+    Dec(ARect.Height, HorzScrollBar^.Height - 1);
+end;
+
+procedure TView.GetAdjustedClipRect(var ARect: TRect);
+begin
+  GetClipRect(ARect);
+  ARect.Translate(OuterWidth, OuterWidth);
+  ARect.Grow(-2 * OuterWidth, -2 * OuterWidth);
+  if VertScrollBar^.Visible then
+    Dec(ARect.Width, VertScrollBar^.Width - 1);
+  if HorzScrollBar^.Visible then
+    Dec(ARect.Height, HorzScrollBar^.Height - 1);
 end;
 
 procedure TView.GetContentExtent(var ASize: TSize);
@@ -992,13 +1019,13 @@ begin
   EndDrawing;
 end;
 
-procedure TView.Layout;
+procedure TView.Layout(ARect: TRect);
 var
   extent: TSize;
   contentRect: TRect;
   voffset, hoffset: integer;
 begin
-  inherited Layout;
+  inherited Layout(ARect);
   VertScrollBar^.BringToFront;
   HorzScrollBar^.BringToFront;
   case ScrollType of
@@ -1051,9 +1078,9 @@ begin
   SetScrollBarBounds(soHorizontal);
 end;
 
-procedure TView.Paint;
+procedure TView.Paint(ARect: TRect);
 begin
-  TPanel.Paint;
+  TPanel.Paint(ARect);
 end;
 
 constructor TWindowGrip.Create(const AId: string; AParentWindow: PWindow);
@@ -1076,9 +1103,9 @@ begin
   Position := rpParentClient;
 end;
 
-procedure TWindowGrip.Paint;
+procedure TWindowGrip.Paint(ARect: TRect);
 begin
-  inherited Paint;
+  inherited Paint(ARect);
 end;
 
 procedure TWindowGrip.MouseDown(var AEvent: TMouseEvent);
@@ -1251,7 +1278,7 @@ begin
   ParentWindow^.CreateMovedEvent(movedEvent);
   if movingEvent.CanMove then begin
     desktop^.BeginDrawing;
-    ParentWindow^.Hide;{(rect, VeridianApp^.DragRect);}
+    ParentWindow^.HideEx(rect, VeridianApp^.DragRect);
     ParentWindow^.SetBoundsRect(VeridianApp^.DragRect);
     ParentWindow^.WindowState := wsNormal;
     ParentWindow^.Show;
@@ -1564,7 +1591,7 @@ begin
   MinHeight := minH;
 end;
 
-procedure TWindow.Paint;
+procedure TWindow.Paint(ARect: TRect);
 var
   oldBorderColor: byte;
   oldBorderStyle: TBorderStyle;
@@ -1578,7 +1605,7 @@ begin
     BorderColor := VeridianApp^.Colors.WindowBorderActive;
     BorderStyle := bsSingle;
   end;
-  inherited Paint;
+  inherited Paint(ARect);
   BorderColor := oldBorderColor;
   BorderStyle := oldBorderStyle;
 end;
@@ -1594,7 +1621,7 @@ begin
   Draw;
 end;
 
-procedure TWindow.Layout;
+procedure TWindow.Layout(ARect: TRect);
 var
   rect: TRect;
   barWidth: integer;
@@ -1607,7 +1634,7 @@ var
 begin
   GetGripBounds(rect);
   Grip^.SetBoundsRect(rect);
-  inherited Layout;
+  inherited Layout(ARect);
   if FInitialLayout then begin
     FInitialLayout := false;
     case InitialLocation of
@@ -1620,7 +1647,7 @@ begin
       wpParentCenter: CenterParent;
     end;
   end;
-  GetClientRect(rect);
+  GetCalculatedBounds(rect);
   titleHeight := GetTitleHeight;
   TitleBar^.SetBounds(0, 0, rect.Width, titleHeight);
   for index := Low(TGripBorderType) to High(TGripBorderType) do begin
@@ -1915,23 +1942,25 @@ end;
 procedure TScrollBar.SetRealPosition(const APosition: real);
 var
   parentView: PView;
-  contentRect: TRect;
+  clipRect, drawRect: TRect;
   newCoord: integer;
 begin
   if Max = 0 then
     exit;
+  parentView := PView(Parent);
+  FPosition := APosition;
+
   parentView := PView(Parent);
   if Orientation = soVertical then
     parentView^.ScrollY := ScrollPosition
   else
     parentView^.ScrollX := ScrollPosition;
 
-  parentView := PView(Parent);
-  FPosition := APosition;
-
   parentView^.BeginDrawing;
-  parentView^.GetContentScreenRect(contentRect);
-  parentView^.PaintRegion(contentRect, @self);
+  parentView^.GetAdjustedDrawRect(drawRect);
+  parentView^.GetAdjustedClipRect(clipRect);
+  drawRect.Intersect(clipRect);
+  parentView^.PaintRegion(drawRect, @self);
   parentView^.EndDrawing;
 
   newCoord := CoordFromPos;
@@ -1977,13 +2006,15 @@ end;
 
 procedure TScrollBar.DrawSlider;
 var
-  rect, scrollRect: TRect;
+  clipRect, rect, scrollRect: TRect;
   value: integer;
 begin
   BeginDrawing;
   Graph^.SetBackColor(BackColor);
   GetDrawRect(scrollRect);
   Graph^.State^.FillPattern := @CheckerFillPattern;
+  GetClipRect(clipRect);
+  Graph^.SetViewPort(clipRect);
 
   if Orientation = soHorizontal then begin
     scrollRect.Width := ScrollSize;
@@ -2197,7 +2228,7 @@ procedure TTaskButton.Init;
 begin
   inherited Init;
   CanFocus := false;
-  Include(ControlOptions, coCanDrag);;
+  Include(ControlOptions, coCanDrag);
   HorzAlign := haLeft;
   VertAlign := vaCenter;
   Margins.CreateAll(0, 2, 2, 2);
@@ -2215,9 +2246,9 @@ begin
   GetCaption := Window^.TitleBar^.GetCaption;
 end;
 
-procedure TTaskButton.Paint;
+procedure TTaskButton.Paint(ARect: TRect);
 begin
-  inherited Paint;
+  inherited Paint(ARect);
 end;
 
 function CanActivate(AItem: pointer): boolean;
@@ -2268,9 +2299,9 @@ begin
   inherited CreateParent('TaskBar', Desktop);
 end;
 
-procedure TTaskBar.Paint;
+procedure TTaskBar.Paint(ARect: TRect);
 begin
-  inherited Paint;
+  inherited Paint(ARect);
 end;
 
 procedure TTaskbar.Init;
@@ -2356,7 +2387,7 @@ begin
   end;
 end;
 
-procedure TTaskBar.Layout;
+procedure TTaskBar.Layout(ARect: TRect);
 var
   rect: TRect;
   index, xPos: integer;
@@ -2367,7 +2398,7 @@ var
   maxHeight: integer;
   size: TSize;
 begin
-  inherited Layout;
+  inherited Layout(ARect);
   Desktop^.GetBounds(rect);
   Width := rect.Width + 2 * OuterWidth;
   X := -OuterWidth;

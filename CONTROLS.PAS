@@ -137,7 +137,7 @@ type
     constructor CreateParent(AId: string; AParent: PControl);
     destructor Free; virtual;
     procedure Init; virtual;
-    procedure Layout; virtual;
+    procedure Layout(ARect: TRect); virtual;
     function BorderWidth: byte; virtual;
     function BevelWidth: byte; virtual;
     function OuterWidth: byte;
@@ -219,7 +219,7 @@ type
     procedure SetSize(AWidth, AHeight: integer); virtual;
     procedure SetXY(APX, APY: integer); virtual;
     procedure SetEnabled(AEnabled: boolean); virtual;
-    procedure Paint; virtual;
+    procedure Paint(ARect: TRect); virtual;
     procedure PaintRegion(var ARect: TRect; AExclude: PControl); virtual;
     procedure KeyPress(var AEvent: TKeyEvent); virtual;
     procedure MouseDown(var AEvent: TMouseEvent); virtual;
@@ -265,7 +265,7 @@ type
     procedure Init; virtual;
     procedure SetBorderColor(AColor: byte);
     procedure SetBorderStyle(AStyle: TBorderStyle);
-    procedure Paint; virtual;
+    procedure Paint(ARect: TRect); virtual;
   end;
 
   TContentControl = object(TPanel)
@@ -278,7 +278,7 @@ type
     procedure GetAlign(var ABounds: TRect; var ASize: TSize;
       var AResult: TPoint);
     procedure Init; virtual;
-    procedure Layout; virtual;
+    procedure Layout(ARect: TRect); virtual;
     procedure SetHorzAlign(AHorzAlign: THorzAlign);
     procedure SetVertAlign(AVertAlign: TVertAlign);
     procedure SetAutoSize(AAutoSize: boolean);
@@ -294,7 +294,7 @@ type
     function ContentHeight: integer; virtual;
     function ContentWidth: integer; virtual;
     procedure Init; virtual;
-    procedure Paint; virtual;
+    procedure Paint(ARect: TRect); virtual;
     procedure SetCaption(ACaption: string);
     procedure SetWrap(AWrap: boolean);
     procedure GetTextAlign(var ABounds: TRect; var AResult: TPoint);
@@ -317,7 +317,7 @@ type
     constructor CreateParent(AId: string; AAction: PAction; AParent: PControl);
     destructor Free; virtual;
     procedure Init; virtual;
-    procedure Paint; virtual;
+    procedure Paint(ARect: TRect); virtual;
     procedure Enable;
     procedure Disable;
     function ContentWidth: integer; virtual;
@@ -337,7 +337,7 @@ type
   public
     ActionList: PActionList;
     procedure Init; virtual;
-    procedure Layout; virtual;
+    procedure Layout(ARect: TRect); virtual;
     function CreateControlList: PControlList; virtual;
     destructor Free; virtual;
   end;
@@ -366,7 +366,7 @@ type
     procedure UnFocus; virtual;
     procedure SetFocus(AFocus, ARedraw: boolean); virtual;
     procedure MouseDown(var AEvent: TMouseEvent); virtual;
-    procedure Paint; virtual;
+    procedure Paint(ARect: TRect); virtual;
   end;
 
   TPopUp = object(TPanel)
@@ -383,9 +383,9 @@ type
   private
   public
     procedure Init; virtual;
-    procedure Paint; virtual;
+    procedure Paint(ARect: TRect); virtual;
     procedure Clear; virtual;
-    procedure Layout; virtual;
+    procedure Layout(ARect: TRect); virtual;
     destructor Free; virtual;
   end;
 
@@ -399,7 +399,7 @@ type
     Clickable: boolean;
     function IsButton: boolean; virtual;
     procedure Init; virtual;
-    procedure Paint; virtual;
+    procedure Paint(ARect: TRect); virtual;
     procedure Draw; virtual;
     procedure MouseDown(var AEvent: TMouseEvent); virtual;
     procedure MouseClick(var AEvent: TMouseEvent); virtual;
@@ -424,7 +424,7 @@ type
     procedure GetCursorRect(var ARect: TRect); virtual;
     procedure Init; virtual;
     procedure SetText(const AText: string); virtual;
-    procedure Paint; virtual;
+    procedure Paint(ARect: TRect); virtual;
   end;
 
 var
@@ -605,6 +605,9 @@ end;
 procedure TControl.HideEx(var AStart, AEnd: TRect);
 var
   partialRect, rect: TRect;
+  var sx, sy, ex, ey: integer;
+  var sw, sh, ew, eh: integer;
+  var sr, sb, er, eb: integer;
 begin
   if not IsVisible then
     exit;
@@ -613,52 +616,101 @@ begin
     exit;
   Desktop^.BeginDrawing;
   VeridianApp^.CursorOff;
+  sx := AStart.X; sy := AStart.Y; ex := AEnd.X; ey := AEnd.Y;
+  sw := AStart.Width; sh := AStart.Height; ew := AEnd.Width; eh := AEnd.Height;
+  sr := AStart.Right; sb := AStart.Bottom; er := AEnd.Right; eb := AEnd.Bottom;
 
   if not AStart.IntersectsRect(AEnd) then
     Desktop^.PaintRegion(AStart, @self)
   else begin
-    if (AStart.Width = AEnd.Width) and (AStart.Height = AEnd.Height) then begin
+    if (sw = ew) and (sh = eh) then begin
       { Moved }
-      if (AEnd.X >= AStart.X) and (AEnd.Y >= AStart.Y) then begin
+      if (ex >= sx) and (ey >= sy) then begin
         { Increased X and Y }
-        partialRect.CreateDims(AStart.X, AStart.Y, AStart.Width, AEnd.Y - AStart.Y);
+        partialRect.CreateDims(sx, sy, sw, ey - sy);
         Desktop^.PaintRegion(partialRect, @self);
-        partialRect.SetDims(AStart.X, AEnd.Y, AEnd.X - AStart.X, AStart.Height);
+        partialRect.SetDims(sx, ey, ex - sx, sh);
         Desktop^.PaintRegion(partialRect, @self);
-      end else if (AEnd.X <= AStart.X) and (AEnd.Y <= AStart.Y) then begin
+      end
+      else if (ex <= sx) and (ey <= sy) then begin
         { Decreased X and Y }
-        partialRect.CreateDims(AEnd.Right, AStart.Y, AStart.X - AEnd.X + 1, AStart.Height);
+        partialRect.CreateDims(er, sy, sx - ex + 1, sh);
         Desktop^.PaintRegion(partialRect, @self);
-        partialRect.SetDims(AStart.X, AEnd.Bottom, AEnd.X + AEnd.Width - 1, AStart.Y - AEnd.Y + 1);
+        partialRect.SetDims(sx, eb, ex + ew - 1, sy - ey + 1);
         Desktop^.PaintRegion(partialRect, @self);
-      end else if (AEnd.X >= AStart.X) and (AEnd.Y <= AStart.Y) then begin
+      end
+      else if (ex >= sx) and (ey <= sy) then begin
         { Increased X and Decreased Y }
-        partialRect.CreateDims(AStart.X, AEnd.Bottom, AStart.Width, AStart.Y - AEnd.Y + 1);
+        partialRect.CreateDims(sx, eb, sw, sy - ey + 1);
         Desktop^.PaintRegion(partialRect, @self);
-        partialRect.SetDims(AStart.X, AStart.Y, AEnd.X - AStart.X, AStart.Height - AEnd.Y + AStart.Y);
+        partialRect.SetDims(sx, sy, ex - sx, sh - ey + sy);
         Desktop^.PaintRegion(partialRect, @self);
-      end else if (AEnd.X <= AStart.X) and (AEnd.Y >= AStart.Y) then begin
+      end
+      else if (ex <= sx) and (ey >= sy) then begin
         { Decreased X and Increased Y }
-        partialRect.CreateDims(AStart.X, AStart.Y, AStart.Width, AEnd.Y - AStart.Y);
+        partialRect.CreateDims(sx, sy, sw, ey - sy);
         Desktop^.PaintRegion(partialRect, @self);
-        partialRect.SetDims(AEnd.Right, AStart.Y, AStart.X - AEnd.X + 1, AStart.Height);
-        Desktop^.PaintRegion(partialRect, @self);
-      end;
-    end else if (AStart.X = AEnd.X) and (AStart.Y = AEnd.Y) then begin
-      { Resized }
-      if AEnd.Width < AStart.Width then begin
-        partialRect.CreateDims(AEnd.Right, AStart.Y, AStart.Width - AEnd.Width + 1, AStart.Height);
-        Desktop^.PaintRegion(partialRect, @self);
-      end else begin
-        partialRect.CreateDims(AStart.X, AStart.Y, AEnd.X - AStart.X, AStart.Height);
+        partialRect.SetDims(er, sy, sx - ex + 1, sh);
         Desktop^.PaintRegion(partialRect, @self);
       end;
-      if AEnd.Height < AStart.Height then begin
-        partialRect.CreateDims(AStart.X, AEnd.Bottom, AStart.Width, AStart.Height - AEnd.Height + 1);
+    end
+    else if (sx = ex) and (sy = ey) then begin
+      { Resized Right, Bottom Right, or Bottom }
+      if (ew < sw) and (eh < sh) then begin
+        { Decreased Width and Height }
+        partialRect.CreateDims(er, sy, sr - er + 1, sh);
         Desktop^.PaintRegion(partialRect, @self);
-      end else begin
-        partialRect.CreateDims(AStart.X, AStart.Y, AStart.Width, AEnd.Y - AStart.Y);
+        partialRect.SetDims(sx, eb, sw - (sw - ew + 1), sh - eh + 1);
         Desktop^.PaintRegion(partialRect, @self);
+      end
+      else if (ew < sw) then begin
+        { Decreased Width }
+        partialRect.CreateDims(er, sy, sr - er + 1, sh);
+        Desktop^.PaintRegion(partialRect, @self);
+      end
+      else if (eh < sh) then begin
+        { Decreased Height }
+        partialRect.CreateDims(sx, eb, sw, sb - eb + 1);
+        Desktop^.PaintRegion(partialRect, @self);
+      end
+    end
+    else begin
+      { Resized remaning cases }
+      if ex > sx then begin
+        { Resized left, top left, or bottom left }
+        if (ey = sy) and (sh = eh) then begin
+          { Resized Left }
+          partialRect.CreateDims(sx, sy, ex - sx, sh);
+          Desktop^.PaintRegion(partialRect, @self);
+        end
+        else if ey > sy then begin
+          { Resized Top Left }
+          partialRect.CreateDims(sx, sy, sw, ey - sy);
+          Desktop^.PaintRegion(partialRect, @self);
+          partialRect.SetDims(sx, sy + (ey - sy), ex - sx, eh);
+          Desktop^.PaintRegion(partialRect, @self);
+        end
+        else if eb < sb then begin
+          { Resized Bottom Left }
+          partialRect.CreateDims(sx, sy, ex - sx, sh);
+          Desktop^.PaintRegion(partialRect, @self);
+          partialRect.SetDims(ex, eb, ew, sb - eb + 1);
+          Desktop^.PaintRegion(partialRect, @self);
+        end
+      end
+      else if ex = sx then begin
+        if (ey > sy) and (er < sr) then begin
+          { Resized Top Right }
+          partialRect.CreateDims(sx, sy, sw, ey - sy);
+          Desktop^.PaintRegion(partialRect, @self);
+          partialRect.SetDims(er, ey, sr - er + 1, sh - (ey - sy));
+          Desktop^.PaintRegion(partialRect, @self);
+        end
+        else begin
+          { Resized Top }
+          partialRect.CreateDims(sx, sy, sw, ey - sy);
+          Desktop^.PaintRegion(partialRect, @self);
+        end;
       end;
     end;
   end;
@@ -672,7 +724,7 @@ begin
   Visible := true;
   Draw;
   exit;
-  end;
+end;
 
 procedure TControl.DragStart(var AEvent: TDragEvent);
 begin
@@ -770,7 +822,7 @@ begin
   SetBoundsRect(rect);
 end;
 
-procedure TControl.Layout;
+procedure TControl.Layout(ARect: TRect);
 begin
   AlignControl;
 end;
@@ -786,14 +838,18 @@ begin
 end;
 
 procedure TControl.DrawControl(ADrawControls: boolean);
+var
+  rect: TRect;
 begin
   if not IsVisible then
     exit;
-  Layout;
+  GetOriginRect(rect);
+  Layout(rect);
   if not VeridianApp^.State.DrawEnabled then
     exit;
   BeginDrawing;
-  Paint;
+  GetDrawRect(rect);
+  Paint(rect);
   if ADrawControls then
     DrawControls;
   EndDrawing;
@@ -1167,7 +1223,7 @@ begin
   end;
   parentRect.Translate(Parent^.ScreenX, Parent^.ScreenY);
   ARect.Intersect(parentRect);
-  par := Parent^.Parent;
+  par := Parent;
   while Assigned(par) do begin
     par^.GetClipRect(parentRect);
     ARect.Intersect(parentRect);
@@ -1243,7 +1299,8 @@ begin
 
   BeginDrawing;
   Graph^.SetViewPort(ARect);
-  Paint;
+  GetDrawRect(rect);
+  Paint(rect);
   EndDrawing;
 
   for index := 0 to Controls^.Count - 1 do begin
@@ -1251,6 +1308,7 @@ begin
     control^.GetDrawRect(rect);
     if not rect.IntersectsRect(ARect) then
       continue;
+    rect.Intersect(ARect);
     control^.InternalPaintRegion(ARect, AExclude);
   end;
 end;
@@ -1444,9 +1502,9 @@ begin
   AutoSize := false;
 end;
 
-procedure TContentControl.Layout;
+procedure TContentControl.Layout(ARect: TRect);
 begin
-  inherited Layout;
+  inherited Layout(ARect);
   if AutoSize then begin
     Width := ContentWidth;
     Height := ContentHeight;
@@ -1614,9 +1672,8 @@ begin
     Graph^.SetForeColor(DisabledColor);
 end;
 
-procedure TActionControl.Paint;
+procedure TActionControl.Paint(ARect: TRect);
 var
-  rect: TRect;
   index: integer;
   txt: string;
   currentForeColor, currentBackColor: byte;
@@ -1627,8 +1684,7 @@ var
 begin
   if Assigned(Action) then
     VeridianApp^.UpdateActionControl(@self);
-  GetDrawRect(rect);
-  GetTextAlign(rect, pos);
+  GetTextAlign(ARect, pos);
   currentForeColor := ForeColor;
   currentBackColor := BackColor;
   if not IsEnabled then begin
@@ -1636,7 +1692,7 @@ begin
     currentBackColor := DisabledBackColor;
   end;
   index := 1;
-  TPanel.Paint;
+  TPanel.Paint(ARect);
   Graph^.SetForeColor(currentForeColor);
   Graph^.SetBackColor(currentBackColor);
   txt := GetCaption;
@@ -1660,7 +1716,7 @@ begin
   end;
   if GetShortcut > 0 then begin
     desc := GetShortcutDesc;
-    pos.X := rect.Right - TrueTextWidth(desc) - Margins.Right - OuterWidth;
+    pos.X := ARect.Right - TrueTextWidth(desc) - Margins.Right - OuterWidth;
     Graph^.DrawText(pos.X, pos.Y, desc);
   end;
 end;
@@ -1696,7 +1752,7 @@ begin
   inherited Draw;
 end;
 
-procedure TButton.Paint;
+procedure TButton.Paint(ARect: TRect);
 var
   oldShadowColor, oldLightColor: byte;
   oldFocusColor, oldFocusedBackColor: byte;
@@ -1714,7 +1770,7 @@ begin
     ShadowColor := oldLightColor;
     LightColor := oldShadowColor;
   end;
-  inherited Paint;
+  inherited Paint(ARect);
   ShadowColor := oldShadowColor;
   LightColor := oldLightColor;
   FocusedColor := oldFocusColor;
@@ -1797,9 +1853,9 @@ begin
   Font := VeridianApp^.GetFont('editor');
 end;
 
-procedure TLabel.Paint;
+procedure TLabel.Paint(ARect: TRect);
 begin
-  inherited Paint;
+  inherited Paint(ARect);
 end;
 
 procedure TLabel.Clear;
@@ -1807,9 +1863,9 @@ begin
   SetCaption('');
 end;
 
-procedure TLabel.Layout;
+procedure TLabel.Layout(ARect: TRect);
 begin
-  inherited Layout;
+  inherited Layout(ARect);
 end;
 
 destructor TLabel.Free;
@@ -1880,12 +1936,12 @@ begin
   Draw;
 end;
 
-procedure TPanel.Paint;
+procedure TPanel.Paint(ARect: TRect);
 var
   rect: TRect;
 begin
-  inherited Paint;
-  GetDrawRect(rect);
+  inherited Paint(ARect);
+  rect.CreateRect(ARect);
   Graph^.SetForeColor(ForeColor);
   Graph^.SetBackColor(BackColor);
   Graph^.SetFillPattern(FillPattern);
@@ -1958,9 +2014,9 @@ begin
   CreateControlList := New(PDesktopControlList, Create(@self));
 end;
 
-procedure TDesktop.Layout;
+procedure TDesktop.Layout(ARect: TRect);
 begin
-  inherited Layout;
+  inherited Layout(ARect);
   SetBounds(0, 0, Graph^.Mode^.Width, Graph^.Mode^.Height);
 end;
 
@@ -1971,9 +2027,13 @@ begin
 end;
 
 constructor TCaptionControl.CreateCaption(const AId, ACaption: string; AParent: PControl);
+var
+  rect: TRect;
 begin
   inherited CreateParent(AId, AParent);
   Caption := TString.New(ACaption);
+  GetOriginRect(rect);
+  Layout(rect);
 end;
 
 procedure TCaptionControl.SetCaption(ACaption: string);
@@ -2049,9 +2109,8 @@ begin
   Wrap := false;
 end;
 
-procedure TCaptionControl.Paint;
+procedure TCaptionControl.Paint(ARect: TRect);
 var
-  rect: TRect;
   next, index: word;
   left, right: integer;
   pos: TPoint;
@@ -2093,16 +2152,15 @@ var
     GetLineBreakIndex := current;
   end;
 begin
-  inherited Paint;
+  inherited Paint(ARect);
   if not Assigned(Caption) then
     exit;
-  GetDrawRect(rect);
-  if rect.IsEmpty then
+  if ARect.IsEmpty then
     exit;
-  right := rect.Right;
+  right := ARect.Right;
   Graph^.SetForeColor(ForeColor);
   Graph^.SetBackColor(BackColor);
-  GetTextAlign(rect, pos);
+  GetTextAlign(ARect, pos);
   left := pos.X;
   index := 0;
   ch := Caption^;
@@ -2154,8 +2212,9 @@ var
   size: longint;
 begin
   BeginDrawing;
-  Layout;
-  GetDrawRect(rect);
+  GetOriginRect(rect);
+  Layout(rect);
+  GetScreenBounds(rect);
   FreeAndNil(FBackBuffer);
   VeridianApp^.HideMouseCursor;
   size := longint(rect.Width) * rect.Height;
@@ -2172,7 +2231,7 @@ procedure TPopUp.Hide;
 var
   rect: TRect;
 begin
-  GetDrawRect(rect);
+  GetScreenBounds(rect);
   if not Assigned(FBackBuffer) then
     exit;
   BeginDrawing;
@@ -2221,7 +2280,7 @@ begin
     SetFocus(true, true);
 end;
 
-procedure TFocusControl.Paint;
+procedure TFocusControl.Paint(ARect: TRect);
 var
   oldForeColor, oldBackColor: byte;
 begin
@@ -2230,12 +2289,12 @@ begin
     oldBackColor := BackColor;
     ForeColor := FocusedColor;
     BackColor := FocusedBackColor;
-    inherited Paint;
+    inherited Paint(ARect);
     ForeColor := oldForeColor;
     BackColor := oldBackColor;
   end
   else
-    inherited Paint;
+    inherited Paint(ARect);
 end;
 
 procedure TFocusControl.UnFocus;
@@ -2406,13 +2465,13 @@ begin
   GetCursorBackColor := 15;
 end;
 
-procedure TTextControl.Paint;
+procedure TTextControl.Paint(ARect: TRect);
 var
   rect: TRect;
   txt: string;
   pos: TPoint;
 begin
-  TPanel.Paint;
+  TPanel.Paint(ARect);
   if not IsVisible then
     exit;
   GetDrawRect(rect);

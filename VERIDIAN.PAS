@@ -217,6 +217,8 @@ begin
 end;
 
 procedure TVeridianApp.Initialized;
+var
+  rect: TRect;
 begin
 {  FOffScreen := New(PMemoryStream, Create(longint(Graph^.Mode^.Width) * Graph^.Mode^.Height));}  LoadFonts;
   FOffScreen := nil;
@@ -224,8 +226,10 @@ begin
   Desktop^.Font := SystemFont;
   InitActions;
   InitControls;
-  Desktop^.Layout;
-  MenuBar^.Layout;
+  Desktop^.GetOriginRect(rect);
+  Desktop^.Layout(rect);
+  MenuBar^.GetOriginRect(rect);
+  MenuBar^.Layout(rect);
   Keyboard.GetKey;
   FNewWindowX := 10;
   FNewWindowY := MenuBar^.Height + 10;
@@ -260,7 +264,8 @@ begin
   FMemLabel^.SetBackColor(MenuBar^.BackColor);
   FMemLabel^.Font := Fonts^.GetItemById('editor');
   FMemLabel^.AutoSize := true;
-  FMemLabel^.Layout;
+  FMemLabel^.GetOriginRect(rect);
+  FMemLabel^.Layout(rect);
   {$ENDIF}
 end;
 

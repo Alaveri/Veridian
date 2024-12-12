@@ -31,8 +31,8 @@ type
     TextOffsetY: integer;
     function IsCheckBox: boolean; virtual;
     procedure Init; virtual;
-    procedure Layout; virtual;
-    procedure Paint; virtual;
+    procedure Layout(ARect: TRect); virtual;
+    procedure Paint(ARect: TRect); virtual;
     procedure PaintGlyph; virtual;
     procedure DrawGlyph; virtual;
     procedure SetChecked(AValue: boolean);
@@ -75,9 +75,9 @@ type
     procedure SetMinValue(AValue: longint);
     procedure SetIncrement(AValue: longint);
     procedure SetEditable(AValue: boolean);
-    procedure Paint; virtual;
+    procedure Paint(ARect: TRect); virtual;
     procedure Init; virtual;
-    procedure Layout; virtual;
+    procedure Layout(ARect: TRect); virtual;
   end;
 
 implementation
@@ -164,9 +164,9 @@ begin
   end;
 end;
 
-procedure TCheckBox.Layout;
+procedure TCheckBox.Layout(ARect: TRect);
 begin
-  inherited Layout;
+  inherited Layout(ARect);
   if AutoSize then begin
     Width := Font^.TextWidthLarge(Caption) + 2 * FocusRectWidth
       + BoxSize + Spacing + 1;
@@ -174,11 +174,11 @@ begin
   end;
 end;
 
-procedure TCheckBox.Paint;
+procedure TCheckBox.Paint(ARect: TRect);
 var
   rect: TRect;
 begin
-  TPanel.Paint;
+  TPanel.Paint(ARect);
   PaintGlyph;
   GetDrawRect(rect);
   Graph^.SetForeColor(ForeColor);
@@ -428,9 +428,9 @@ begin
   Editable := FEditable;
 end;
 
-procedure TNumericUpDown.Paint;
+procedure TNumericUpDown.Paint(ARect: TRect);
 begin
-  inherited Paint;
+  inherited Paint(ARect);
 end;
 
 procedure TNumericUpDown.SetValue(AValue: longint);
@@ -474,12 +474,12 @@ begin
     FEntry^.UnFocus;
 end;
 
-procedure TNumericUpDown.Layout;
+procedure TNumericUpDown.Layout(ARect: TRect);
 var
   rect: TRect;
   minWidth, maxWidth: integer;
 begin
-  inherited Layout;
+  inherited Layout(ARect);
   FEntry^.SetBounds(17 - FDecButton^.BorderWidth, 0, Width - 32, Height);
   minWidth := Length(IntToStr(FMinValue));
   maxWidth := Length(IntToStr(FMaxValue));
