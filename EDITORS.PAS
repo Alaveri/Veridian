@@ -155,7 +155,7 @@ var
   pos: TPoint;
 begin
   inherited GetCursorRect(ARect);
-  GetScreenBounds(clipRect);
+  GetDrawRect(clipRect);
   GetTextAlign(clipRect, pos);
   ARect.SetDims(pos.X + FCursorX - ScrollPos, pos.Y + Padding.Top - 1, 1, Font^.Height + 1);
 end;
@@ -247,7 +247,7 @@ begin
   FCursorPos := 0;
   WordDelimiters := DefaultWordDelimiters;
   ValidChars := [#32..#126];
-  Position := spContent;
+  Position := rpParentContent;
 end;
 
 procedure TEdit.SelectNone;
@@ -291,7 +291,7 @@ begin
     exit;
 
   selected := CheckSelection;
-  GetScreenBounds(drawRect);
+  GetDrawRect(drawRect);
 
   Graph^.WaitForVSync;
   Graph^.State^.Font := Font;
@@ -339,8 +339,10 @@ var
   needsDraw: boolean;
   charWidth: integer;
 begin
+  if not VeridianApp^.State.DrawEnabled then
+    exit;
   needsDraw := false;
-  GetClientBounds(drawRect);
+  GetBounds(drawRect);
   NeedsDraw := false;
   APos := ClampW(APos, 0, Length);
   FCursorPos := APos;
@@ -779,7 +781,7 @@ begin
   if not (IsVisibleAndEnabled and CanEdit) then
     exit;
   if VeridianApp^.SelectingControl = @self then begin
-    GetScreenBounds(rect);
+    GetDrawRect(rect);
     index := GetIndexAt(AEvent.X, AEvent.Y);
     index := ClampW(index, 0, Length);
     if index = FCursorPos then

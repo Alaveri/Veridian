@@ -165,7 +165,7 @@ begin
   ForeColor := VeridianApp^.Colors.Menu;
   BackColor := VeridianApp^.Colors.MenuBack;
   BorderColor := VeridianApp^.Colors.MenuBorder;
-  Position := spAbsolute;
+  Position := rpAbsolute;
   Exclude(ControlOptions, coClipping);
 end;
 
@@ -212,7 +212,7 @@ begin
   GetMenuDims(menuDims);
   menuRect.CreateDims(0, 0, menuDims.Width, menuDims.Height);
   if Assigned(ParentMenuItem) then begin
-    ParentMenuItem^.GetScreenBounds(parentItemRect);
+    ParentMenuItem^.GetDrawRect(parentItemRect);
     case MenuLocation of
       mlBelow: begin
         menuRect.X := parentItemRect.X;
@@ -348,7 +348,7 @@ begin
   BorderStyle := bsNone;
   AutoSize := false;
   Padding.CreateAll(3, 2, 3, 1);
-  Position := spClient;
+  Position := rpParentClient;
 end;
 
 procedure TMenuItem.OpenMenu;
@@ -402,7 +402,7 @@ begin
     BackColor := SelectedBackColor;
     ShortcutColor := SelectedShortcutColor;
   end;
-  GetScreenBounds(rect);
+  GetDrawRect(rect);
   if IsSeparator then begin
     Graph^.SetForeColor(BorderColor);
     Graph^.HLine(rect.X, rect.Y + rect.Height div 2, rect.Width);
@@ -550,7 +550,7 @@ begin
   VeridianApp^.MenuBar := @self;
   Include(ControlOptions, coStayOnTop);
   Padding.Left := 5;
-  Position := spClient;
+  Position := rpParentClient;
 end;
 
 procedure TMenuBar.Layout;
@@ -564,7 +564,7 @@ var
 begin
   inherited Layout;
   itemRect.Create;
-  xPos := Padding.Left;
+  xPos := 0;
   maxHeight := 0;
   currentHeight := 0;
   for index := 0 to MenuItems^.Count - 1 do begin
@@ -644,7 +644,7 @@ begin
   BackColor := VeridianApp^.Colors.MenuBack;
   MenuItems := New(PMenuItemList, Create(@self));
   SelectedItem := nil;
-  Position := spClient;
+  Position := rpParentClient;
 end;
 
 function TMenuItemContainer.IsMenuItemContainer: boolean;

@@ -44,6 +44,7 @@ type
     Text: PChar;
     Value: pointer;
     ImageIndex: integer;
+    Tag: integer;
     constructor CreateText(const AText: string);
     constructor CreateTextValue(const AText: string; AValue: pointer);
     procedure SetText(const AText: string);
@@ -61,13 +62,16 @@ type
     function Add(AItem: PListItem): integer;
     function AddItem(const AText: string; AValue: pointer): integer;
     function AddText(const AText: string): integer;
+    function AddTag(const AText: string; ATag: integer): integer;
     function IndexOf(AItem: PListItem): integer;
     function IndexOfValue(AValue: pointer): integer;
+    function IndexOfTag(ATag: integer): integer;
     procedure SetItem(AIndex: integer; AItem: PListItem);
     procedure Insert(AIndex: integer; AItem: PListItem);
     procedure RemoveItem(AItem: PListItem);
     procedure InsertItem(AIndex: integer; const AText: string; AValue: pointer);
     procedure InsertText(AIndex: integer; const AText: string);
+    procedure InsertTag(AIndex: integer; const AText: string; ATag: integer);
   end;
 
   TListView = object(TView)
@@ -144,7 +148,7 @@ type
     procedure Init; virtual;
     procedure Layout; virtual;
     procedure SetText(const AText: string); virtual;
-    procedure GetListBounds(var ARect: TRect); virtual;
+    procedure AutoSizeControl; virtual;
     destructor Free; virtual;
   end;
 
@@ -182,6 +186,7 @@ begin
   Value := nil;
   ImageIndex := -1;
   Owner := nil;
+  Tag := 0;
 end;
 
 destructor TListItem.Free;
@@ -209,15 +214,14 @@ begin
   inherited Init;
   TransparentBack := false;
   ScrollType := scAsNeeded;
-  HorzScrollBar^.Visible := false;
   CanFocus := true;
   Items := New(PListItems, Create(@self));
   OnSelectedIndexChanged := nil;
   SelectedIndex := -1;
   BorderStyle := bsSingle;
   BevelStyle := bvNone;
-  VertScrollBar^.Position := spRelative;
-  HorzScrollBar^.Position := spRelative;
+  VertScrollBar^.Position := rpParentRelative;
+  HorzScrollBar^.Position := rpParentRelative;
   Font := VeridianApp^.GetFont('editor');
   SelectedColor := VeridianApp^.Colors.ListSelected;
   SelectedBackColor := VeridianApp^.Colors.ListSelectedBack;
@@ -242,7 +246,7 @@ begin
     exit;
   previousindex := SelectedIndex;
   SelectedIndex := index;
-  GetScreenBounds(rect);
+  GetDrawRect(rect);
   GetItemRect(SelectedIndex, itemRect);
   if itemRect.Y >= rect.Y + ListInnerHeight + ScrollY then
     ScrollVert((SelectedIndex - previousIndex) * itemRect.Height);
@@ -296,7 +300,7 @@ var
   itemWidth: integer;
   clipRect, rect: TRect;
 begin
-  GetClientScreenBounds(rect);
+  GetDrawRect(rect);
   GetClipRect(clipRect);
   rect.Intersect(clipRect);
   cy := rect.Y + AIndex * ItemHeight;
@@ -324,6 +328,7 @@ var
   viewRect: TRect;
   clipRect: TRect;
 begin
+exit;
   if not IsVisible then
     exit;
   if (AIndex < 0) or (AIndex > Items^.Count - 1) then
@@ -343,7 +348,7 @@ begin
   end;
   GetItemRect(AIndex, itemRect);
   itemRect.Translate(-ScrollX, -ScrollY);
-  GetClientScreenBounds(rect);
+  GetDrawRect(rect);
   GetClipRect(clipRect);
   rect.Intersect(clipRect);
   rect.Intersect(Graph^.State^.ViewPort);
@@ -426,7 +431,7 @@ begin
   if not Focused then
     exit;
   AEvent.Handled := true;
-  GetScreenBounds(rect);
+  GetDrawRect(rect);
   case AEvent.Key of
     kyDown: ChangeSelect(1);
     kyUp: ChangeSelect(-1);
@@ -462,7 +467,7 @@ begin
     SetBounds(X, Y, Width, Size);
   end;
   inherited Layout;
-  GetClientInnerBounds(rect);
+  GetBounds(rect);
   VertScrollbar^.Increment := ItemHeight;
   VertScrollbar^.PageIncrement := Round(rect.Height / ItemHeight) * ItemHeight;
   max := Items^.Count * ItemHeight;
@@ -475,7 +480,7 @@ begin
   Items^.Clear;
   SelectedIndex := 0;
   ScrollY := 0;
-  VertScrollbar^.ScrollPosition := 0;
+  VertScrollbar^.SetScrollPosition(0);
 end;
 
 procedure TListView.Paint;
@@ -495,7 +500,7 @@ begin
   inherited Paint;
   FocusedColor := oldFocusedColor;
   FocusedBackColor := oldFocusedBackColor;
-  GetClientScreenBounds(rect);
+  GetDrawRect(rect);
   for index := 0 to Items^.Count - 1 do
     PaintItem(index);
   Graph^.SetBackColor(BackColor);
@@ -537,6 +542,16 @@ begin
   AddText := AddItem(AText, nil);
 end;
 
+function TListItems.AddTag(const AText: string; ATag: integer): integer;
+var
+  item: PListItem;
+begin
+  item := New(PListItem, Create);
+  item^.Text := TString.New(AText);
+  item^.Tag := ATag;
+  AddTag := inherited Add(item);
+end;
+
 procedure TListItems.InsertItem(AIndex: integer; const AText: string; AValue: pointer);
 var
   item: PListItem;
@@ -552,6 +567,16 @@ begin
   InsertItem(AIndex, AText, nil);
 end;
 
+procedure TListItems.InsertTag(AIndex: integer; const AText: string; ATag: integer);
+var
+  item: PListItem;
+begin
+  item := New(PListItem, Create);
+  item^.Text := TString.New(AText);
+  item^.Tag := ATag;
+  inherited Insert(AIndex, item);
+end;
+
 function TListItems.IndexOf(AItem: PListItem): integer;
 begin
   IndexOf := inherited IndexOf(AItem);
@@ -565,6 +590,19 @@ begin
   for index := 0 to Count - 1 do begin
     if GetItem(index)^.Value = AValue then begin
       IndexOfValue := index;
+      break;
+    end;
+  end;
+end;
+
+function TListItems.IndexOfTag(ATag: integer): integer;
+var
+  index: integer;
+begin
+  IndexOfTag := -1;
+  for index := 0 to Count - 1 do begin
+    if GetItem(index)^.Tag = ATag then begin
+      IndexOfTag := index;
       break;
     end;
   end;
@@ -617,7 +655,7 @@ end;
 procedure TDropDownButton.Init;
 begin
   inherited Init;
-  Position := spClient;
+  Position := rpParentClient;
 end;
 
 procedure TDropDownButton.Paint;
@@ -645,16 +683,12 @@ var
   rect: TRect;
   size: integer;
 begin
-  GetClientInnerBounds(rect);
+  GetClientRect(rect);
   VertScrollbar^.Increment := ItemHeight;
   VertScrollbar^.PageIncrement := Round(rect.Height / ItemHeight) * ItemHeight;
   max := Items^.Count * ItemHeight;
   Dec(max, rect.Height);
   VertScrollBar^.Max := AplMath.MaxL(0, max);
-  VertScrollBar^.X := Width - VertScrollBar^.Width;
-  VertScrollBar^.Y := 0;
-  VertScrollBar^.Width := VertScrollBar^.Size;
-  VertScrollBar^.Height := Height;
 end;
 
 procedure ListKeyPress(var AEvent: TKeyEvent); far;
@@ -708,7 +742,7 @@ var
 begin
   if not IsVisible then
     exit;
-  GetScreenBounds(rect);
+  GetDrawRect(rect);
   Graph^.State^.Font := Font;
   Graph^.SetForeColor(ForeColor);
   Graph^.SetBackColor(BackColor);
@@ -799,9 +833,9 @@ begin
   FList^.OnSelectedIndexChanged := @DropDownIndexChanged;
   FList^.AutoHeight := true;
   FList^.Visible := false;
-  FList^.HorzScrollBar^.Position := spRelative;
-  FList^.VertScrollBar^.Position := spRelative;
-  FList^.Position := spRelative;
+  FList^.HorzScrollBar^.Position := rpParentRelative;
+  FList^.VertScrollBar^.Position := rpParentRelative;
+  FList^.Position := rpParentRelative;
   HorzAlign := haLeft;
   ForeColor := VeridianApp^.Colors.Editor;
   BackColor := VeridianApp^.Colors.EditorBack;
@@ -811,7 +845,7 @@ begin
   BorderColor := VeridianApp^.Colors.EditorBorder;
   VertAlign := vaCenter;
   Text := nil;
-  MaxItems := -1;
+  MaxItems := MaxInt;
   AutoSize := true;
   BorderStyle := bsSingle;
   Padding.CreateValue(2);
@@ -823,14 +857,14 @@ begin
   Items := FList^.Items;
 end;
 
-procedure TDropDownList.GetListBounds(var ARect: TRect);
+procedure TDropDownList.AutoSizeControl;
 var
-  index, maxWidth, listWidth, listHeight, itemWidth, itemCount: integer;
+  index, maxWidth: integer;
+  listWidth: integer;
+  itemWidth: integer;
   item: PListItem;
 begin
-  itemCount := Min(FList^.Items^.Count, MaxItems);
   if AutoSize then begin
-    listHeight := itemCount * FList^.ItemHeight + 2 * OuterWidth;
     maxWidth := 0;
     for index := 0 to FList^.Items^.Count - 1 do begin
       item := FList^.Items^.GetItem(index);
@@ -840,26 +874,29 @@ begin
     end;
     listWidth := FButtonSize + maxWidth + 2 * OuterWidth
       + 2 * Padding.Width;
+    Width := listWidth;
+    Height := FButtonSize;
   end;
-  itemWidth := listWidth - FButtonSize;
-  ARect.CreateDims(0, Height, listWidth, listHeight);
 end;
 
 procedure TDropDownList.Layout;
 var
   listBounds: TRect;
+  listHeight, itemCount: integer;
 begin
   inherited Layout;
   FButtonSize := 17;
   if Graph^.Mode^.Width <= 320 then
     FButtonSize := 11;
 
-  GetListBounds(listBounds);
+  AutoSizeControl;
+  itemCount := Min(FList^.Items^.Count, MaxItems);
+  listHeight := itemCount * FList^.ItemHeight + 2 * OuterWidth;
+  listBounds.CreateDims(0, Height - OuterWidth, Width, listHeight);
   FList^.SetBoundsRect(listBounds);
   FList^.VertScrollBar^.Visible := FList^.Items^.Count > MaxItems;
   FList^.BringToFront;
   Width := listBounds.Width;
-  Height := FButtonSize;
 
   FButton^.CanFocus := false;
   FButton^.SetBounds(

@@ -62,6 +62,7 @@ type
 
   TVeridianApp = object(TGraphApp)
   private
+    FOffScreen: PMemoryStream;
     {$IFDEF debug}
     FMemAvail: longint;
     FMemMaxAvail: longint;
@@ -82,6 +83,7 @@ type
     function LoadFont(const AFilename: string): PFont;
     function CreateDesktop: PDesktop; virtual;
     function HandleWindowSwitch: boolean;
+    procedure GetFocusList(AList: PControlList; AControl: PControl);
     procedure CreateObjects;
     procedure LoadFonts;
     procedure BeginWindowSwitch;
@@ -105,7 +107,6 @@ type
     procedure HandleDoubleClick(ATime: TDateTime; AControl: PControl; var AEvent: TMouseEvent);
     procedure CleanupWindows;
     procedure InitMouseEvent(AControl: PControl; var AEvent: TMouseEvent);
-    procedure GetFocusList(AList: PObjectList; AControl: PControl);
     procedure DrawCursor;
     procedure HandleCursor;
     procedure ApplySettings;
@@ -217,7 +218,8 @@ end;
 
 procedure TVeridianApp.Initialized;
 begin
-  LoadFonts;
+{  FOffScreen := New(PMemoryStream, Create(longint(Graph^.Mode^.Width) * Graph^.Mode^.Height));}  LoadFonts;
+  FOffScreen := nil;
   Desktop := CreateDesktop;
   Desktop^.Font := SystemFont;
   InitActions;
@@ -231,6 +233,7 @@ end;
 
 destructor TVeridianApp.Free;
 begin
+  FreeAndNil(FOffScreen);
   StateStack.DisposeObjects := true;
   StateStack.Free;
   Parameters.Free;
@@ -256,6 +259,8 @@ begin
   FMemLabel^.SetForeColor(MenuBar^.ForeColor);
   FMemLabel^.SetBackColor(MenuBar^.BackColor);
   FMemLabel^.Font := Fonts^.GetItemById('editor');
+  FMemLabel^.AutoSize := true;
+  FMemLabel^.Layout;
   {$ENDIF}
 end;
 
@@ -380,8 +385,6 @@ begin
   UpdateActionControl(ASender);
   if not (ASender^.IsVisibleAndEnabled) then
     exit;
-  if Assigned(ActiveDialog) then
-    ActiveDialog^.ActionExecute(ASender, AAction);
   if Assigned(AAction^.OnExecute) then begin
     event.Create;
     event.Action := AAction;
@@ -420,11 +423,13 @@ end;
 
 procedure TVeridianApp.HandleMouseWheelChanged(AControl: PControl; var AEvent: TMouseEvent);
 var
-  rect: TRect;
+  clipRect, rect: TRect;
 begin
   if not AControl^.IsVisibleAndEnabled then
     exit;
-  AControl^.GetScreenBounds(rect);
+  AControl^.GetDrawRect(rect);
+  AControl^.GetClipRect(clipRect);
+  rect.Intersect(clipRect);
   if rect.Contains(AEvent.NewMouseState.X, AEvent.NewMouseState.Y) then begin
     AControl^.MouseWheelChanged(AEvent);
   end;
@@ -481,8 +486,13 @@ begin
   if AEvent.Handled then
     exit;
 
-  if AControl^.IsActionControl then
+  if AControl^.IsActionControl and Assigned(PActionControl(AControl)^.Action) then begin
+    if Assigned(ActiveDialog) then begin
+      ActiveDialog^.ActionExecute(PActionControl(AControl), PActionControl(AControl)^.Action);
+      exit;
+    end;
     ActionExecute(PActionControl(AControl), PActionControl(AControl)^.Action);
+  end;
 end;
 
 procedure TVeridianApp.HandleMouseDown(AControl: PControl; var AEvent: TMouseEvent;
@@ -502,7 +512,7 @@ begin
   if not AControl^.IsVisibleAndEnabled then
     exit;
   if Assigned(ActiveDropDown) then begin
-    ActiveDropDown^.GetScreenBounds(rect);
+    ActiveDropDown^.GetDrawRect(rect);
     intersects := rect.Contains(AEvent.NewMouseState.X, AEvent.NewMouseState.Y);
     if not intersects then begin
       ActiveDropDown^.HideList;
@@ -513,11 +523,11 @@ begin
   intersects := false;
   for index := 0 to MenuManager.OpenMenus^.Count - 1 do begin
     container := MenuManager.OpenMenus^.GetItem(index);
-    container^.GetScreenBounds(rect);
+    container^.GetDrawRect(rect);
     if rect.Contains(AEvent.NewMouseState.X, AEvent.NewMouseState.Y) then
       intersects := true;
     if Assigned(container^.ParentMenuItem) then begin
-      container^.ParentMenuItem^.GetScreenBounds(rect);
+      container^.ParentMenuItem^.GetDrawRect(rect);
       if rect.Contains(AEvent.NewMouseState.X, AEvent.NewMouseState.Y) then
         intersects := true;
     end;
@@ -580,7 +590,7 @@ begin
   AEvent.Y := AEvent.NewMouseState.Y;
 
   { Get the state in relation to the control's coordinates }
-  AControl^.GetScreenBounds(rect);
+  AControl^.GetDrawRect(rect);
   Dec(AEvent.X, rect.X);
   Dec(AEvent.Y, rect.Y);
 end;
@@ -588,7 +598,7 @@ end;
 function TVeridianApp.GetMouseControl(AControl: PControl; var AMouseState: TMouseState): PControl;
 var
   index: integer;
-  rect, parentRect: TRect;
+  clipRect, drawRect: TRect;
   control: PControl;
 begin
   GetMouseControl := nil;
@@ -606,8 +616,8 @@ begin
     end;
   end;
 
-  AControl^.GetClipRect(rect);
-  if rect.Contains(AMouseState.X, AMouseState.Y) then
+  AControl^.GetDrawRect(drawRect);
+  if drawRect.Contains(AMouseState.X, AMouseState.Y) then
     GetMouseControl := AControl;
 end;
 
@@ -678,12 +688,48 @@ begin
   end;
 end;
 
-procedure TVeridianApp.GetFocusList(AList: PObjectList; AControl: PControl);
+function TabOrderCompare(AItem1, AItem2: pointer): integer;
+var
+  control1, control2: PControl;
+  focusControl1, focusControl2: PFocusControl;
+begin
+  focusControl1 := nil;
+  control1 := PControl(AItem1);
+  control2 := PControl(AItem2);
+  if control1^.IsFocusControl then
+    focusControl1 := PFocusControl(control1);
+  if control2^.IsFocusControl then
+    focusControl2 := PFocusControl(control2);
+
+  if control1^.Parent = control2^.Parent then begin
+    if Assigned(focusControl1) and Assigned(focusControl2) then begin
+      if focusControl1^.TabOrder < focusControl2^.TabOrder then
+        TabOrderCompare := -1
+      else if focusControl1^.TabOrder > focusControl2^.TabOrder then
+        TabOrderCompare := 1
+      else
+        TabOrderCompare := 0;
+    end
+    else if Assigned(focusControl1) then
+      TabOrderCompare := -1
+    else if Assigned(focusControl2) then
+      TabOrderCompare := 1
+    else
+      TabOrderCompare := 0;
+  end
+  else
+    TabOrderCompare := 0;
+end;
+
+procedure TVeridianApp.GetFocusList(AList: PControlList; AControl: PControl);
 var
   control: PControl;
   focusControl: PFocusControl;
   index: integer;
+  result: PControlList;
 begin
+  if not Assigned(AList) then
+    AList := New(PControlList, CreateSorted(TabOrderCompare));
   for index := 0 to AControl^.Controls^.Count - 1 do begin
     control := AControl^.Controls^.GetItem(index);
     GetFocusList(AList, control);
@@ -700,7 +746,7 @@ var
   parent: PControl;
   current: PControl;
   next: PFocusControl;
-  focusList: PObjectList;
+  focusList: PControlList;
   controlIndex: integer;
   currentIndex: integer;
 begin
@@ -712,7 +758,7 @@ begin
     current := current^.Parent;
   if not Assigned(current) then
     exit;
-  focusList := New(PObjectList, Create);
+  focusList := New(PControlList, CreateSorted(TabOrderCompare));
   focusList^.DisposeObjects := false;
   if Assigned(ActiveWindow) then
     GetFocusList(focusList, ActiveWindow)
@@ -738,10 +784,10 @@ end;
 
 function TVeridianApp.FocusFirst: boolean;
 var
-  focusList: PObjectList;
+  focusList: PControlList;
   control: PControl;
 begin
-  focusList := New(PObjectList, Create);
+  focusList := New(PControlList, CreateSorted(TabOrderCompare));
   focusList^.DisposeObjects := false;
   GetFocusList(focusList, Desktop);
   if focusList^.Count >= 0 then begin
@@ -754,10 +800,10 @@ end;
 
 function TVeridianApp.FocusLast: boolean;
 var
-  focusList: PObjectList;
+  focusList: PControlList;
   control: PControl;
 begin
-  focusList := New(PObjectList, Create);
+  focusList := New(PControlList, CreateSorted(TabOrderCompare));
   focusList^.DisposeObjects := false;
   GetFocusList(focusList, Desktop);
   if focusList^.Count >= 0 then begin
@@ -956,16 +1002,20 @@ var
   rect: TRect;
 begin
   if Assigned(FMemLabel) and Assigned(MenuBar) and
-    ((FMemAvail <> MemAvail) or (FMemMaxAvail <> MaxAvail)) then begin
-    MenuBar^.GetScreenBounds(rect);
+    ((FMemAvail <> MemAvail) or (FMemMaxAvail <> MaxAvail))
+    and State.DrawEnabled then begin
+    MenuBar^.GetDrawRect(rect);
     txt := 'MemAvail: ' + FormatLong(MemAvail) + ' MaxAvail: ' + FormatLong(MaxAvail);
-    width := desktop^.Font^.AverageWidth * Length(txt);
-    rect.Height := Menubar^.Font^.Height;
+    width := FMemLabel^.Font^.TextWidth('MemAvail: 999,999  MaxAvail: 999,999');
     rect.X := rect.Right - width;
-    rect.Y := rect.Y + (MenuBar^.Height - MenuBar^.Font^.Height) div 2 + 1;
-    FMemLabel^.SetBoundsRect(rect);
+    rect.Y := rect.Y + (MenuBar^.Height - FMemLabel^.Height) div 2;
+    FMemLabel^.X := rect.X;
+    FMemLabel^.Y := rect.Y;
+    FMemLabel^.GetDrawRect(rect);
     FMemAvail := MemAvail;
     FMemMaxAvail := MaxAvail;
+    Graph^.SetBackColor(MenuBar^.BackColor);
+    Graph^.FillRect(rect);
     FMemLabel^.SetCaption(txt);
   end;
 end;
@@ -1260,9 +1310,6 @@ procedure TVeridianApp.Run;
 begin
   ApplySettings;
   State.DrawEnabled := true;
-  {$IFDEF debug}
-  UpdateDebugInfo;
-  {$ENDIF}
   Desktop^.Draw;
   Mouse.SetMousePosition(Graph^.Mode^.Width div 2, Graph^.Mode^.Height div 2);
   Mouse.ShowMouse;

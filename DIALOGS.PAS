@@ -89,6 +89,8 @@ type
     procedure BeforeShow; virtual;
     procedure AfterShow; virtual;
     procedure Layout; virtual;
+    procedure CenterScreenX;
+    procedure CenterScreenY;
     procedure Close(ASender: PControl); virtual;
     procedure KeyPress(var AEvent: TKeyEvent); virtual;
     procedure SetDefaultButton(AButton: TDialogButtonType);
@@ -242,7 +244,10 @@ end;
 
 constructor TDialog.Create(const AId, ATitle: string; AButtons: TDialogButtons);
 begin
-  inherited CreateTitle(AId, ATitle, Desktop);
+  VeridianApp^.PushState;
+  VeridianApp^.State.DrawEnabled := false;
+  inherited Create(AId, ATitle, Desktop);
+  VeridianApp^.PopState;
   Buttons := AButtons;
   CreateButtons;
 end;
@@ -270,7 +275,7 @@ begin
   button := New(PDialogButton, CreateParent(newId + 'Button', @self));
   button^.Owner := @self;
   button^.ShowShortCut := false;
-  button^.Position := spClient;
+  button^.Position := rpParentClient;
   if CancelButton = AButton then
     button^.Cancel := true;
   if DefaultButton = AButton then
@@ -347,10 +352,20 @@ begin
   Grip^.Visible := false;
   TitleBar^.MinimizeButton^.Visible := false;
   TitleBar^.MaximizeButton^.Visible := false;
-  Position := spAbsolute;
+  Position := rpAbsolute;
   ActionList := New(PActionList, Create);
   ActionList^.DisposeObjects := true;
   VeridianApp^.PopState;
+end;
+
+procedure TDialog.CenterScreenX;
+begin
+  X := (Graph^.Mode^.Width - Width) div 2;
+end;
+
+procedure TDialog.CenterScreenY;
+begin
+  Y := (Graph^.Mode^.Height - Height) div 2;
 end;
 
 procedure TDialog.BeforeShow;
@@ -379,7 +394,7 @@ begin
   fontHeight := Font^.Height;
   if lowRes then
     fontHeight := Font^.Height;
-  GetClientOuterBounds(rect);
+  GetBounds(rect);
   totalWidth := 0;
   bWidth := Font^.TextWidth('Cancel') + 12 * Font^.Spacing;
   bHeight := fontHeight + FDialogButtons^.GetItem(0)^.Padding.Height;
@@ -607,7 +622,6 @@ constructor TFileDialog.CreateParent(const ATitle, AInitialPath: string; AParent
 begin
   CreateParent('FileDialog', ATitle, AParent);
   Buttons := [mbOk, mbCancel];
-  TString.AssignString(Title, ATitle);
 end;
 
 constructor TFileDialog.CreatreParentOptions(const ATitle, AInitialPath: string;
@@ -789,7 +803,6 @@ begin
   TString.AssignString(LastDir, GetCurrentDirectory);
   FileOptions := [];
   Include(Options, woResizeable);
-  Title := nil;
   ScrollType := scNone;
   ButtonAlign := haRight;
   CurrentDir := nil;
@@ -829,7 +842,7 @@ var
   rect: TRect;
 begin
   inherited Layout;
-  GetClientOuterBounds(rect);
+  GetBounds(rect);
   Grip^.Visible := false;
 
 

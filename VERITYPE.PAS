@@ -9,7 +9,7 @@ uses
 type
   PSpacing = ^TSpacing;
 
-  TScreenPosition = (spAbsolute, spClient, spContent, spRelative);
+  TRelativePosition = (rpAbsolute, rpParentClient, rpParentContent, rpParentRelative);
   TBorderStyle = (bsNone, bsSingle);
   TBevelStyle = (bvNone, bvLowered, bvRaised);
   THorzAlign = (haLeft, haRight, haCenter);

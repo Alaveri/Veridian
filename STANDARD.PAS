@@ -34,6 +34,7 @@ type
     procedure Layout; virtual;
     procedure Paint; virtual;
     procedure PaintGlyph; virtual;
+    procedure DrawGlyph; virtual;
     procedure SetChecked(AValue: boolean);
     procedure SetBoxSize(AValue: integer);
     procedure MouseDown(var AEvent: TMouseEvent); virtual;
@@ -49,7 +50,6 @@ type
   public
     function IsRadioButton: boolean; virtual;
     procedure Init; virtual;
-    procedure PaintGlyph; virtual;
     procedure MouseClick(var AEvent: TMouseEvent); virtual;
     procedure KeyPress(var AEvent: TKeyEvent); virtual;
   end;
@@ -75,6 +75,7 @@ type
     procedure SetMinValue(AValue: longint);
     procedure SetIncrement(AValue: longint);
     procedure SetEditable(AValue: boolean);
+    procedure Paint; virtual;
     procedure Init; virtual;
     procedure Layout; virtual;
   end;
@@ -100,12 +101,13 @@ begin
   LightColor := VeridianApp^.Colors.ButtonLight;
   DisabledColor := VeridianApp^.Colors.ButtonDisabled;
   BorderColor := VeridianApp^.Colors.ButtonBorder;
-  BoxSize := Font^.Height + 2;
-  Spacing := BoxSize div 2;
   CheckChar := #2;
   CheckOffset.CreateCoords(1, -2);
   Down := false;
-  TextOffsetY := 2;
+  TextOffsetY := 3;
+  FocusRectWidth := 1;
+  BoxSize := Font^.Height + 2 * FocusRectWidth;
+  Spacing := BoxSize div 2;
 end;
 
 function TCheckBox.IsCheckBox: boolean;
@@ -165,40 +167,44 @@ end;
 procedure TCheckBox.Layout;
 begin
   inherited Layout;
-  Padding.CreateAll(Font^.Height + Spacing, TextOffsetY, 0, 0);
   if AutoSize then begin
-    Width := ContentWidth + Padding.Width + 2 * OuterWidth;
-    Height := ContentHeight + Padding.Height + 2 * OuterWidth;
+    Width := Font^.TextWidthLarge(Caption) + 2 * FocusRectWidth
+      + BoxSize + Spacing + 1;
+    Height := BoxSize + 2 * FocusRectWidth + 1;
   end;
 end;
 
 procedure TCheckBox.Paint;
 var
   rect: TRect;
-  oldFocusBackColor: byte;
-  oldFocusColor: byte;
 begin
-  oldFocusColor := FocusedColor;
-  oldFocusBackColor := FocusedBackColor;
-  FocusedBackColor := BackColor;
-  FocusedColor := ForeColor;
-  inherited Paint;
-  FocusedBackColor := oldFocusBackColor;
-  FocusedColor := oldFocusColor;
+  TPanel.Paint;
   PaintGlyph;
+  GetDrawRect(rect);
+  Graph^.SetForeColor(ForeColor);
+  Graph^.SetBackColor(BackColor);
+  Graph^.State^.Font := Font;
+  Graph^.DrawText(rect.X + BoxSize + Spacing, rect.Y + TextOffsetY, GetCaption);
+end;
+
+procedure TCheckBox.DrawGlyph;
+begin
+  BeginDrawing;
+  PaintGlyph;
+  EndDrawing;
 end;
 
 procedure TCheckBox.PaintGlyph;
 var
-  focusRect, rect: TRect;
+  rect: TRect;
 begin
-  GetScreenBounds(rect);
+  GetDrawRect(rect);
   rect.Width := BoxSize;
   rect.Height := BoxSize;
-  focusRect.CreateRect(rect);
-  focusRect.Translate(-1, -1);
-  focusRect.Grow(2, 2);
-  Graph^.SetForeColor(BorderColor);
+  rect.Translate(FocusRectWidth, FocusRectWidth);
+  Graph^.SetBackColor(BackColor);
+  Graph^.FillRect(rect);
+  Graph^.SetBackColor(BorderColor);
   Graph^.Rectangle(rect);
   if Down then
     Graph^.SetForeColor(ShadowColor)
@@ -212,22 +218,20 @@ begin
     Graph^.SetForeColor(ShadowColor);
   Graph^.HLine(rect.X + 1, rect.Y + BoxSize - 2, BoxSize - 2);
   Graph^.VLine(rect.X + BoxSize - 2, rect.Y + 1, BoxSize - 2);
+
   if Checked then begin
-    Graph^.PushState;
     Graph^.SetForeColor(ForeColor);
     Graph^.State^.Font := CheckFont;
     Graph^.DrawText(rect.X + CheckOffset.X, rect.Y + CheckOffset.Y, CheckChar);
-    Graph^.PopState;
   end;
+  rect.Translate(-1, -1);
+  rect.Grow(2, 2);
   if CanFocus then begin
-    Graph^.PushState;
-    Graph^.State^.ViewPort := focusRect;
     if Focused then
       Graph^.SetForeColor(FocusedBackColor)
     else
       Graph^.SetForeColor(BackColor);
-    Graph^.Rectangle(focusRect);
-    Graph^.PopState;
+    Graph^.Rectangle(rect);
   end;
 end;
 
@@ -235,7 +239,7 @@ procedure TCheckBox.SetChecked(AValue: boolean);
 begin
   Checked := AValue;
   if IsVisible then
-    PaintGlyph;
+    DrawGlyph;
 end;
 
 procedure TCheckBox.SetBoxSize(AValue: integer);
@@ -264,51 +268,6 @@ begin
   inherited Init;
   CheckChar := #3;
   CheckOffset.CreateCoords(3, -1);
-end;
-
-procedure TRadioButton.PaintGlyph;
-var
-  focusRect, rect: TRect;
-begin
-  GetScreenBounds(rect);
-  rect.Width := BoxSize;
-  rect.Height := BoxSize;
-  focusRect.CreateRect(rect);
-  focusRect.Translate(-1, -1);
-  focusRect.Grow(2, 2);
-  Graph^.SetForeColor(BorderColor);
-  Graph^.SetBackColor(BackColor);
-  Graph^.FillRect(rect);
-  Graph^.Rectangle(rect);
-  if Down then
-    Graph^.SetForeColor(ShadowColor)
-  else
-    Graph^.SetForeColor(LightColor);
-  Graph^.HLine(rect.X + 1, rect.Y + 1, BoxSize - 2);
-  Graph^.VLine(rect.X + 1, rect.Y + 1, BoxSize - 2);
-  if Down then
-    Graph^.SetForeColor(LightColor)
-  else
-    Graph^.SetForeColor(ShadowColor);
-  Graph^.HLine(rect.X + 1, rect.Y + BoxSize - 2, BoxSize - 2);
-  Graph^.VLine(rect.X + BoxSize - 2, rect.Y + 1, BoxSize - 2);
-  if Checked then begin
-    Graph^.PushState;
-    Graph^.SetForeColor(ForeColor);
-    Graph^.State^.Font := CheckFont;
-    Graph^.DrawText(rect.X + CheckOffset.X, rect.Y + CheckOffset.Y, CheckChar);
-    Graph^.PopState;
-  end;
-  if CanFocus then begin
-    Graph^.PushState;
-    Graph^.State^.ViewPort := focusRect;
-    if Focused then
-      Graph^.SetForeColor(FocusedBackColor)
-    else
-      Graph^.SetForeColor(BackColor);
-    Graph^.Rectangle(focusRect);
-    Graph^.PopState;
-  end;
 end;
 
 procedure TRadioButton.DeactivateOthers;
@@ -341,7 +300,7 @@ begin
   DeactivateOthers;
   Down := false;
   Checked := true;
-  PaintGlyph;
+  DrawGlyph;
 end;
 
 procedure TRadioButton.KeyPress(var AEvent: TKeyEvent);
@@ -353,7 +312,7 @@ begin
   if AEvent.Key = 32 then begin
     DeactivateOthers;
     Checked := true;
-    PaintGlyph;
+    DrawGlyph;
     AEvent.Handled := true;
   end;
   if not AEvent.Handled then
@@ -371,6 +330,8 @@ var
 begin
   numericUpDown := PNumericUpDown(PControl(AEvent.Sender)^.Parent);
   numericUpDown^.SetValue(numericUpDown^.Value + numericUpDown^.Increment);
+  if not numericUpDown^.FEntry^.Focused then
+    numericupDown^.FEntry^.Focus;
 end;
 
 procedure NumericUpDownDecClick(var AEvent: TMouseEvent);
@@ -379,6 +340,8 @@ var
 begin
   numericUpDown := PNumericUpDown(PControl(AEvent.Sender)^.Parent);
   numericUpDown^.SetValue(numericUpDown^.Value - numericUpDown^.Increment);
+  if not numericupDown^.FEntry^.Focused then
+    numericupDown^.FEntry^.Focus;
 end;
 
 procedure NumericUpDownKeyPress(var AEvent: TKeyEvent);
@@ -414,11 +377,6 @@ procedure TNumericUpDown.Init;
 begin
   inherited Init;
   Font := VeridianApp^.GetFont('editor');
-  ForeColor := VeridianApp^.Colors.Editor;
-  BackColor := VeridianApp^.Colors.EditorBack;
-  DisabledColor := VeridianApp^.Colors.EditorDisabled;
-  FocusedColor := VeridianApp^.Colors.Focused;
-  FocusedBackColor := VeridianApp^.Colors.FocusedBack;
   CanFocus := false;
   FEntry := New(PEdit, CreateParent('Entry', @self));
   FEntry^.Font := Font;
@@ -427,6 +385,7 @@ begin
   FEntry^.ValidChars := Numeric;
   FEntry^.OnKeyPress := @NumericUpDownKeyPress;
   FEntry^.OnExit := @NumericUpDownExit;
+
   FIncButton := New(PButton, CreateParent('IncButton', @self));
   FIncButton^.SetCaption(#30);
   FIncButton^.CanFocus := false;
@@ -441,7 +400,7 @@ begin
   FEditable := true;
   FValue := 0;
   FEntry^.VertAlign := vaCenter;
-  FEntry^.Padding.CreateAll(2, 0, 2, 0);
+  FEntry^.Padding.CreateAll(3, 0, 2, 0);
 end;
 
 function TNumericUpDown.Value: longint;
@@ -467,6 +426,11 @@ end;
 function TNumericUpDown.Editable: boolean;
 begin
   Editable := FEditable;
+end;
+
+procedure TNumericUpDown.Paint;
+begin
+  inherited Paint;
 end;
 
 procedure TNumericUpDown.SetValue(AValue: longint);
@@ -516,13 +480,12 @@ var
   minWidth, maxWidth: integer;
 begin
   inherited Layout;
-  FEntry^.SetBounds(17 - FDecButton^.BorderWidth, 0, Width - 32
-    + 2 * FDecButton^.BorderWidth, Height);
+  FEntry^.SetBounds(17 - FDecButton^.BorderWidth, 0, Width - 32, Height);
   minWidth := Length(IntToStr(FMinValue));
   maxWidth := Length(IntToStr(FMaxValue));
   FEntry^.MaxLength := Max(minWidth, maxWidth);
-  FIncButton^.SetBounds(0, 0, 17, Height);
-  FDecButton^.SetBounds(Width - 17, 0, 17, Height);
+  FDecButton^.SetBounds(0, 0, 17, Height);
+  FIncButton^.SetBounds(Width - 17, 0, 17, Height);
 end;
 
 end.
