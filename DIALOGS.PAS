@@ -394,7 +394,7 @@ begin
   fontHeight := Font^.Height;
   if lowRes then
     fontHeight := Font^.Height;
-  GetOriginRect(rect);
+  GetPaintRect(rect);
   totalWidth := 0;
   bWidth := Font^.TextWidth('Cancel') + 12 * Font^.Spacing;
   bHeight := fontHeight + FDialogButtons^.GetItem(0)^.Padding.Height;

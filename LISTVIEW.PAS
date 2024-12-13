@@ -238,11 +238,13 @@ end;
 procedure TListView.GetAdjustedDrawRect(var ARect: TRect);
 begin
   inherited GetAdjustedDrawRect(ARect);
+  ARect.Grow(OuterWidth, 0);
 end;
 
 procedure TListView.GetAdjustedClipRect(var ARect: TRect);
 begin
   inherited GetAdjustedClipRect(ARect);
+  ARect.Grow(OuterWidth, 0);
 end;
 
 procedure TListView.SetSelectedIndex(AIndex: integer);
@@ -265,6 +267,8 @@ begin
   if itemRect.Y < rect.Y + ScrollY then
     ScrollVert((SelectedIndex - previousIndex) * itemRect.Height);
   BeginDrawing;
+  GetAdjustedClipRect(rect);
+  Graph^.SetViewPort(rect);
   PaintItem(previousIndex);
   PaintItem(SelectedIndex);
   EndDrawing;
@@ -328,8 +332,7 @@ procedure TListView.PaintItem(AIndex: integer);
 var
   rect, itemRect: TRect;
   item: PListItem;
-  viewRect: TRect;
-  clipRect: TRect;
+  clipRect, viewRect: TRect;
 begin
   if not VeridianApp^.State.DrawEnabled then
     exit;
@@ -340,6 +343,8 @@ begin
   item := Items^.GetItem(AIndex);
   Graph^.SetForeColor(ForeColor);
   Graph^.SetBackColor(BackColor);
+  GetAdjustedClipRect(clipRect);
+  Graph^.SetViewPort(clipRect);
   if AIndex = SelectedIndex then begin
     if Focused then begin
       Graph^.SetForeColor(SelectedColor);
@@ -352,8 +357,6 @@ begin
   end;
   GetItemRect(AIndex, itemRect);
   itemRect.Translate(-ScrollX, -ScrollY);
-  GetAdjustedClipRect(clipRect);
-  Graph^.State^.ViewPort := clipRect;
   Graph^.FillRect(itemRect);
   Graph^.DrawTextLarge(itemRect.X + Padding.Left,
     itemRect.Y + ItemSpacing div 2, item^.Text);
@@ -446,17 +449,20 @@ procedure TListView.SetScrollBarBounds(AOrientation: TScrollOrientation);
 begin
   inherited SetScrollBarBounds(AOrientation);
   if AOrientation = soHorizontal then begin
-    Inc(VertScrollBar^.X, OuterWidth);
+    Dec(HorzScrollBar^.X, OuterWidth);
+    Inc(HorzScrollBar^.X, OuterWidth);
+    Inc(HorzScrollBar^.Width, 2 * OuterWidth);
   end
   else begin
     Dec(VertScrollBar^.Y, OuterWidth);
-    Inc(VertScrollBar^.Height, OuterWidth);
+    Inc(VertScrollBar^.X, OuterWidth);
+    Inc(VertScrollBar^.Height, 2 * OuterWidth);
   end;
 end;
 
 procedure TListView.Draw;
 begin
-  inherited Draw;
+   inherited Draw;
 end;
 
 procedure TListView.DrawControls;
@@ -498,6 +504,7 @@ var
   oldFocusedColor: longint;
   oldFocusedBackColor: longint;
   yPos: integer;
+  clipRect: TRect;
 begin
   if not IsVisible then
     exit;
@@ -508,6 +515,8 @@ begin
   inherited Paint(ARect);
   FocusedColor := oldFocusedColor;
   FocusedBackColor := oldFocusedBackColor;
+  GetAdjustedClipRect(clipRect);
+  Graph^.SetViewPort(clipRect);
   for index := 0 to Items^.Count - 1 do
     PaintItem(index);
   Graph^.SetBackColor(BackColor);
@@ -743,13 +752,11 @@ end;
 
 procedure TDropDownList.Paint(ARect: TRect);
 var
-  rect: TRect;
   pos: TPoint;
   txt: string;
 begin
   if not IsVisible then
     exit;
-  GetDrawRect(rect);
   Graph^.State^.Font := Font;
   Graph^.SetForeColor(ForeColor);
   Graph^.SetBackColor(BackColor);
@@ -758,8 +765,8 @@ begin
   if CanFocus and Focused then
     Graph^.SetBackColor(FocusedBackColor);
   if not TransparentBack then
-    Graph^.FillRect(rect);
-  GetTextAlign(rect, pos);
+    Graph^.FillRect(ARect);
+  GetTextAlign(ARect, pos);
   Graph^.SetForeColor(ForeColor);
   Graph^.SetBackColor(BackColor);
   if not IsEnabled then begin
@@ -773,7 +780,7 @@ begin
   Graph^.DrawText(pos.X + BorderWidth, pos.Y, txt);
   Graph^.SetForeColor(BorderColor);
   if BorderStyle <> bsNone then
-    Graph^.Rectangle(rect);
+    Graph^.Rectangle(ARect);
 end;
 
 procedure TDropDownList.ShowList;
@@ -783,7 +790,7 @@ var
 begin
   if FList^.IsVisible then
     exit;
-  GetOriginRect(rect);
+  GetPaintRect(rect);
   Layout(rect);
   Inc(Height, FList^.Height);
   VeridianApp^.ActiveDropDown := @self;
@@ -900,16 +907,15 @@ begin
 
   AutoSizeControl;
   itemCount := Min(FList^.Items^.Count, MaxItems);
-  listHeight := itemCount * FList^.ItemHeight + 2 * OuterWidth + Padding.Height;
-  listBounds.CreateDims(ARect.X, ARect.Height, ARect.Width, listHeight);
+  listHeight := itemCount * FList^.ItemHeight + 2 * OuterWidth;
+  listBounds.CreateDims(ARect.X, ARect.Bottom, ARect.Width, listHeight);
   FList^.SetBoundsRect(listBounds);
   FList^.VertScrollBar^.Visible := FList^.Items^.Count > MaxItems;
   FList^.BringToFront;
-  Width := listBounds.Width;
 
   FButton^.CanFocus := false;
   FButton^.SetBounds(
-    Width - FButtonSize - 1,
+    ARect.Width - FButtonSize,
     0,
     FButtonSize,
     FButtonSize

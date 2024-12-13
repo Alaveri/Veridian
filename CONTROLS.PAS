@@ -190,14 +190,16 @@ type
     function CalculatedX: integer;
     function CalculatedY: integer;
     procedure GetBounds(var ARect: TRect);
-    procedure GetOriginRect(var ARect: TRect);
+    procedure GetPaintRect(var ARect: TRect);
     procedure GetCalculatedBounds(var ARect: TRect);
     procedure GetClientRect(var ARect: TRect);
     procedure GetContentRect(var ARect: TRect);
     procedure GetContentScreenRect(var ARect: TRect);
+    procedure GetClientScreenRect(var ARect: TRect);
     procedure GetScreenBounds(var ARect: TRect);
     procedure GetClipRect(var ARect: TRect);
     procedure GetDrawRect(var ARect: TRect);
+    procedure OffsetRect(AControl: PControl; var ARect: TRect);
 
     procedure SetWidthHeight(AWidth, AHeight: word); virtual;
     procedure SetWidth(AWidth: word); virtual;
@@ -843,7 +845,7 @@ var
 begin
   if not IsVisible then
     exit;
-  GetOriginRect(rect);
+  GetPaintRect(rect);
   Layout(rect);
   if not VeridianApp^.State.DrawEnabled then
     exit;
@@ -1124,7 +1126,7 @@ begin
   ARect.CreateDims(X, Y, Width, Height);
 end;
 
-procedure TControl.GetOriginRect(var ARect: TRect);
+procedure TControl.GetPaintRect(var ARect: TRect);
 begin
   ARect.CreateDims(0, 0, Width, Height);
 end;
@@ -1147,6 +1149,12 @@ end;
 procedure TControl.GetContentScreenRect(var ARect: TRect);
 begin
   GetContentRect(ARect);
+  ARect.Translate(ScreenX, ScreenY);
+end;
+
+procedure TControl.GetClientScreenRect(var ARect: TRect);
+begin
+  GetClientRect(ARect);
   ARect.Translate(ScreenX, ScreenY);
 end;
 
@@ -1193,15 +1201,16 @@ begin
   ARect.CreateDims(ScreenX, ScreenY, Width, Height);
 end;
 
-procedure TControl.GetDrawRect(var ARect: TRect);
-  procedure OffsetRect(AControl: PControl; var ARect: TRect);
-  begin
-    if Assigned(AControl^.Parent) then begin
-      if AControl^.Position = rpParentContent then
-        ARect.Translate(AControl^.Parent^.ContentOffsetX, AControl^.Parent^.ContentOffsetY);
-      OffsetRect(AControl^.Parent, ARect);
-    end;
+procedure TControl.OffsetRect(AControl: PControl; var ARect: TRect);
+begin
+  if Assigned(AControl^.Parent) then begin
+    if AControl^.Position = rpParentContent then
+      ARect.Translate(AControl^.Parent^.ContentOffsetX, AControl^.Parent^.ContentOffsetY);
+    OffsetRect(AControl^.Parent, ARect);
   end;
+end;
+
+procedure TControl.GetDrawRect(var ARect: TRect);
 begin
   GetScreenBounds(ARect);
   OffsetRect(@self, ARect);
@@ -1211,17 +1220,18 @@ procedure TControl.GetClipRect(var ARect: TRect);
 var
   parentRect: TRect;
   par: PControl;
+  current: PControl;
 begin
   GetDrawRect(ARect);
   if not Assigned(Parent) then
     exit;
   case Position of
-    rpParentContent: Parent^.GetContentRect(parentRect);
-    rpParentClient: Parent^.GetClientRect(parentRect);
-    rpParentRelative: Parent^.GetOriginRect(parentRect);
+    rpParentContent: Parent^.GetContentScreenRect(parentRect);
+    rpParentClient: Parent^.GetClientScreenRect(parentRect);
+    rpParentRelative: Parent^.GetScreenBounds(parentRect);
     rpAbsolute: exit;
   end;
-  parentRect.Translate(Parent^.ScreenX, Parent^.ScreenY);
+  Parent^.OffsetRect(Parent, parentRect);
   ARect.Intersect(parentRect);
   par := Parent;
   while Assigned(par) do begin
@@ -1229,6 +1239,26 @@ begin
     ARect.Intersect(parentRect);
     par := par^.Parent;
   end;
+
+
+
+{  if not Assigned(Parent) then
+    exit;
+  case Position of
+    rpParentContent: Parent^.GetContentRect(parentRect);
+    rpParentClient: Parent^.GetClientRect(parentRect);
+    rpParentRelative: Parent^.GetPaintRect(parentRect);
+    rpAbsolute: exit;
+  end;
+  parentRect.Translate(Parent^.ScreenX, Parent^.ScreenY);
+  ARect.Intersect(parentRect);
+  current := Parent;
+  par := Parent;
+  while Assigned(par) do begin
+    current^.GetClipRect(parentRect);
+    ARect.Intersect(parentRect);
+    par := par^.Parent;
+  end;}
 end;
 
 procedure TControl.SetBounds(APX, APY: integer; AWidth, AHeight: integer);
@@ -1281,7 +1311,6 @@ var
 begin
   VeridianApp^.PushState;
   VeridianApp^.CursorOff;
-  Graph^.WaitForVSync;
   InternalPaintRegion(ARect, AExclude);
   VeridianApp^.PopState;
 end;
@@ -1290,7 +1319,7 @@ procedure TControl.InternalPaintRegion(ARect: TRect; AExclude: PControl);
 var
   index: integer;
   control: PControl;
-  rect: TRect;
+  clipRect, rect: TRect;
 begin
   if (@self = AExclude) or not IsVisible then
     exit;
@@ -1518,12 +1547,12 @@ begin
   case HorzAlign of
     haLeft: AResult.X := ABounds.X + Padding.Left;
     haRight: AResult.X := ABounds.Right - ASize.Width - Padding.Right;
-    haCenter: AResult.X := ABounds.X + Round(ABounds.Width - ASize.Width) div 2;
+    haCenter: AResult.X := ABounds.X + Round((ABounds.Width - ASize.Width) / 2);
   end;
   case VertAlign of
     vaTop: AResult.Y := ABounds.Y + Padding.Top;
     vaBottom: AResult.Y := ABounds.Bottom - ASize.Height - Padding.Bottom;
-    vaCenter: AResult.Y := ABounds.Y + (ABounds.Height - ASize.Height) div 2;
+    vaCenter: AResult.Y := ABounds.Y + Round((ABounds.Height - ASize.Height) div 2);
   end;
 end;
 
@@ -2032,7 +2061,7 @@ var
 begin
   inherited CreateParent(AId, AParent);
   Caption := TString.New(ACaption);
-  GetOriginRect(rect);
+  GetPaintRect(rect);
   Layout(rect);
 end;
 
@@ -2212,7 +2241,7 @@ var
   size: longint;
 begin
   BeginDrawing;
-  GetOriginRect(rect);
+  GetPaintRect(rect);
   Layout(rect);
   GetScreenBounds(rect);
   FreeAndNil(FBackBuffer);

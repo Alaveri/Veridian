@@ -226,9 +226,9 @@ begin
   Desktop^.Font := SystemFont;
   InitActions;
   InitControls;
-  Desktop^.GetOriginRect(rect);
+  Desktop^.GetPaintRect(rect);
   Desktop^.Layout(rect);
-  MenuBar^.GetOriginRect(rect);
+  MenuBar^.GetPaintRect(rect);
   MenuBar^.Layout(rect);
   Keyboard.GetKey;
   FNewWindowX := 10;
@@ -264,7 +264,7 @@ begin
   FMemLabel^.SetBackColor(MenuBar^.BackColor);
   FMemLabel^.Font := Fonts^.GetItemById('editor');
   FMemLabel^.AutoSize := true;
-  FMemLabel^.GetOriginRect(rect);
+  FMemLabel^.GetPaintRect(rect);
   FMemLabel^.Layout(rect);
   {$ENDIF}
 end;
@@ -621,7 +621,7 @@ begin
     end;
   end;
 
-  AControl^.GetDrawRect(drawRect);
+  AControl^.GetClipRect(drawRect);
   if drawRect.Contains(AMouseState.X, AMouseState.Y) then
     GetMouseControl := AControl;
 end;
@@ -826,8 +826,6 @@ begin
   case AEvent.Key of
     kyTab: begin
       MenuManager.CloseAllMenus;
-      if Assigned(ActiveDropDown) then
-        ActiveDropDown^.HideList;
       if Assigned(ActiveDropDown) then
         ActiveDropDown^.HideList;
       if Assigned(ActiveControl) then begin
@@ -1063,7 +1061,7 @@ begin
     LastDragRect.Assign(DragRect);
   end
   else
-    MoveMouseCursor(FMouseState, FOldMouseState, true);
+    MoveMouseCursor(FMouseState, FOldMouseState, false);
 end;
 
 procedure TVeridianApp.HandleDoubleClick(ATime: TDateTime; AControl: PControl; var AEvent: TMouseEvent);
