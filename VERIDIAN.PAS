@@ -83,7 +83,7 @@ type
     function LoadFont(const AFilename: string): PFont;
     function CreateDesktop: PDesktop; virtual;
     function HandleWindowSwitch: boolean;
-    procedure GetFocusList(AList: PControlList; AControl: PControl);
+    procedure GetFocusList(AList: PObjectList; AControl: PControl);
     procedure CreateObjects;
     procedure LoadFonts;
     procedure BeginWindowSwitch;
@@ -708,9 +708,9 @@ begin
 
   if control1^.Parent = control2^.Parent then begin
     if Assigned(focusControl1) and Assigned(focusControl2) then begin
-      if focusControl1^.TabOrder < focusControl2^.TabOrder then
+      if focusControl1^.TabOrder > focusControl2^.TabOrder then
         TabOrderCompare := -1
-      else if focusControl1^.TabOrder > focusControl2^.TabOrder then
+      else if focusControl1^.TabOrder < focusControl2^.TabOrder then
         TabOrderCompare := 1
       else
         TabOrderCompare := 0;
@@ -726,15 +726,15 @@ begin
     TabOrderCompare := 0;
 end;
 
-procedure TVeridianApp.GetFocusList(AList: PControlList; AControl: PControl);
+procedure TVeridianApp.GetFocusList(AList: PObjectList; AControl: PControl);
 var
   control: PControl;
   focusControl: PFocusControl;
   index: integer;
-  result: PControlList;
+  result: PObjectList;
 begin
   if not Assigned(AList) then
-    AList := New(PControlList, CreateSorted(TabOrderCompare));
+    AList := New(PObjectList, CreateSorted(TabOrderCompare));
   for index := 0 to AControl^.Controls^.Count - 1 do begin
     control := AControl^.Controls^.GetItem(index);
     GetFocusList(AList, control);
@@ -751,7 +751,7 @@ var
   parent: PControl;
   current: PControl;
   next: PFocusControl;
-  focusList: PControlList;
+  focusList: PObjectList;
   controlIndex: integer;
   currentIndex: integer;
 begin
@@ -763,7 +763,7 @@ begin
     current := current^.Parent;
   if not Assigned(current) then
     exit;
-  focusList := New(PControlList, CreateSorted(TabOrderCompare));
+  focusList := New(PObjectList, CreateSorted(TabOrderCompare));
   focusList^.DisposeObjects := false;
   if Assigned(ActiveWindow) then
     GetFocusList(focusList, ActiveWindow)

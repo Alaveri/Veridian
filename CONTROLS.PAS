@@ -195,6 +195,7 @@ type
     procedure GetClientRect(var ARect: TRect);
     procedure GetContentRect(var ARect: TRect);
     procedure GetContentScreenRect(var ARect: TRect);
+    procedure GetContentDrawRect(var ARect: TRect);
     procedure GetClientScreenRect(var ARect: TRect);
     procedure GetScreenBounds(var ARect: TRect);
     procedure GetClipRect(var ARect: TRect);
@@ -340,6 +341,10 @@ type
     ActionList: PActionList;
     procedure Init; virtual;
     procedure Layout(ARect: TRect); virtual;
+    function ContentX: integer; virtual;
+    function ContentY: integer; virtual;
+    function ContentWidth: integer; virtual;
+    function ContentHeight: integer; virtual;
     function CreateControlList: PControlList; virtual;
     destructor Free; virtual;
   end;
@@ -1063,14 +1068,6 @@ begin
   ClientX := Padding.Left + OuterWidth;
 end;
 
-function TControl.ContentX: integer;
-var
-  result: integer;
-begin
-  result := ClientX;
-  ContentX := result;
-end;
-
 function TControl.CalculatedY: integer;
 var
   result: integer;
@@ -1093,6 +1090,14 @@ begin
   ClientY := Padding.Top + OuterWidth;
 end;
 
+function TControl.ContentX: integer;
+var
+  result: integer;
+begin
+  result := ClientX;
+  ContentX := result;
+end;
+
 function TControl.ContentY: integer;
 var
   result: integer;
@@ -1103,12 +1108,12 @@ end;
 
 function TControl.ClientWidth: integer;
 begin
-  ClientWidth := Width - OuterWidth * 2 - Padding.Width;
+  ClientWidth := Width - 2 * OuterWidth - Padding.Width;
 end;
 
 function TControl.ClientHeight: integer;
 begin
-  ClientHeight := Height - OuterWidth * 2 - Padding.Height;
+  ClientHeight := Height - 2 * OuterWidth - Padding.Height;
 end;
 
 function TControl.ContentWidth: integer;
@@ -1150,6 +1155,12 @@ procedure TControl.GetContentScreenRect(var ARect: TRect);
 begin
   GetContentRect(ARect);
   ARect.Translate(ScreenX, ScreenY);
+end;
+
+procedure TControl.GetContentDrawRect(var ARect: TRect);
+begin
+  GetContentScreenRect(ARect);
+  OffsetRect(@self, ARect);
 end;
 
 procedure TControl.GetClientScreenRect(var ARect: TRect);
@@ -1239,26 +1250,6 @@ begin
     ARect.Intersect(parentRect);
     par := par^.Parent;
   end;
-
-
-
-{  if not Assigned(Parent) then
-    exit;
-  case Position of
-    rpParentContent: Parent^.GetContentRect(parentRect);
-    rpParentClient: Parent^.GetClientRect(parentRect);
-    rpParentRelative: Parent^.GetPaintRect(parentRect);
-    rpAbsolute: exit;
-  end;
-  parentRect.Translate(Parent^.ScreenX, Parent^.ScreenY);
-  ARect.Intersect(parentRect);
-  current := Parent;
-  par := Parent;
-  while Assigned(par) do begin
-    current^.GetClipRect(parentRect);
-    ARect.Intersect(parentRect);
-    par := par^.Parent;
-  end;}
 end;
 
 procedure TControl.SetBounds(APX, APY: integer; AWidth, AHeight: integer);
@@ -1319,25 +1310,25 @@ procedure TControl.InternalPaintRegion(ARect: TRect; AExclude: PControl);
 var
   index: integer;
   control: PControl;
-  clipRect, rect: TRect;
+  rect: TRect;
 begin
   if (@self = AExclude) or not IsVisible then
     exit;
   if ARect.IsEmpty then
     exit;
 
-  BeginDrawing;
-  Graph^.SetViewPort(ARect);
   GetDrawRect(rect);
+  if not rect.IntersectsRect(ARect) then
+    exit;
+
+  BeginDrawing;
+  ARect.Intersect(Graph^.State^.ViewPort);
+  Graph^.SetViewPort(ARect);
   Paint(rect);
   EndDrawing;
 
   for index := 0 to Controls^.Count - 1 do begin
     control := Controls^.GetItem(index);
-    control^.GetDrawRect(rect);
-    if not rect.IntersectsRect(ARect) then
-      continue;
-    rect.Intersect(ARect);
     control^.InternalPaintRegion(ARect, AExclude);
   end;
 end;
@@ -1825,10 +1816,10 @@ var
 begin
   if not IsVisibleAndEnabled then
     exit;
-  if not Clickable then
-    exit;
   if CanFocus then
     Focus;
+  if not Clickable then
+    exit;
   if bsLeft in AEvent.NewMouseState.ButtonState then
     VeridianApp^.LeftMouseDownControl := @self
   else if bsRight in AEvent.NewMouseState.ButtonState then
@@ -1853,7 +1844,7 @@ procedure TButton.MouseEnter(var AEvent: TMouseEvent);
 begin
   if not IsVisibleAndEnabled then
     exit;
-  if VeridianApp^.LeftMouseDownControl = @self then begin
+  if (VeridianApp^.LeftMouseDownControl = @self) and Clickable then begin
     Down := true;
     DrawSelf;
   end;
@@ -1863,7 +1854,7 @@ procedure TButton.MouseLeave(var AEvent: TMouseEvent);
 begin
   if not IsVisibleAndEnabled then
     exit;
-  if VeridianApp^.LeftMouseDownControl = @self then begin
+  if (VeridianApp^.LeftMouseDownControl = @self) and Clickable then begin
     Down := false;
     DrawSelf;
   end;
@@ -2036,6 +2027,38 @@ begin
   ForeColor := VeridianApp^.Colors.Desktop;
   BackColor := VeridianApp^.Colors.DesktopBack;
   ActionList := New(PActionList, Create);
+end;
+
+function TDesktop.ContentX: integer;
+begin
+  ContentX := 0;
+end;
+
+function TDesktop.ContentY: integer;
+var
+  result: integer;
+begin
+  result := 0;
+  if VeridianApp^.MenuBar^.Visible then
+    Inc(result, VeridianApp^.MenuBar^.Height);
+  ContentY := result;
+end;
+
+function TDesktop.ContentWidth: integer;
+begin
+  ContentWidth := 0;
+end;
+
+function TDesktop.ContentHeight: integer;
+var
+  result: integer;
+begin
+  result := 0;
+  if VeridianApp^.MenuBar^.Visible then
+    Dec(result, VeridianApp^.MenuBar^.Height);
+  if VeridianApp^.TaskBar^.Visible then
+    Dec(result, VeridianApp^.TaskBar^.Height);
+  ContentHeight := result;
 end;
 
 function TDesktop.CreateControlList: PControlList;

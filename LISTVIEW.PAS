@@ -91,14 +91,16 @@ type
     function SelectedItem: PListItem;
     function GetSelectedIndex(AEvent: TMouseEvent): integer;
     function ItemHeight: integer;
+    function ContentWidth: integer; virtual;
+    function ContentHeight: integer; virtual;
+    function ContentX: integer; virtual;
+    function ContentY: integer; virtual;
     procedure GetContentExtent(var ASize: TSize); virtual;
     procedure Focus; virtual;
     procedure UnFocus; virtual;
     procedure Init; virtual;
     procedure Paint(ARect: TRect); virtual;
     procedure Layout(ARect: TRect); virtual;
-    procedure GetAdjustedDrawRect(var ARect: TRect); virtual;
-    procedure GetAdjustedClipRect(var ARect: TRect); virtual;
     procedure SetSelectedIndex(AIndex: integer);
     procedure KeyPress(var AEvent: TKeyEvent); virtual;
     procedure MouseDown(var AEvent: TMouseEvent); virtual;
@@ -235,18 +237,6 @@ begin
   AutoHeight := false;
 end;
 
-procedure TListView.GetAdjustedDrawRect(var ARect: TRect);
-begin
-  inherited GetAdjustedDrawRect(ARect);
-  ARect.Grow(OuterWidth, 0);
-end;
-
-procedure TListView.GetAdjustedClipRect(var ARect: TRect);
-begin
-  inherited GetAdjustedClipRect(ARect);
-  ARect.Grow(OuterWidth, 0);
-end;
-
 procedure TListView.SetSelectedIndex(AIndex: integer);
 var
   index: integer;
@@ -260,14 +250,15 @@ begin
     exit;
   previousindex := SelectedIndex;
   SelectedIndex := index;
-  GetAdjustedDrawRect(rect);
+  GetContentDrawRect(rect);
   GetItemRect(SelectedIndex, itemRect);
-  if itemRect.Y >= rect.Bottom + ScrollY then
+  if itemRect.Y >= rect.Bottom then
     ScrollVert((SelectedIndex - previousIndex) * itemRect.Height);
-  if itemRect.Y < rect.Y + ScrollY then
+  if itemRect.Y < rect.Y then
     ScrollVert((SelectedIndex - previousIndex) * itemRect.Height);
   BeginDrawing;
-  GetAdjustedClipRect(rect);
+  GetClipRect(rect);
+  rect.Intersect(Graph^.State^.ViewPort);
   Graph^.SetViewPort(rect);
   PaintItem(previousIndex);
   PaintItem(SelectedIndex);
@@ -313,9 +304,10 @@ procedure TListView.GetItemRect(AIndex: integer; var ARect: TRect);
 var
   cx: integer;
   cy: integer;
-  clipRect, rect: TRect;
+  rect: TRect;
 begin
-  GetAdjustedDrawRect(rect);
+  GetContentDrawRect(rect);
+  rect.Translate(ContentOffsetX, ContentOffsetY);
   cy := rect.Y + AIndex * ItemHeight;
   ARect.CreateDims(rect.X, cy, rect.Width, ItemHeight);
 end;
@@ -343,8 +335,6 @@ begin
   item := Items^.GetItem(AIndex);
   Graph^.SetForeColor(ForeColor);
   Graph^.SetBackColor(BackColor);
-  GetAdjustedClipRect(clipRect);
-  Graph^.SetViewPort(clipRect);
   if AIndex = SelectedIndex then begin
     if Focused then begin
       Graph^.SetForeColor(SelectedColor);
@@ -355,11 +345,53 @@ begin
       Graph^.SetBackColor(UnfocusedSelectBackColor);
     end;
   end;
+  Graph^.PushState;
   GetItemRect(AIndex, itemRect);
-  itemRect.Translate(-ScrollX, -ScrollY);
+  GetClipRect(clipRect);
+  clipRect.Translate(OuterWidth, OuterWidth);
+  clipRect.Grow(-2 * OuterWidth, -2 * OuterWidth);
+  clipRect.Intersect(Graph^.State^.ViewPort);
+  Graph^.SetViewPort(clipRect);
   Graph^.FillRect(itemRect);
   Graph^.DrawTextLarge(itemRect.X + Padding.Left,
     itemRect.Y + ItemSpacing div 2, item^.Text);
+  Graph^.PopState;
+end;
+
+function TListView.ContentX: integer;
+var
+  result: integer;
+begin
+  result := inherited ContentX;
+  Dec(result, Padding.Left);
+  ContentX := result;
+end;
+
+function TListView.ContentY: integer;
+var
+  result: integer;
+begin
+  result := inherited ContentY;
+  Dec(result, Padding.Top);
+  ContentY := result;
+end;
+
+function TListView.ContentWidth: integer;
+var
+  result: integer;
+begin
+  result := inherited ContentWidth;
+  Inc(result, Padding.Width);
+  ContentWidth := result;
+end;
+
+function TListView.ContentHeight: integer;
+var
+  result: integer;
+begin
+  result := inherited ContentHeight;
+  Inc(result, Padding.Height);
+  ContentHeight := result;
 end;
 
 function TListView.GetSelectedIndex(AEvent: TMouseEvent): integer;
@@ -403,7 +435,7 @@ begin
   previousindex := SelectedIndex;
   SelectedIndex := GetSelectedIndex(AEvent);
   SelectedIndex := Clamp(SelectedIndex, 0, Items^.Count - 1);
-  GetAdjustedClipRect(rect);
+  GetClipRect(rect);
   BeginDrawing;
   PaintItem(previousIndex);
   PaintItem(SelectedIndex);
@@ -431,7 +463,7 @@ begin
   if not Focused then
     exit;
   AEvent.Handled := true;
-  GetAdjustedDrawRect(rect);
+  GetDrawRect(rect);
   case AEvent.Key of
     kyDown: ChangeSelect(1);
     kyUp: ChangeSelect(-1);
@@ -515,16 +547,15 @@ begin
   inherited Paint(ARect);
   FocusedColor := oldFocusedColor;
   FocusedBackColor := oldFocusedBackColor;
-  GetAdjustedClipRect(clipRect);
-  Graph^.SetViewPort(clipRect);
+
   for index := 0 to Items^.Count - 1 do
     PaintItem(index);
-  Graph^.SetBackColor(BackColor);
+{  Graph^.SetBackColor(BackColor);
   if Items^.Count * ItemHeight < ARect.Height then begin
     yPos := ARect.Y + Items^.Count * ItemHeight;
     ARect.CreateDims(ARect.X, yPos, ARect.Width, ARect.Bottom - yPos);
     Graph^.FillRect(ARect);
-  end;
+  end;}
 end;
 
 constructor TListItems.Create(AOwner: PListView);
@@ -696,14 +727,20 @@ end;
 procedure TDropDownListView.Layout(ARect: TRect);
 var
   max: longint;
-  rect: TRect;
-  size: integer;
+  maxItems, itemCount, listHeight, size: integer;
 begin
-  GetClientRect(rect);
+  inherited Layout(ARect);
+  maxItems := PDropDownList(Parent)^.MaxItems;
+  itemCount := Min(Items^.Count, maxItems);
+  listHeight := itemCount * ItemHeight + 2 * Parent^.OuterWidth;
+  VertScrollBar^.Height := listHeight;
+  Height := listHeight;
+  VertScrollBar^.Visible := Items^.Count > maxItems;
   VertScrollbar^.Increment := ItemHeight;
-  VertScrollbar^.PageIncrement := Round(rect.Height / ItemHeight) * ItemHeight;
+  VertScrollbar^.PageIncrement := Round(ARect.Height / ItemHeight) * ItemHeight;
+
   max := Items^.Count * ItemHeight;
-  Dec(max, rect.Height);
+  Dec(max, Height);
   VertScrollBar^.Max := AplMath.MaxL(0, max);
 end;
 
@@ -792,6 +829,8 @@ begin
     exit;
   GetPaintRect(rect);
   Layout(rect);
+  FList^.GetPaintRect(rect);
+  FList^.Layout(rect);
   Inc(Height, FList^.Height);
   VeridianApp^.ActiveDropDown := @self;
   VeridianApp^.ActiveControl := nil;
@@ -897,7 +936,7 @@ end;
 
 procedure TDropDownList.Layout(ARect: TRect);
 var
-  listBounds: TRect;
+  rect, listBounds: TRect;
   listHeight, itemCount: integer;
 begin
   inherited Layout(ARect);
@@ -910,7 +949,6 @@ begin
   listHeight := itemCount * FList^.ItemHeight + 2 * OuterWidth;
   listBounds.CreateDims(ARect.X, ARect.Bottom, ARect.Width, listHeight);
   FList^.SetBoundsRect(listBounds);
-  FList^.VertScrollBar^.Visible := FList^.Items^.Count > MaxItems;
   FList^.BringToFront;
 
   FButton^.CanFocus := false;

@@ -69,8 +69,8 @@ type
     FOldActionList: PActionList;
     function CreateAction(AButton: TDialogButtonType; AText: string;
       AShortCut: word): PAction;
+    function CreateButton(AButton: TDialogButtonType): PDialogButton;
     procedure CreateButtons;
-    procedure CreateButton(AButton: TDialogButtonType);
     procedure Prepare;
     procedure CleanUp;
     function IsDialogButton: boolean; virtual;
@@ -265,7 +265,7 @@ begin
   CreateAction := newAction;
 end;
 
-procedure TDialog.CreateButton(AButton: TDialogButtonType);
+function TDialog.CreateButton(AButton: TDialogButtonType): PDialogButton;
 var
   button: PDialogButton;
   newId: string;
@@ -284,17 +284,27 @@ begin
   button^.Action^.ShortCut := button^.GetAltHotKey;
   button^.ButtonType := AButton;
   FDialogButtons^.Insert(0, button);
+  CreateButton := button;
 end;
 
 procedure TDialog.CreateButtons;
 var
   index: TDialogButtonType;
+  tabOrderValue, tabOrderIndex: integer;
+  button: PButton;
 begin
   if (CancelButton = mbNone) and (mbCancel in Buttons) then
     CancelButton := mbCancel;
+  tabOrderValue := 0;
   for index := High(TDialogButtonType) downto Succ(mbNone) do begin
     if index in Buttons then
-      CreateButton(index);
+      button := CreateButton(index);
+  end;
+  tabOrderValue := 0;
+  for tabOrderIndex := 0 to FDialogButtons^.Count - 1 do begin
+    button := FDialogButtons^.GetItem(tabOrderIndex);
+    button^.TabOrder := tabOrderValue;
+    Inc(tabOrderValue);
   end;
 end;
 
@@ -352,7 +362,6 @@ begin
   Grip^.Visible := false;
   TitleBar^.MinimizeButton^.Visible := false;
   TitleBar^.MaximizeButton^.Visible := false;
-  Position := rpAbsolute;
   ActionList := New(PActionList, Create);
   ActionList^.DisposeObjects := true;
   VeridianApp^.PopState;
@@ -378,7 +387,6 @@ end;
 
 procedure TDialog.Layout(ARect: TRect);
 var
-  rect: TRect;
   bx, by, bWidth, bHeight: integer;
   index: integer;
   control: PControl;
@@ -394,11 +402,10 @@ begin
   fontHeight := Font^.Height;
   if lowRes then
     fontHeight := Font^.Height;
-  GetPaintRect(rect);
   totalWidth := 0;
   bWidth := Font^.TextWidth('Cancel') + 12 * Font^.Spacing;
   bHeight := fontHeight + FDialogButtons^.GetItem(0)^.Padding.Height;
-  by := rect.Height - bHeight - fontHeight div 2;
+  by := ARect.Height - bHeight - fontHeight div 2;
   for index := 0 to FDialogButtons^.Count - 1 do begin
     button := PDialogButton(FDialogButtons^.GetItem(index));
     Inc(totalWidth, bWidth);
@@ -406,9 +413,9 @@ begin
       Inc(totalWidth, 2);
   end;
   case ButtonAlign of
-    haLeft: bx := rect.X + fontHeight div 2 + OuterWidth;
-    haRight: bx := rect.Right - totalWidth - fontHeight div 2 - OuterWidth;
-    haCenter: bx := rect.X + (rect.Width - totalWidth) div 2;
+    haLeft: bx := ARect.X + fontHeight div 2 + OuterWidth;
+    haRight: bx := ARect.Right - totalWidth - fontHeight div 2 - OuterWidth;
+    haCenter: bx := ARect.X + (ARect.Width - totalWidth) div 2;
   end;
   for index := 0 to FDialogButtons^.Count - 1 do begin
     button := PDialogButton(FDialogButtons^.GetItem(index));
@@ -461,6 +468,10 @@ begin
   inherited KeyPress(AEvent);
   if AEvent.Handled then
     exit;
+  if AEvent.Key = kyLeft then
+    AEvent.Key := kyShiftTab;
+  if AEvent.Key = kyRight then
+    AEvent.Key := kyTab;
   Owner^.KeyPress(AEvent);
 end;
 
@@ -798,6 +809,7 @@ procedure TFileDialog.Init;
 var
   lowRes: boolean;
   rect: TRect;
+  button: PButton;
 begin
   inherited Init;
   LastDir := nil;
@@ -825,7 +837,7 @@ begin
   Width := ScaleX(50);
   Height := ScaleY(70);
   CenterScreen;
-  Padding.CreateValue(4);
+  Padding.CreateValue(2);
   GetScreenBounds(rect);
   Layout(rect);
   VeridianApp^.PushState;
@@ -841,12 +853,15 @@ var
   dirHeight: integer;
   entryHeight, entryWidth: integer;
   xPos: integer;
-  rect: TRect;
+  index: integer;
 begin
   inherited Layout(ARect);
-  GetBounds(rect);
+  FileView^.TabOrder := 0;
+  FileNameEntry^.TabOrder := 1;
+  for index := FDialogButtons^.Count - 1 downto 0 do begin
+    PButtonList(FDialogButtons)^.GetItem(index)^.TabOrder := index + 2;
+  end;
   Grip^.Visible := false;
-
 
   lowRes := Graph^.Mode^.Width < 640;
   if lowRes then begin
@@ -860,19 +875,19 @@ begin
     entryHeight := FilenameEntry^.Font^.Height + 6;
   end;
 
-  xPos := rect.X + Padding.Left;
-  entryWidth := rect.Width - Padding.Width - xPos;
+  xPos := 0;
+  entryWidth := ContentWidth;
 
   DirectoryLabel^.SetBounds(
     xPos,
-    rect.Y,
+    ARect.Y,
     entryWidth,
     dirHeight);
   DirectoryLabel^.VertAlign := vaCenter;
 
   FileView^.SetBounds(
     xPos,
-    rect.Y + DirectoryLabel^.Height,
+    ARect.Y + DirectoryLabel^.Height,
     entryWidth,
     items * FileView^.Font^.Height + 2 * FileView^.BorderWidth
   );

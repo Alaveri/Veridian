@@ -193,8 +193,6 @@ type
     function ContentHeight: integer; virtual;
     function ContentOffsetX: integer; virtual;
     function ContentOffsetY: integer; virtual;
-    procedure GetAdjustedDrawRect(var ARect: TRect); virtual;
-    procedure GetAdjustedClipRect(var ARect: TRect); virtual;
     procedure SetScrollBarBounds(AOrientation: TScrollOrientation); virtual;
     procedure ScrollVert(ADelta: integer); virtual;
     procedure ScrollHorz(ADelta: integer); virtual;
@@ -765,7 +763,7 @@ var
 begin
   inherited Layout(ARect);
   GetClientRect(rect);
-  xPos := rect.Right - rect.X - Padding.Right;
+  xPos := rect.Right - rect.X;
   totalWidth := 0;
   size.CreateDims(ButtonWidth, ButtonHeight);
   GetAlign(rect, size, pos);
@@ -900,28 +898,6 @@ begin
   ContentOffsetY := -ScrollY;
 end;
 
-procedure TView.GetAdjustedDrawRect(var ARect: TRect);
-begin
-  GetDrawRect(ARect);
-  ARect.Translate(OuterWidth, OuterWidth);
-  ARect.Grow(-2 * OuterWidth, -2 * OuterWidth);
-  if VertScrollBar^.Visible then
-    Dec(ARect.Width, VertScrollBar^.Width);
-  if HorzScrollBar^.Visible then
-    Dec(ARect.Height, HorzScrollBar^.Height);
-end;
-
-procedure TView.GetAdjustedClipRect(var ARect: TRect);
-begin
-  GetClipRect(ARect);
-  ARect.Translate(OuterWidth, OuterWidth);
-  ARect.Grow(-2 * OuterWidth, -2 * OuterWidth);
-  if VertScrollBar^.Visible then
-    Dec(ARect.Width, VertScrollBar^.Width);
-  if HorzScrollBar^.Visible then
-    Dec(ARect.Height, HorzScrollBar^.Height);
-end;
-
 procedure TView.GetContentExtent(var ASize: TSize);
 var
   index: integer;
@@ -1002,7 +978,7 @@ var
 begin
   result := inherited ContentWidth;
   if VertScrollBar^.IsVisible then
-    Dec(result, VertScrollBar^.Width);
+    Dec(result, VertScrollBar^.Width - OuterWidth);
   ContentWidth := result;
 end;
 
@@ -1013,7 +989,7 @@ var
 begin
   result := inherited ContentHeight;
   if HorzScrollBar^.IsVisible then
-    Dec(result, HorzScrollBar^.Height);
+    Dec(result, HorzScrollBar^.Height - OuterWidth);
   ContentHeight := result;
 end;
 
@@ -1327,6 +1303,7 @@ begin
   Options := [Low(TWindowOption)..High(TWindowOption)];
   TitleBar := New(PTitleBar, Create('TitleBar', '', @self));
   TitleBar^.Visible := woTitleBar in Options;
+  TitleBar^.Position := rpParentRelative;
   Grip := New(PWindowGrip, Create('Grip', @self));
   Grip^.TransparentBack := false;
   Grip^.Visible := woResizeable in Options;
@@ -1645,7 +1622,6 @@ var
   titleHeight: integer;
   index: TGripBorderType;
   extent: TSize;
-  rect: TRect;
 begin
   inherited Layout(ARect);
   if FInitialLayout then begin
@@ -1661,7 +1637,7 @@ begin
     end;
   end;
   titleHeight := GetTitleHeight;
-  TitleBar^.SetBounds(0, 0, ARect.Width, titleHeight);
+  TitleBar^.SetBounds(OuterWidth, OuterWidth, ARect.Width - 2 * OuterWidth, titleHeight);
   for index := Low(TGripBorderType) to High(TGripBorderType) do begin
     FGripBorders[index]^.BringToFront;
     FGripBorders[index]^.Position := rpParentRelative;
@@ -1686,9 +1662,6 @@ begin
   if WindowState <> wsMaximized then
     GetBounds(RestoredBounds);
 
-  GetContentExtent(extent);
-  VertScrollBar^.Visible := extent.Height > ContentHeight - Padding.Height;
-  HorzScrollBar^.Visible := extent.Width > ContentWidth - Padding.Width;
   Grip^.BringToFront;
 end;
 
@@ -1932,7 +1905,7 @@ end;
 procedure TScrollBar.SetRealPosition(const APosition: real);
 var
   parentView: PView;
-  clipRect, drawRect: TRect;
+  contentRect, clipRect, drawRect: TRect;
   newCoord: integer;
 begin
   if (Max = 0) or (Round(APosition) = Round(FPosition)) then
@@ -1948,8 +1921,9 @@ begin
 
   with parentView^ do begin
     BeginDrawing;
-    GetContentScreenRect(drawRect);
-    GetAdjustedClipRect(clipRect);
+    GetContentDrawRect(drawRect);
+    GetClipRect(clipRect);
+    clipRect.Intersect(Graph^.State^.ViewPort);
     drawRect.Intersect(clipRect);
     PaintRegion(drawRect, nil);
     EndDrawing;
@@ -2000,6 +1974,9 @@ var
   clipRect, rect, scrollRect: TRect;
   value: integer;
 begin
+  if not IsVisible then
+    exit;
+  Graph^.WaitForVSync;
   BeginDrawing;
   Graph^.SetBackColor(BackColor);
   GetDrawRect(scrollRect);
