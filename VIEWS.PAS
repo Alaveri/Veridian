@@ -247,8 +247,10 @@ type
     procedure GetMaximizedBounds(var ARect: TRect); virtual;
     procedure Initialized; virtual;
     procedure Layout(ARect: TRect); virtual;
+    procedure Draw; virtual;
     procedure Activate;
     procedure Deactivate;
+    procedure Show; virtual;
     procedure Close(ASender: PControl); virtual;
     procedure Maximize; virtual;
     procedure Minimize; virtual;
@@ -1584,6 +1586,24 @@ begin
   MinHeight := minH;
 end;
 
+procedure TWindow.Draw;
+begin
+  if FInitialLayout then begin
+    FInitialLayout := false;
+    case InitialLocation of
+      wpScreenCenter: CenterScreen;
+      wpDefault: begin
+        X := VeridianApp^.DefaultWindowX;
+        Y := VeridianApp^.DefaultWindowY;
+      end;
+      wpDesktopCenter: CenterDesktop;
+      wpParentCenter: CenterParent;
+    end;
+  end;
+  inherited Draw;
+end;
+
+
 procedure TWindow.Paint(ARect: TRect);
 var
   oldBorderColor: byte;
@@ -1624,18 +1644,6 @@ var
   extent: TSize;
 begin
   inherited Layout(ARect);
-  if FInitialLayout then begin
-    FInitialLayout := false;
-    case InitialLocation of
-      wpScreenCenter: CenterScreen;
-      wpDefault: begin
-        X := VeridianApp^.DefaultWindowX;
-        Y := VeridianApp^.DefaultWindowY;
-      end;
-      wpDesktopCenter: CenterDesktop;
-      wpParentCenter: CenterParent;
-    end;
-  end;
   titleHeight := GetTitleHeight;
   TitleBar^.SetBounds(OuterWidth, OuterWidth, ARect.Width - 2 * OuterWidth, titleHeight);
   for index := Low(TGripBorderType) to High(TGripBorderType) do begin
@@ -1849,6 +1857,17 @@ begin
   if TitleBar^.IsVisible then
     Dec(result, GetTitleHeight);
   ContentHeight := result;
+end;
+
+procedure TWindow.Show;
+var
+  rect: TRect;
+begin
+  GetPaintRect(rect);
+  Visible := true;
+  Layout(rect);
+  Visible := false;
+  inherited Show;
 end;
 
 procedure TWindow.SetScrollBarBounds(AOrientation: TScrollOrientation);

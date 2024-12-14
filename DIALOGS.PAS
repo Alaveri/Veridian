@@ -7,6 +7,7 @@ uses
   AplObj,
   AplConst,
   AplTypes,
+  AplMath,
   Actions,
   Lists,
   Drawing,
@@ -84,6 +85,8 @@ type
     constructor Create(const AId, ATitle: string; AButtons: TDialogButtons);
     destructor Free; virtual;
     function ShowDialog: TModalResult;
+    function DialogButtons: PButtonList;
+    procedure SetButtonTabOrders(AStartValue: integer); virtual;
     procedure ActionExecute(ASender: PActionControl; AAction: PAction); virtual;
     procedure Init; virtual;
     procedure BeforeShow; virtual;
@@ -95,6 +98,7 @@ type
     procedure KeyPress(var AEvent: TKeyEvent); virtual;
     procedure SetDefaultButton(AButton: TDialogButtonType);
     procedure SetCancelButton(AButton: TDialogButtonType);
+    procedure GetButtonArea(var ARect: TRect);
   end;
 
   TDialogButton = object(TButton)
@@ -275,7 +279,7 @@ begin
   button := New(PDialogButton, CreateParent(newId + 'Button', @self));
   button^.Owner := @self;
   button^.ShowShortCut := false;
-  button^.Position := rpParentClient;
+  button^.Position := rpParentRelative;
   if CancelButton = AButton then
     button^.Cancel := true;
   if DefaultButton = AButton then
@@ -365,6 +369,7 @@ begin
   ActionList := New(PActionList, Create);
   ActionList^.DisposeObjects := true;
   VeridianApp^.PopState;
+  Padding.CreateValue(2);
 end;
 
 procedure TDialog.CenterScreenX;
@@ -387,41 +392,71 @@ end;
 
 procedure TDialog.Layout(ARect: TRect);
 var
-  bx, by, bWidth, bHeight: integer;
+  min, bx, by, bWidth, bHeight: integer;
   index: integer;
   control: PControl;
   button: PDialogButton;
-  totalWidth: integer;
   lowRes: boolean;
   fontHeight: integer;
+  rect: TRect;
+  totalWidth: integer;
 begin
   inherited Layout(ARect);
+  GetContentRect(rect);
   if FDialogButtons^.Count = 0 then
     exit;
   lowRes := Graph^.Mode^.Height < 640;
-  fontHeight := Font^.Height;
   if lowRes then
     fontHeight := Font^.Height;
+  button := PDialogButton(FDialogButtons^.GetItem(0));
+  fontHeight := button^.Font^.Height;
+  bHeight := fontHeight + button^.Padding.Height + 2 * button^.OuterWidth;
+  by := rect.Height;
+  min := 65;
+  bx := 0;
   totalWidth := 0;
-  bWidth := Font^.TextWidth('Cancel') + 12 * Font^.Spacing;
-  bHeight := fontHeight + FDialogButtons^.GetItem(0)^.Padding.Height;
-  by := ARect.Height - bHeight - fontHeight div 2;
-  for index := 0 to FDialogButtons^.Count - 1 do begin
+  for index := FDialogButtons^.Count - 1 downto 0 do begin
     button := PDialogButton(FDialogButtons^.GetItem(index));
-    Inc(totalWidth, bWidth);
-    if index <> 0 then
-      Inc(totalWidth, 2);
+    bWidth := Max(min, button^.TrueTextWidth(button^.GetCaption) + button^.Padding.Width);
+    Inc(totalWidth, bWidth + 3);
   end;
   case ButtonAlign of
-    haLeft: bx := ARect.X + fontHeight div 2 + OuterWidth;
-    haRight: bx := ARect.Right - totalWidth - fontHeight div 2 - OuterWidth;
-    haCenter: bx := ARect.X + (ARect.Width - totalWidth) div 2;
+    haLeft: bx := rect.X;
+    haRight: bx := rect.Right + 1;
+    haCenter: bx := rect.Right - (rect.Width - totalWidth) div 2;
   end;
-  for index := 0 to FDialogButtons^.Count - 1 do begin
+  for index := FDialogButtons^.Count - 1 downto 0 do begin
     button := PDialogButton(FDialogButtons^.GetItem(index));
+    bWidth := Max(min, button^.TrueTextWidth(button^.GetCaption) + button^.Padding.Width);
+    Dec(bx, bWidth);
     button^.SetBounds(bx, by, bWidth, bHeight);
-    Inc(bx, bWidth + 4);
+    Dec(bx, 3);
   end;
+end;
+
+procedure TDialog.SetButtonTabOrders(AStartValue: integer);
+var
+  button: PButton;
+  index: integer;
+begin
+  for index := 0 to FDialogButtons^.Count - 1 do begin
+    button := DialogButtons^.GetItem(index);
+    button^.TabOrder := AStartValue;
+    Inc(AStartValue);
+  end;
+end;
+
+procedure TDialog.GetButtonArea(var ARect: TRect);
+var
+  button: PButton;
+  areaHeight: integer;
+begin
+  areaHeight := 0;
+  if FDialogButtons^.Count > 0 then begin
+    button := PDialogButton(FDialogButtons^.GetItem(0));
+    areaHeight := button^.Height + Padding.Bottom + OuterWidth;
+  end;
+  ARect.CreateDims(0, ClientHeight - areaHeight ,ClientWidth, areaHeight);
 end;
 
 procedure TDialog.KeyPress(var AEvent: TKeyEvent);
@@ -599,6 +634,11 @@ begin
   ShowDialog := ModalResult;
 end;
 
+function TDialog.DialogButtons: PButtonList;
+begin
+  DialogButtons := FDialogButtons;
+end;
+
 destructor TDialog.Free;
 begin
   FreeAndNil(FDialogButtons);
@@ -614,7 +654,7 @@ begin
   Default := false;
   Cancel := false;
   ModalResult := mrNone;
-  Padding.CreateAll(10, 2, 10, 2);
+  Padding.CreateAll(4, 1, 3, 1);
 end;
 
 constructor TFileDialog.CreateTitle(const ATitle, AInitialPath: string);
@@ -936,15 +976,14 @@ var
   button: PDialogButton;
 begin
   inherited Layout(ARect);
-  labelWidth := Font^.TextWidthLarge(FLabel^.Caption);
+  labelWidth := FLabel^.Font^.TextWidthLarge(FLabel^.Caption);
   button := PDialogButton(FDialogButtons^.GetItem(0));
   FLabel^.SetBounds(
-    (Width - labelWidth) div 2,
+    ARect.X + (ARect.Width - labelWidth) div 2,
     Font^.Height,
     labelWidth,
     Font^.Height
   );
-
 end;
 
 procedure TFileListView.KeyPress(var AEvent: TKeyEvent);

@@ -75,6 +75,7 @@ type
     procedure SetMinValue(AValue: longint);
     procedure SetIncrement(AValue: longint);
     procedure SetEditable(AValue: boolean);
+    procedure SetBoundsRect(var ARect: TRect); virtual;
     procedure Paint(ARect: TRect); virtual;
     procedure Init; virtual;
     procedure Layout(ARect: TRect); virtual;
@@ -373,6 +374,16 @@ begin
   numericUpDown^.SetValue(value);
 end;
 
+procedure TNumericUpDown.SetBoundsRect(var ARect: TRect);
+var
+  rect: TRect;
+begin
+  inherited SetBoundsRect(ARect);
+  GetPaintRect(rect);
+  FEntry^.SetBounds(ARect.X + 16, 0, ARect.Width - 32, ARect.Height);
+  FEntry^.MoveEnd;
+end;
+
 procedure TNumericUpDown.Init;
 begin
   inherited Init;
@@ -382,6 +393,7 @@ begin
   FEntry^.Font := Font;
   FEntry^.MaxLength := 9;
   FEntry^.CanFocus := true;
+  FEntry^.Padding.CreateAll(2, 6, 2, 2);
   FEntry^.ValidChars := Numeric;
   FEntry^.OnKeyPress := @NumericUpDownKeyPress;
   FEntry^.OnExit := @NumericUpDownExit;
@@ -480,12 +492,12 @@ var
   minWidth, maxWidth: integer;
 begin
   inherited Layout(ARect);
-  FEntry^.SetBounds(17 - FDecButton^.BorderWidth, 0, Width - 32, Height);
+  FEntry^.SetBounds(ARect.X + 16, 0, ARect.Width - 32, ARect.Height);
   minWidth := Length(IntToStr(FMinValue));
   maxWidth := Length(IntToStr(FMaxValue));
   FEntry^.MaxLength := Max(minWidth, maxWidth);
-  FDecButton^.SetBounds(0, 0, 17, Height);
-  FIncButton^.SetBounds(Width - 17, 0, 17, Height);
+  FDecButton^.SetBounds(0, 0, 17, ARect.Height);
+  FIncButton^.SetBounds(ARect.Width - 17, 0, 17, ARect.Height);
 end;
 
 end.

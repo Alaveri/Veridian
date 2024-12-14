@@ -162,6 +162,7 @@ type
     function IsFocusControl: boolean; virtual;
     function IsView: boolean; virtual;
     function IsWindow: boolean; virtual;
+    function IsDesktop: boolean; virtual;
     function IsContentControl: boolean; virtual;
     function IsTextControl: boolean; virtual;
     function IsDialogButton: boolean; virtual;
@@ -218,7 +219,7 @@ type
     procedure BeginDrawing; virtual;
     procedure EndDrawing; virtual;
     procedure SetBounds(APX, APY: integer; AWidth, AHeight: integer); virtual;
-    procedure SetBoundsRect(var ARect: TRect);
+    procedure SetBoundsRect(var ARect: TRect); virtual;
     procedure SetSize(AWidth, AHeight: integer); virtual;
     procedure SetXY(APX, APY: integer); virtual;
     procedure SetEnabled(AEnabled: boolean); virtual;
@@ -346,6 +347,7 @@ type
     function ContentWidth: integer; virtual;
     function ContentHeight: integer; virtual;
     function CreateControlList: PControlList; virtual;
+    function IsDesktop: boolean; virtual;
     destructor Free; virtual;
   end;
 
@@ -573,6 +575,11 @@ end;
 function TControl.IsWindow: boolean;
 begin
   IsWindow := false;
+end;
+
+function TControl.IsDesktop: boolean;
+begin
+  IsDesktop := false;
 end;
 
 function TControl.IsContentControl: boolean;
@@ -1248,6 +1255,8 @@ begin
   while Assigned(par) do begin
     par^.GetClipRect(parentRect);
     ARect.Intersect(parentRect);
+    if par^.Position = rpAbsolute then
+      break;
     par := par^.Parent;
   end;
 end;
@@ -1524,11 +1533,11 @@ end;
 
 procedure TContentControl.Layout(ARect: TRect);
 begin
-  inherited Layout(ARect);
   if AutoSize then begin
     Width := ContentWidth;
     Height := ContentHeight;
   end;
+  inherited Layout(ARect);
 end;
 
 procedure TContentControl.GetAlign(var ABounds: TRect; var ASize: TSize;
@@ -2027,6 +2036,11 @@ begin
   ForeColor := VeridianApp^.Colors.Desktop;
   BackColor := VeridianApp^.Colors.DesktopBack;
   ActionList := New(PActionList, Create);
+end;
+
+function TDesktop.IsDesktop: boolean;
+begin
+  IsDesktop := true;
 end;
 
 function TDesktop.ContentX: integer;

@@ -828,6 +828,7 @@ begin
   if FList^.IsVisible then
     exit;
   GetPaintRect(rect);
+  BringToFront;
   Layout(rect);
   FList^.GetPaintRect(rect);
   FList^.Layout(rect);

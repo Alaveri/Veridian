@@ -217,8 +217,11 @@ begin
 end;
 
 procedure TEdit.Init;
+var
+  rect: TRect;
 begin
   inherited Init;
+  GetPaintRect(rect);
   Font := VeridianApp^.Fonts^.GetItemById('Editor');
   CanEdit := true;
   UsesCursor := true;
@@ -278,7 +281,7 @@ end;
 
 procedure TEdit.Paint(ARect: TRect);
 var
-  drawRect, charRect: TRect;
+  charRect: TRect;
   buffer: PByte;
   index: integer;
   pos: TPoint;
@@ -291,7 +294,6 @@ begin
     exit;
 
   selected := CheckSelection;
-  GetDrawRect(drawRect);
 
   Graph^.WaitForVSync;
   Graph^.State^.Font := Font;
@@ -300,9 +302,10 @@ begin
   if CanFocus and Focused then
     Graph^.SetBackColor(FocusedBackColor);
   if not TransparentBack then
-    Graph^.FillRect(drawRect);
-  GetTextAlign(drawRect, pos);
-  pos.X := drawRect.X + Padding.Left - ScrollPos + BorderWidth;
+    Graph^.FillRect(ARect);
+  GetTextAlign(ARect, pos);
+  Inc(pos.Y, OuterWidth);
+  pos.X := ARect.X + Padding.Left - ScrollPos + BorderWidth;
   charRect.Create;
   index := 0;
   while index < Length do begin
@@ -314,7 +317,7 @@ begin
     end;
     ch := FBuffer.AsString[index];
     charWidth := Font^.TextWidth(ch);
-    if pos.X > drawRect.Right then
+    if pos.X > ARect.Right then
       break;
     charRect.SetDims(pos.X, pos.Y + Padding.Top - 1, charWidth, Font^.Height + 1);
     charRect.Intersect(Graph^.State^.ViewPort);
@@ -323,13 +326,13 @@ begin
       Graph^.SetBackColor(SelectBackColor);
       Graph^.FillRect(charRect);
     end;
-    if pos.X + charWidth > drawRect.X then
+    if pos.X + charWidth > ARect.X then
       Graph^.DrawText(pos.X, pos.Y + Padding.Top, ch);
     Inc(index);
     Inc(pos.X, charWidth);
   end;
   Graph^.SetForeColor(BorderColor);
-  Graph^.Rectangle(drawRect);
+  Graph^.Rectangle(ARect);
 end;
 
 function TEdit.SetCursorPos(APos: word): boolean;

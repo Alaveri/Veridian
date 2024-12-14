@@ -697,16 +697,27 @@ function TabOrderCompare(AItem1, AItem2: pointer): integer;
 var
   control1, control2: PControl;
   focusControl1, focusControl2: PFocusControl;
+  parent1, parent2: PControl;
 begin
   focusControl1 := nil;
   control1 := PControl(AItem1);
   control2 := PControl(AItem2);
+  parent1 := control1^.Parent;
+  parent2 := control2^.Parent;
+  while Assigned(parent1) and not (parent1^.IsWindow or parent1^.IsDesktop) do begin
+    control1 := parent1;
+    parent1 := parent1^.Parent;
+  end;
+  while Assigned(parent2) and not (parent2^.IsWindow or parent2^.IsDesktop) do begin
+    control2 := parent2;
+    parent2 := parent2^.Parent;
+  end;
   if control1^.IsFocusControl then
     focusControl1 := PFocusControl(control1);
   if control2^.IsFocusControl then
     focusControl2 := PFocusControl(control2);
 
-  if control1^.Parent = control2^.Parent then begin
+  if parent1 = parent2 then begin
     if Assigned(focusControl1) and Assigned(focusControl2) then begin
       if focusControl1^.TabOrder > focusControl2^.TabOrder then
         TabOrderCompare := -1
