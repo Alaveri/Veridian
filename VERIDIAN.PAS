@@ -131,7 +131,6 @@ type
     EditorFont: PFont;
     Settings: TVeridianAppSettings;
     CursorBlinkTime: TDateTime;
-    AppDir: string;
     Parameters: TStringList;
     DoubleClickControl: PControl;
     MouseOverControl: PControl;
@@ -169,6 +168,9 @@ type
     procedure StoreSpecialControlState;
     procedure RestoreSpecialControlState;
     procedure ClearSpecialControlState;
+    procedure EnableDrawing;
+    procedure DisableDrawing;
+    procedure GetMouseState(var AMouseState: TMouseState);
     function FocusNext(AControl: PControl; AReverse: boolean): boolean;
     function FocusFirst: boolean;
     function FocusLast: boolean;
@@ -304,9 +306,18 @@ var
 begin
   Fonts := New(PFontList, Create);
   if Graph^.Mode^.Width <= 320 then begin
+    font := LoadFont('portland.fnt');
+    font^.SetId('system');
+    SystemFont := font;
+    font := LoadFont('fremont.fnt');
+    font^.SetId('editor');
+    EditorFont := font;
+    font := LoadFont('symsmall.fnt');
+    font^.SetId('symbol');
+    SymbolFont := font;
   end
   else begin
-    font := LoadFont('system.fnt');
+    font := LoadFont('olympia.fnt');
     font^.SetId('system');
     SystemFont := font;
     font := LoadFont('seattle.fnt');
@@ -509,6 +520,7 @@ var
   index: integer;
   parent: PControl;
   window: PWindow;
+  event: TKeyEvent;
 begin
   if not (AButton in AEvent.NewMouseState.ButtonState) then
     exit;
@@ -517,10 +529,12 @@ begin
   if not AControl^.IsVisibleAndEnabled then
     exit;
   if Assigned(ActiveDropDown) then begin
-    ActiveDropDown^.GetDrawRect(rect);
+     ActiveDropDown^.GetDrawRect(rect);
     intersects := rect.Contains(AEvent.NewMouseState.X, AEvent.NewMouseState.Y);
     if not intersects then begin
-      ActiveDropDown^.HideList;
+      event.Create;
+      event.Key := kyEsc;
+      ActiveDropDown^.KeyPress(event);
       ActiveDropDown := nil;
     end;
   end;
@@ -598,6 +612,12 @@ begin
   AControl^.GetDrawRect(rect);
   Dec(AEvent.X, rect.X);
   Dec(AEvent.Y, rect.Y);
+end;
+
+procedure TVeridianApp.GetMouseState(var AMouseState: TMouseState);
+begin
+  AMouseState.Create;
+  AMouseState.Assign(FMouseState);
 end;
 
 function TVeridianApp.GetMouseControl(AControl: PControl; var AMouseState: TMouseState): PControl;
@@ -687,7 +707,10 @@ begin
     action := Desktop^.ActionList^.GetItem(index);
     if (action^.Shortcut <> AEvent.Key) or not action^.Enabled then
       continue;
-    ActionExecute(PActionControl(AControl), action);
+    if Assigned(ActiveDialog) then
+      ActiveDialog^.ActionExecute(PActionControl(AControl), action)
+    else
+      ActionExecute(PActionControl(AControl), action);
     AEvent.Handled := true;
     break;
   end;
@@ -1018,11 +1041,11 @@ begin
   if Assigned(FMemLabel) and Assigned(MenuBar) and
     ((FMemAvail <> MemAvail) or (FMemMaxAvail <> MaxAvail))
     and State.DrawEnabled then begin
-    MenuBar^.GetDrawRect(rect);
+    MenuBar^.GetPaintRect(rect);
     txt := 'MemAvail: ' + FormatLong(MemAvail) + ' MaxAvail: ' + FormatLong(MaxAvail);
-    width := FMemLabel^.Font^.TextWidth('MemAvail: 999,999  MaxAvail: 999,999');
+    width := FMemLabel^.Font^.TextWidth('MemAvail: 555,555  MaxAvail: 555,555     ');
     rect.X := rect.Right - width;
-    rect.Y := rect.Y + (MenuBar^.Height - FMemLabel^.Height) div 2;
+    rect.Y := rect.Y + (MenuBar^.Height - FMemLabel^.Height) div 2 + 1;
     FMemLabel^.X := rect.X;
     FMemLabel^.Y := rect.Y;
     FMemLabel^.GetDrawRect(rect);
@@ -1264,10 +1287,7 @@ end;
 procedure TVeridianApp.ParseParameters;
 var
   index: integer;
-  dir, name, ext: string;
 begin
-  FSplit(ParamStr(0), dir, name, ext);
-  AppDir := dir;
   for index := 1 to ParamCount do
     Parameters.AddString(ParamStr(index));
 end;
@@ -1296,6 +1316,17 @@ begin
   AControl^.Focus;
 end;
 
+procedure TVeridianApp.EnableDrawing;
+begin
+  VeridianApp^.PopState;
+end;
+
+procedure TVeridianApp.DisableDrawing;
+begin
+  VeridianApp^.PushState;
+  State.DrawEnabled := false;
+end;
+
 procedure TVeridianApp.SetMouseSensitivity(ASens: real);
 var
   aspectRatio: real;
@@ -1310,6 +1341,8 @@ begin
 end;
 
 procedure TVeridianApp.Run;
+var
+  mx, my: integer;
   procedure DoRun(AControl: PControl);
   var
     index: integer;
@@ -1325,7 +1358,12 @@ begin
   ApplySettings;
   State.DrawEnabled := true;
   Desktop^.Draw;
-  Mouse.SetMousePosition(Graph^.Mode^.Width div 2, Graph^.Mode^.Height div 2);
+  mx := Graph^.Mode^.Width div 2;
+  my := Graph^.Mode^.Height div 2;
+  if Graph^.Mode^.Width < 640 then
+    Mouse.SetMousePosition(mx * 2, my)
+  else
+    Mouse.SetMousePosition(mx, my);
   Mouse.ShowMouse;
   ShowMouseCursor;
   FMouseState.Assign(Mouse.State);

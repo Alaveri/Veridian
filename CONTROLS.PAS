@@ -2,8 +2,6 @@
 
 {
 TODO:
-TCheckBox
-TRadioButton
 TGroupBox
 TImage
 Taskbar menu
@@ -737,7 +735,6 @@ begin
     exit;
   Visible := true;
   Draw;
-  exit;
 end;
 
 procedure TControl.DragStart(var AEvent: TDragEvent);
@@ -1628,9 +1625,9 @@ function TActionControl.GetCaption: string;
 begin
   GetCaption := '';
   if Assigned(Action) then
-    GetCaption := StrPas(Action^.Text)
+    GetCaption := TString.GetString(Action^.Text)
   else if Assigned(Caption) then
-    GetCaption := StrPas(Caption);
+    GetCaption := TString.GetString(Caption);
 end;
 
 function TActionControl.GetShortcutDesc: string;
@@ -2131,7 +2128,7 @@ function TCaptionControl.GetCaption: string;
 begin
   GetCaption := '';
   if Assigned(Caption) then
-    GetCaption := StrPas(Caption);
+    GetCaption := TString.GetString(Caption);
 end;
 
 function TCaptionControl.TrueTextWidth(const AText: string): integer;
@@ -2281,13 +2278,17 @@ begin
   GetPaintRect(rect);
   Layout(rect);
   GetScreenBounds(rect);
-  FreeAndNil(FBackBuffer);
   VeridianApp^.HideMouseCursor;
   size := longint(rect.Width) * rect.Height;
-  FBackBuffer := New(PMemoryStream, Create(size));
-  if VeridianApp^.CheckNilPtr(FBackBuffer) then
-    exit;
-  Graph^.GetImageStreamRect(rect, FBackBuffer);
+  if Graph^.Mode^.HasOffScreen then
+    Graph^.CopyToOffScreen(rect.X, rect.Y, rect.Width, rect.Height)
+  else begin
+    FreeAndNil(FBackBuffer);
+    FBackBuffer := New(PMemoryStream, Create(size));
+    if VeridianApp^.CheckNilPtr(FBackBuffer) then
+      exit;
+    Graph^.GetImageStreamRect(rect, FBackBuffer);
+  end;
   Visible := true;
   EndDrawing;
   Draw;
@@ -2298,13 +2299,17 @@ var
   rect: TRect;
 begin
   GetScreenBounds(rect);
-  if not Assigned(FBackBuffer) then
-    exit;
   BeginDrawing;
   VeridianApp^.HideMouseCursor;
-  FBackBuffer^.Seek(0, soFromBeginning);
-  Graph^.DrawImageStreamRect(rect, FBackBuffer);
-  FreeAndNil(FBackBuffer);
+  if Graph^.Mode^.HasOffScreen then
+    Graph^.CopyFromOffScreen(rect.X, rect.Y, rect.Width, rect.Height)
+  else begin
+    if not Assigned(FBackBuffer) then
+      exit;
+    FBackBuffer^.Seek(0, soFromBeginning);
+    Graph^.DrawImageStreamRect(rect, FBackBuffer);
+    FreeAndNil(FBackBuffer);
+  end;
   Visible := false;
   EndDrawing;
 end;
@@ -2513,7 +2518,7 @@ function TTextControl.GetText: string;
 begin
   GetText := '';
   if Assigned(Text) then
-    GetText := StrPas(Text);
+    GetText := TString.GetString(Text);
 end;
 
 procedure TTextControl.GetCursorRect(var ARect: TRect);

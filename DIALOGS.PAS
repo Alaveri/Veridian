@@ -23,18 +23,18 @@ uses
   Views;
 
 const
-  acYes = acVeridianDialog + 1;
-  acOk = acVeridianDialog + 2;
-  acAll = acVeridianDialog + 3;
-  acYesToAll = acVeridianDialog + 4;
-  acNo = acVeridianDialog + 5;
-  acNoToAll = acVeridianDialog + 6;
-  acContinue = acVeridianDialog + 7;
-  acRetry = acVeridianDialog + 8;
-  acAbort = acVeridianDialog + 9;
-  acIgnore = acVeridianDialog + 10;
-  acHelp = acVeridianDialog + 11;
-  acCancel = acVeridianDialog + 12;
+  acDialogYes = acVeridianDialog + 1;
+  acDialogOk = acVeridianDialog + 2;
+  acDialogAll = acVeridianDialog + 3;
+  acDialogYesToAll = acVeridianDialog + 4;
+  acDialogNo = acVeridianDialog + 5;
+  acDialogNoToAll = acVeridianDialog + 6;
+  acDialogContinue = acVeridianDialog + 7;
+  acDialogRetry = acVeridianDialog + 8;
+  acDialogAbort = acVeridianDialog + 9;
+  acDialogIgnore = acVeridianDialog + 10;
+  acDialogHelp = acVeridianDialog + 11;
+  acDialogCancel = acVeridianDialog + 12;
 
 type
   PDialog = ^TDialog;
@@ -86,6 +86,7 @@ type
     destructor Free; virtual;
     function ShowDialog: TModalResult;
     function DialogButtons: PButtonList;
+    function CanExecute(AActionId: word): boolean; virtual;
     procedure SetButtonTabOrders(AStartValue: integer); virtual;
     procedure ActionExecute(ASender: PActionControl; AAction: PAction); virtual;
     procedure Init; virtual;
@@ -137,8 +138,6 @@ type
 
   TFileDialog = object(TDialog)
   private
-    CurrentDir: PDirectoryContents;
-    LastDir: PChar;
     procedure PopulateFileView(const APath: string);
     procedure ReadPath(const APath: string);
     procedure Cancel;
@@ -147,17 +146,15 @@ type
     FileView: PFileListView;
     FilenameEntry: PFileNameEntry;
     DirectoryLabel: PLabel;
-    InitialPath: string;
-    DefaultExt: string;
-    Filename: string;
+    InitialPath: PChar;
+    DefaultExt: PChar;
+    Filename: PChar;
+    FilterList: PFileFilterList;
+    DefaultFilter: PFileFilter;
     FileOptions: TFileDialogOptions;
-    constructor CreateTitle(const ATitle, AInitialPath: string);
-    constructor CreateParent(const ATitle, AInitialPath: string;
-      AParent: PControl);
-    constructor CreateOptions(const ATitle, AInitialPath: string;
-      AOptions: TFileDialogOptions);
-    constructor CreatreParentOptions(const ATitle, AInitialPath: string;
-      AParent: PControl; AOptions: TFileDialogOptions);
+    CurrentDir: PDirectoryContents;
+    LastDir: PChar;
+    constructor Create(const AId, ATitle: string);
     procedure SelectFile(AFile: PFile); virtual;
     procedure SelectText(AFilename: string); virtual;
     procedure ActionExecute(ASender: PActionControl; AAction: PAction); virtual;
@@ -165,6 +162,13 @@ type
     procedure BeforeShow; virtual;
     procedure AfterShow; virtual;
     procedure Init; virtual;
+    procedure SetInitialPath(const APath: string);
+    procedure SetDefaultExt(const AExt: string);
+    procedure SetFilename(const AFilename: string);
+    function AddFilter(const ADescription, AFilter: string): PFileFilter;
+    function GetInitialPath: string;
+    function GetDefaultExt: string;
+    function GetFilename: string;
     destructor Free; virtual;
   end;
 
@@ -512,8 +516,15 @@ end;
 
 procedure TDialog.ActionExecute(ASender: PActionControl; AAction: PAction);
 begin
+  if not CanExecute(AAction^.ActionId) then
+    exit;
   ModalResult := AAction^.ModalResult;
   Close(ASender);
+end;
+
+function TDialog.CanExecute(AActionId: word): boolean;
+begin
+  CanExecute := true;
 end;
 
 function TDialog.IsDialogButton: boolean;
@@ -657,29 +668,18 @@ begin
   Padding.CreateAll(4, 1, 3, 1);
 end;
 
-constructor TFileDialog.CreateTitle(const ATitle, AInitialPath: string);
+constructor TFileDialog.Create(const AId, ATitle: string);
 begin
-  InitialPath := FExpand(AInitialPath);
-  inherited Create('FileDialog', ATitle, [mbOk, mbCancel]);
+  inherited Create(AId, ATitle, [mbOk, mbCancel]);
 end;
 
-constructor TFileDialog.CreateOptions(const ATitle, AInitialPath: string; AOptions: TFileDialogOptions);
+function TFileDialog.AddFilter(const ADescription, AFilter: string): PFileFilter;
+var
+  result: PFileFilter;
 begin
-  CreateTitle(ATitle, AInitialPath);
-  FileOptions := AOptions;
-end;
-
-constructor TFileDialog.CreateParent(const ATitle, AInitialPath: string; AParent: PControl);
-begin
-  CreateParent('FileDialog', ATitle, AParent);
-  Buttons := [mbOk, mbCancel];
-end;
-
-constructor TFileDialog.CreatreParentOptions(const ATitle, AInitialPath: string;
-  AParent: PControl; AOptions: TFileDialogOptions);
-begin
-  CreateParent(ATitle, AInitialPath, AParent);
-  FileOptions := AOptions;
+  result := New(PFileFilter, CreateFilter(ADescription, AFilter));
+  FilterList^.Add(result);
+  AddFilter := result;
 end;
 
 procedure TFileDialog.CloseDialog(AModalResult: TModalResult; AFilename: string);
@@ -714,7 +714,7 @@ begin
   case result of
     mrYes, mrOk: begin
       ModalResult := mrOk;
-      Filename := AFilename;
+      SetFilename(AFilename);
       Close(nil);
     end;
     mrNo: begin
@@ -736,8 +736,39 @@ begin
   end;
 end;
 
+function TFileDialog.GetInitialPath: string;
+begin
+  GetInitialPath := TString.GetString(InitialPath);
+end;
+
+function TFileDialog.GetDefaultExt: string;
+begin
+  GetDefaultExt := TString.GetString(DefaultExt);
+end;
+
+function TFileDialog.GetFilename: string;
+begin
+  GetFilename := TString.GetString(Filename);
+end;
+
+procedure TFileDialog.SetInitialPath(const APath: string);
+begin
+  TString.AssignString(InitialPath, APath);
+end;
+
+procedure TFileDialog.SetDefaultExt(const AExt: string);
+begin
+  TString.AssignString(DefaultExt, AExt);
+end;
+
+procedure TFileDialog.SetFilename(const AFilename: string);
+begin
+  TString.AssignString(Filename, AFilename);
+end;
+
 procedure TFileDialog.Cancel;
 begin
+  Close(@self);
 end;
 
 procedure TFileDialog.SelectText(AFilename: string);
@@ -753,8 +784,8 @@ begin
     exit;
   AFilename := FExpand(AFilename);
   if (ExtractExtension(AFilename) = '') and
-    FileExists(AFilename + DefaultExt) then
-    AFilename := UpperCase(AFilename + DefaultExt);
+    FileExists(AFilename + GetDefaultExt) then
+    AFilename := UpperCase(AFilename + GetDefaultExt);
   if DirectoryExists(AFilename) then begin
     AFilename := FExpand(AFilename);
     if not ChangeDirectory(AFilename) then
@@ -779,11 +810,11 @@ var
   tempFile: File;
   dir: string;
 begin
-  dir := StrPas(CurrentDir^.Name);
-  if StrPas(AFile^.Name) = '..' then
+  dir := TString.GetString(CurrentDir^.Name);
+  if TString.GetString(AFile^.Name) = '..' then
     txt := '..'
   else
-    txt := dir + StrPas(AFile^.Name);
+    txt := dir + TString.GetString(AFile^.Name);
   System.Assign(tempFile, txt);
   GetFAttr(tempFile, attributes);
   error := DosError;
@@ -804,9 +835,9 @@ end;
 procedure TFileDialog.PopulateFileView(const APath: string);
 var
   index: integer;
-  afile: PFile;
+  newFile: PFile;
   item: PListItem;
-  afilename: string;
+  name: string;
   path: string;
 begin
   FreeAndNil(CurrentDir);
@@ -815,21 +846,26 @@ begin
   CurrentDir := TDirectory.GetDirectory(path);
   CurrentDir^.Sort(dsFilename, dsAsc, true);
   for index := 0 to CurrentDir^.Files^.Count - 1 do begin
-    afile := CurrentDir^.Files^.Getitem(index);
-    afilename := FirstUpper(StrPas(afile^.Name));
-    if faDirectory in aFile^.Attr then
-      afilename := '[ ' + afilename + ' ]';
-    FileView^.Items^.AddItem(afilename, aFile);
+    newFile := CurrentDir^.Files^.Getitem(index);
+    name := FirstUpper(TString.GetString(newFile^.Name));
+    if faDirectory in newFile^.Attr then
+      name := '[ ' + name + ' ]';
+    FileView^.Items^.AddItem(name, newFile);
   end;
 end;
 
 procedure TFileDialog.BeforeShow;
 begin
+  TString.AssignString(InitialPath, FExpand(GetInitialPath));
+  VeridianApp^.PushState;
+  VeridianApp^.State.DrawEnabled := false;
+  ReadPath(GetInitialPath);
+  VeridianApp^.PopState;
 end;
 
 procedure TFileDialog.AfterShow;
 begin
-  FilenameEntry^.SetText(Filename);
+  FilenameEntry^.SetText(GetFilename);
   FileView^.Focus;
 end;
 
@@ -855,12 +891,18 @@ begin
   LastDir := nil;
   TString.AssignString(LastDir, GetCurrentDirectory);
   FileOptions := [];
+  Buttons := [mbOk, mbCancel];
   Include(Options, woResizeable);
   ScrollType := scNone;
   ButtonAlign := haRight;
   CurrentDir := nil;
-  Filename := '';
-  DefaultExt := '';
+  FilterList := New(PFileFilterList, Create);
+  DefaultFilter := New(PFileFilter, CreateFilter('All Files', '*.*'));
+  FilterList^.Add(DefaultFilter);
+
+  Filename := nil;
+  DefaultExt := nil;
+  InitialPath := nil;
   FilenameEntry := New(PFileNameEntry, CreateParent('FilenameEntry', @self));
   FilenameEntry^.ValidChars := ValidDosChars + ['\', ':', #9];
   FilenameEntry^.MaxLength := 255;
@@ -869,7 +911,7 @@ begin
   FileView^.AutoHeight := true;
   FileView^.VisibleItems := 15;
 
-  DirectoryLabel := New(PLabel, CreateCaption('DirLabel', InitialPath, @self));
+  DirectoryLabel := New(PLabel, CreateCaption('DirLabel', GetInitialPath, @self));
   DirectoryLabel^.AutoSize := false;
   DirectoryLabel^.TransparentBack := false;
   DirectoryLabel^.Font := VeridianApp^.GetFont('editor');
@@ -880,10 +922,6 @@ begin
   Padding.CreateValue(2);
   GetScreenBounds(rect);
   Layout(rect);
-  VeridianApp^.PushState;
-  VeridianApp^.State.DrawEnabled := false;
-  ReadPath(InitialPath);
-  VeridianApp^.PopState;
 end;
 
 procedure TFileDialog.Layout(ARect: TRect);
@@ -942,9 +980,13 @@ end;
 
 destructor TFileDialog.Free;
 begin
+  ChangeDirectory(TString.GetString(LastDir));
   FreeAndNil(CurrentDir);
-  ChangeDirectory(StrPas(LastDir));
+  FreeAndNil(FilterList);
   TString.Free(LastDir);
+  TString.Free(InitialPath);
+  TString.Free(DefaultExt);
+  TString.Free(Filename);
   inherited Free;
 end;
 
@@ -1028,7 +1070,7 @@ begin
   dialog := PFileDialog(Parent);
   item := PListItem(Items^.GetItem(AEvent.NewIndex));
   aFile := PFile(item^.Value);
-  name := StrPas(aFile^.Name);
+  name := TString.GetString(aFile^.Name);
   if faDirectory in aFile^.Attr then
     name := IncludeBackslash(name);
   dialog^.FilenameEntry^.SetText(FirstUpper(name));

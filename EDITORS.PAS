@@ -25,6 +25,7 @@ const
   ];
   Aplpha = ['A'..'Z', 'a'..'z'];
   AlphaNumeric = ['0'..'9', 'A'..'Z', 'a'..'z'];
+  AlphaNumericSpace = ['0'..'9', 'A'..'Z', 'a'..'z', ' '];
   Numeric = ['0'..'9'];
   Puncuation = ['.', ',', ';', ':', '!', '?', '"', '''', '(', ')', '[', ']',
     '{', '}', '/', '\', '|', '-', '+', '=', '*', '&', '^', '%', '$', '#',
@@ -692,7 +693,7 @@ begin
   if not Assigned(FBuffer.Data) then
     GetText := ''
   else
-    GetText := StrPas(FBuffer.AsString);
+    GetText := TString.GetString(FBuffer.AsString);
 end;
 
 function TEdit.GetTextLarge: PChar;

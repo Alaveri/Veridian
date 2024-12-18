@@ -127,6 +127,7 @@ type
   private
   public
     procedure Layout(ARect: TRect); virtual;
+    procedure SelectedIndexChanged(var AEvent: TIndexChangedEvent); virtual;
   end;
 
   TDropDownList = object(TFocusControl)
@@ -134,9 +135,11 @@ type
     FButton: PDropDownButton;
     FList: PDropDownListView;
     FButtonSize: integer;
+    FOldIndex: integer;
   public
     MaxItems: integer;
     Text: PChar;
+    OnSelectedIndexChanged: PIndexChangedProc;
     procedure ShowList;
     procedure HideList;
     procedure Paint(ARect: TRect); virtual;
@@ -696,7 +699,8 @@ begin
     exit;
   item := FList^.Items^.GetItem(AEvent.NewIndex);
   HideList;
-  SetText(StrPas(item^.Text));
+  SetText(TString.GetString(item^.Text));
+  Invoke(OnSelectedIndexChanged, AEvent);
 end;
 
 procedure TDropDownButton.Init;
@@ -744,10 +748,17 @@ begin
   VertScrollBar^.Max := AplMath.MaxL(0, max);
 end;
 
+procedure TDropDownListView.SelectedIndexChanged(var AEvent: TIndexChangedEvent);
+begin
+  inherited SelectedIndexChanged(AEvent);
+  PDropDownList(Parent)^.SelectedIndexChanged(AEvent);
+end;
+
 procedure ListKeyPress(var AEvent: TKeyEvent); far;
 var
   dropDown: PDropDownList;
   self: PListView;
+  event: TIndexChangedEvent;
 begin
   self := PListView(AEvent.Sender);
   if AEvent.Handled then
@@ -756,8 +767,12 @@ begin
   case AEvent.Key of
     kyEnter: begin
       dropDown^.HideList;
-      dropDown^.SetText(StrPas(self^.Items^.GetItem(self^.SelectedIndex)^.Text));
+      dropDown^.SetText(TString.GetString(self^.Items^.GetItem(self^.SelectedIndex)^.Text));
       AEvent.Handled := true;
+      event.Create;
+      event.OldIndex := dropDown^.FOldIndex;
+      event.NewIndex := dropDown^.SelectedIndex;
+      dropDown^.SelectedIndexChanged(event);
     end;
   end;
 end;
@@ -771,16 +786,35 @@ end;
 
 procedure TDropDownList.KeyPress(var AEvent: TKeyEvent);
 begin
-  if not (CanFocus and Focused) then
+  if (not FList^.IsVisible) and not (CanFocus and Focused) then
+    exit;
+  if FList^.IsVisible and not (FList^.CanFocus and FList^.Focused) then
     exit;
   case AEvent.Key of
-    kyDown, kyEnter: begin
+    kyDown: begin
       if FList^.IsVisible then
         exit;
       AEvent.Handled := true;
       UnFocus;
       ShowList;
       exit;
+    end;
+    kyEnter: begin
+      if not FList^.IsVisible then begin
+        AEvent.Handled := true;
+        UnFocus;
+        ShowList;
+        exit;
+      end
+      else begin
+
+      end;
+    end;
+    kyEsc: begin
+      if FList^.IsVisible then
+        HideList;
+      AEvent.Handled := true;
+      FList^.SelectedIndex := FOldIndex;
     end;
   end;
  if not AEvent.Handled then
@@ -827,6 +861,7 @@ var
 begin
   if FList^.IsVisible then
     exit;
+  FOldIndex := SelectedIndex;
   GetPaintRect(rect);
   BringToFront;
   Layout(rect);
@@ -903,9 +938,11 @@ begin
   Text := nil;
   MaxItems := MaxInt;
   AutoSize := true;
+  FOldIndex := -1;
   BorderStyle := bsSingle;
   Padding.CreateValue(2);
   Font := VeridianApp^.Fonts^.GetItemById('editor');
+  OnSelectedIndexChanged := nil;
 end;
 
 function TDropDownList.Items: PListItems;
@@ -965,7 +1002,7 @@ function TDropDownList.GetText: string;
 begin
   GetText := '';
   if Assigned(Text) then
-    GetText := StrPas(Text);
+    GetText := TString.GetString(Text);
 end;
 
 procedure TDropDownList.SetText(const AText: string);
@@ -976,6 +1013,7 @@ end;
 
 destructor TDropDownList.Free;
 begin
+  TString.Free(Text);
   inherited Free;
 end;
 
@@ -997,10 +1035,10 @@ var
   item: PListItem;
   txt: string;
 begin
-  FList^.SelectedIndex := AIndex;
+  FList^.SetSelectedIndex(AIndex);
   item := FList^.Items^.GetItem(AIndex);
   if Assigned(item) then
-    txt := StrPas(item^.Text)
+    txt := TString.GetString(item^.Text)
   else
     txt := '';
   SetText(txt);

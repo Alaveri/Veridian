@@ -52,7 +52,7 @@ type
     woMinimizeButton,
     woResizeable,
     woMoveable,
-      woShowInTaskBar,
+    woShowInTaskBar,
     woShowGrip
   );
 
@@ -1289,6 +1289,8 @@ var
   gripBorderIndex: TGripBorderType;
 begin
   inherited Init;
+  VeridianApp^.PushState;
+  VeridianApp^.State.DrawEnabled := false;
   Closed := false;
   BorderStyle := bsSingle;
   BevelStyle := bvRaised;
@@ -1332,6 +1334,7 @@ begin
   ScrollType := scAsNeeded;
   InitialLocation := wpScreenCenter;
   FInitialLayout := true;
+  VeridianApp^.PopState;
 end;
 
 procedure TWindow.CenterDesktop;
@@ -1533,7 +1536,7 @@ begin
   event.Create;
   TString.AssignString(TitleBar^.Caption, ATitle);
   Initialized;
-  Invoke(OnCreate, event);
+  WindowCreate(event);
 end;
 
 constructor TWindow.CreateBackground(const AId, ATitle: string; AParent: PControl);
@@ -1545,7 +1548,7 @@ begin
   TString.AssignString(TitleBar^.Caption, ATitle);
   event.Create;
   Initialized;
-  Invoke(OnCreate, event);
+  WindowCreate(event);
 end;
 
 function TWindow.MinWidth: integer;
@@ -2219,10 +2222,10 @@ begin
   inherited Init;
   CanFocus := false;
   Include(ControlOptions, coCanDrag);
-  HorzAlign := haLeft;
+  HorzAlign := haCenter;
   VertAlign := vaCenter;
-  Margins.CreateAll(0, 2, 2, 2);
   Padding.CreateAll(4, 4, 4, 4);
+  Margins.CreateAll(2, 0, 0, 0);
   Font := VeridianApp^.GetFont('editor');
 end;
 
@@ -2298,7 +2301,7 @@ procedure TTaskbar.Init;
 begin
   inherited Init;
   Windows.Create;
-  Padding.CreateAll(2, 0, 0, 0);
+  Padding.CreateAll(0, 0, 0, 0);
   Margins.CreateValue(0);
   BorderStyle := bsSingle;
   BevelStyle := bvRaised;
@@ -2408,7 +2411,7 @@ begin
     if barHeight > maxHeight then
       maxHeight := barHeight;
     Inc(xPos, control^.Margins.Left);
-    control^.X := xPos + control^.Margins.left;
+    control^.X := xPos;
     size.CreateDims(control^.Width, control^.Height);
     rect.SetDims(0, 0, controlWidth, barHeight);
     control^.Y := 0;
@@ -2416,7 +2419,7 @@ begin
     Inc(xPos, control^.Width + control^.Margins.Right);
   end;
   if maxHeight > 0 then
-    Height := maxHeight + 2 * OuterWidth;
+    Height := maxHeight + 1;
   Desktop^.GetBounds(rect);
   Y := rect.Bottom - Height + OuterWidth + 1;
 end;
