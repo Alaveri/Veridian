@@ -2280,8 +2280,8 @@ begin
   GetScreenBounds(rect);
   VeridianApp^.HideMouseCursor;
   size := longint(rect.Width) * rect.Height;
-  if Graph^.Mode^.HasOffScreen then
-    Graph^.CopyToOffScreen(rect.X, rect.Y, rect.Width, rect.Height)
+  if Graph^.Mode^.NumPages > 1 then
+    Graph^.CopyToOffScreen(rect, rect)
   else begin
     FreeAndNil(FBackBuffer);
     FBackBuffer := New(PMemoryStream, Create(size));
@@ -2301,8 +2301,8 @@ begin
   GetScreenBounds(rect);
   BeginDrawing;
   VeridianApp^.HideMouseCursor;
-  if Graph^.Mode^.HasOffScreen then
-    Graph^.CopyFromOffScreen(rect.X, rect.Y, rect.Width, rect.Height)
+  if Graph^.Mode^.NumPages > 1 then
+    Graph^.CopyFromOffScreen(rect, rect)
   else begin
     if not Assigned(FBackBuffer) then
       exit;

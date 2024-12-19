@@ -1303,7 +1303,7 @@ begin
   RestoredState := wsNormal;
   Exclude(ControlOptions, coCanDrag);
   CanFocus := false;
-  Position :=rpParentClient;
+  Position := rpParentClient;
   Options := [Low(TWindowOption)..High(TWindowOption)];
   TitleBar := New(PTitleBar, Create('TitleBar', '', @self));
   TitleBar^.Visible := woTitleBar in Options;
@@ -1313,7 +1313,7 @@ begin
   Grip^.Visible := woResizeable in Options;
   Grip^.VertAlign := vaCenter;
   Grip^.HorzAlign := haCenter;
-  Grip^.Position := rpParentClient;
+  Grip^.Position := rpParentRelative;
   for gripBorderIndex := Low(TGripBorderType) to High(TGripBorderType) do begin
     FGripBorders[gripBorderIndex] :=
       New(PWindowGripBorder, Create('', @self, gripBorderIndex));
@@ -1658,8 +1658,8 @@ begin
   barSize := VertScrollBar^.Size;
   TitleBar^.Visible := woTitleBar in Options;
   Grip^.Autosize := false;
-  Grip^.SetBounds(ARect.Right - barSize - OuterWidth,
-    ARect.Bottom - barSize - OuterWidth, barSize, barSize);
+  Grip^.SetBounds(ARect.Right - barSize,
+    ARect.Bottom - barSize, barSize - 1, barSize - 1);
 
   FGripBorders[wbTop]^.SetBounds(3, 0, Width - 6, 3);
   FGripBorders[wbBottom]^.SetBounds(3, Height - 3, Width - 6, 3);
@@ -1803,8 +1803,9 @@ begin
     activeWindow^.Deactivate;
   VeridianApp^.ActiveWindow := @self;
 
-  if BringToFront then
+  if BringToFront then begin
     Draw
+  end
   else if Assigned(TitleBar) then
     TitleBar^.Draw;
   if Assigned(TaskButton) then begin
