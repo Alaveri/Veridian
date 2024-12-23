@@ -553,12 +553,12 @@ begin
 
   for index := 0 to Items^.Count - 1 do
     PaintItem(index);
-{  Graph^.SetBackColor(BackColor);
+  Graph^.SetBackColor(BackColor);
   if Items^.Count * ItemHeight < ARect.Height then begin
     yPos := ARect.Y + Items^.Count * ItemHeight;
-    ARect.CreateDims(ARect.X, yPos, ARect.Width, ARect.Bottom - yPos);
+    ARect.CreateDims(ARect.X + OuterWidth, yPos, ARect.Width - 2 * OuterWidth, ARect.Bottom - yPos);
     Graph^.FillRect(ARect);
-  end;}
+  end;
 end;
 
 constructor TListItems.Create(AOwner: PListView);

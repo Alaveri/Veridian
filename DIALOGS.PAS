@@ -169,6 +169,7 @@ type
     function GetInitialPath: string;
     function GetDefaultExt: string;
     function GetFilename: string;
+    function MinHeight: integer; virtual;
     destructor Free; virtual;
   end;
 
@@ -506,6 +507,8 @@ procedure TDialogButton.KeyPress(var AEvent: TKeyEvent);
 begin
   inherited KeyPress(AEvent);
   if AEvent.Handled then
+    exit;
+  if not Focused then
     exit;
   if AEvent.Key = kyLeft then
     AEvent.Key := kyShiftTab;
@@ -908,20 +911,24 @@ begin
   FilenameEntry^.MaxLength := 255;
 
   FileView := New(PFileListView, CreateParent('FileListView', @self));
-  FileView^.AutoHeight := true;
-  FileView^.VisibleItems := 15;
+  FileView^.AutoHeight := false;
 
   DirectoryLabel := New(PLabel, CreateCaption('DirLabel', GetInitialPath, @self));
   DirectoryLabel^.AutoSize := false;
   DirectoryLabel^.TransparentBack := false;
   DirectoryLabel^.Font := VeridianApp^.GetFont('editor');
 
-  Width := ScaleX(50);
-  Height := ScaleY(70);
+  Width := 300;
+  Height := 350;
   CenterScreen;
   Padding.CreateValue(2);
   GetScreenBounds(rect);
   Layout(rect);
+end;
+
+function TFileDialog.MinHeight: integer;
+begin
+  MinHeight := 142;
 end;
 
 procedure TFileDialog.Layout(ARect: TRect);
@@ -932,6 +939,7 @@ var
   entryHeight, entryWidth: integer;
   xPos: integer;
   index: integer;
+  buttonRect, rect: TRect;
 begin
   inherited Layout(ARect);
   FileView^.TabOrder := 0;
@@ -948,7 +956,7 @@ begin
     entryHeight := Font^.Height + 4;
   end
   else begin
-    items := 21;
+    items := 17;
     dirHeight := Font^.Height + 4;
     entryHeight := FilenameEntry^.Font^.Height + 6;
   end;
@@ -963,12 +971,16 @@ begin
     dirHeight);
   DirectoryLabel^.VertAlign := vaCenter;
 
+  GetButtonArea(buttonRect);
   FileView^.SetBounds(
     xPos,
     ARect.Y + DirectoryLabel^.Height,
     entryWidth,
-    items * FileView^.Font^.Height + 2 * FileView^.BorderWidth
+    Height - TitleBar^.Height - dirHeight - entryHeight - 3 * Padding.Height
+      - buttonRect.Height
   );
+  FileView^.GetPaintRect(rect);
+  FileView^.Layout(rect);
 
   FilenameEntry^.SetBounds(
     xPos,

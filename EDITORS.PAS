@@ -283,7 +283,6 @@ end;
 procedure TEdit.Paint(ARect: TRect);
 var
   charRect: TRect;
-  buffer: PByte;
   index: integer;
   pos: TPoint;
   charWidth: integer;
@@ -296,7 +295,8 @@ begin
 
   selected := CheckSelection;
 
-  Graph^.WaitForVSync;
+  Graph^.PushState;
+  Graph^.SetDrawPage(Graph^.OffScreenPage);
   Graph^.State^.Font := Font;
   Graph^.SetForeColor(ForeColor);
   Graph^.SetBackColor(BackColor);
@@ -334,6 +334,9 @@ begin
   end;
   Graph^.SetForeColor(BorderColor);
   Graph^.Rectangle(ARect);
+  Graph^.PopState;
+  if Graph^.State^.DrawPage <> Graph^.OffScreenPage then
+    Graph^.CopyFromOffScreen(ARect, ARect);
 end;
 
 function TEdit.SetCursorPos(APos: word): boolean;

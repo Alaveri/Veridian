@@ -646,14 +646,14 @@ begin
       end
       else if (ex <= sx) and (ey <= sy) then begin
         { Decreased X and Y }
-        partialRect.CreateDims(er, sy, sx - ex + 1, sh);
+        partialRect.CreateDims(er + 1, sy, sx - ex, sh);
         Desktop^.PaintRegion(partialRect, @self);
-        partialRect.SetDims(sx, eb, ex + ew - 1, sy - ey + 1);
+        partialRect.SetDims(sx, eb + 1, ex + ew, sy - ey + 1);
         Desktop^.PaintRegion(partialRect, @self);
       end
       else if (ex >= sx) and (ey <= sy) then begin
         { Increased X and Decreased Y }
-        partialRect.CreateDims(sx, eb, sw, sy - ey + 1);
+        partialRect.CreateDims(sx, eb + 1, sw, sy - ey);
         Desktop^.PaintRegion(partialRect, @self);
         partialRect.SetDims(sx, sy, ex - sx, sh - ey + sy);
         Desktop^.PaintRegion(partialRect, @self);
@@ -662,7 +662,7 @@ begin
         { Decreased X and Increased Y }
         partialRect.CreateDims(sx, sy, sw, ey - sy);
         Desktop^.PaintRegion(partialRect, @self);
-        partialRect.SetDims(er, sy, sx - ex + 1, sh);
+        partialRect.SetDims(er + 1, sy, sx - ex, sh);
         Desktop^.PaintRegion(partialRect, @self);
       end;
     end
@@ -670,24 +670,24 @@ begin
       { Resized Right, Bottom Right, or Bottom }
       if (ew < sw) and (eh < sh) then begin
         { Decreased Width and Height }
-        partialRect.CreateDims(er, sy, sr - er + 1, sh);
+        partialRect.CreateDims(er + 1, sy, sr - er, sh);
         Desktop^.PaintRegion(partialRect, @self);
-        partialRect.SetDims(sx, eb, sw - (sw - ew + 1), sh - eh + 1);
+        partialRect.SetDims(sx, eb + 1, sw - (sw - ew), sh - eh);
         Desktop^.PaintRegion(partialRect, @self);
       end
       else if (ew < sw) then begin
         { Decreased Width }
-        partialRect.CreateDims(er, sy, sr - er + 1, sh);
+        partialRect.CreateDims(er + 1, sy, sr - er, sh);
         Desktop^.PaintRegion(partialRect, @self);
       end
       else if (eh < sh) then begin
         { Decreased Height }
-        partialRect.CreateDims(sx, eb, sw, sb - eb + 1);
+        partialRect.CreateDims(sx, eb + 1, sw, sb - eb);
         Desktop^.PaintRegion(partialRect, @self);
       end
     end
     else begin
-      { Resized remaning cases }
+      { Resized remaining cases }
       if ex > sx then begin
         { Resized left, top left, or bottom left }
         if (ey = sy) and (sh = eh) then begin
@@ -706,7 +706,7 @@ begin
           { Resized Bottom Left }
           partialRect.CreateDims(sx, sy, ex - sx, sh);
           Desktop^.PaintRegion(partialRect, @self);
-          partialRect.SetDims(ex, eb, ew, sb - eb + 1);
+          partialRect.SetDims(ex, eb + 1, ew, sb - eb);
           Desktop^.PaintRegion(partialRect, @self);
         end
       end
@@ -715,7 +715,7 @@ begin
           { Resized Top Right }
           partialRect.CreateDims(sx, sy, sw, ey - sy);
           Desktop^.PaintRegion(partialRect, @self);
-          partialRect.SetDims(er, ey, sr - er + 1, sh - (ey - sy));
+          partialRect.SetDims(er + 1, ey, sr - er, sh - (ey - sy));
           Desktop^.PaintRegion(partialRect, @self);
         end
         else begin
@@ -1298,8 +1298,9 @@ end;
 
 procedure TControl.Paint;
 begin
-  if IsVisualControl then
+  if IsVisualControl then begin
     Graph^.State^.Font := PVisualControl(@self)^.Font;
+  end;
 end;
 
 procedure TControl.PaintRegion(var ARect: TRect; AExclude: PControl);
@@ -1308,7 +1309,11 @@ var
 begin
   VeridianApp^.PushState;
   VeridianApp^.CursorOff;
+  Graph^.PushState;
+  Graph^.SetDrawPage(Graph^.OffScreenPage);
   InternalPaintRegion(ARect, AExclude);
+  Graph^.CopyFromOffScreen(ARect, ARect);
+  Graph^.PopState;
   VeridianApp^.PopState;
 end;
 
@@ -1740,6 +1745,7 @@ begin
     Inc(pos.X, charWidth);
     Inc(index);
   end;
+  Graph^.SetForeColor(currentForeColor);
   if GetShortcut > 0 then begin
     desc := GetShortcutDesc;
     pos.X := ARect.Right - TrueTextWidth(desc) - Margins.Right - OuterWidth;
@@ -2115,7 +2121,7 @@ function TCaptionControl.ContentWidth: integer;
 begin
   ContentWidth := inherited ContentWidth;
   if AutoSize then
-    ContentWidth := TrueTextWidth(GetCaption) + SpacingWidth;
+    ContentWidth := Font^.TextWidth(GetCaption) + SpacingWidth;
 end;
 
 function TCaptionControl.ContentHeight: integer;
@@ -2280,7 +2286,7 @@ begin
   GetScreenBounds(rect);
   VeridianApp^.HideMouseCursor;
   size := longint(rect.Width) * rect.Height;
-  if Graph^.Mode^.NumPages > 1 then
+  if Graph^.Mode^.PageCount > 1 then
     Graph^.CopyToOffScreen(rect, rect)
   else begin
     FreeAndNil(FBackBuffer);
@@ -2301,7 +2307,7 @@ begin
   GetScreenBounds(rect);
   BeginDrawing;
   VeridianApp^.HideMouseCursor;
-  if Graph^.Mode^.NumPages > 1 then
+  if Graph^.Mode^.PageCount > 1 then
     Graph^.CopyFromOffScreen(rect, rect)
   else begin
     if not Assigned(FBackBuffer) then

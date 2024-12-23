@@ -206,6 +206,7 @@ type
   private
     FGripBorders: array[TGripBorderType] of PControl;
     FInitialLayout: boolean;
+    procedure MoveResize;
   public
     TitleBar: PTitleBar;
     TaskButton: PTaskButton;
@@ -567,7 +568,7 @@ begin
     parentView^.ScrollPositionChanged(AEvent);
   if not VeridianApp^.Settings.UpdateScrollContents then begin
     pos := PosFromCoord;
-    SetScrollPosition(Round(pos));
+    SetRealPosition(pos);
   end;
   Invoke(OnPositionChanged, AEvent);
 end;
@@ -980,7 +981,7 @@ var
 begin
   result := inherited ContentWidth;
   if VertScrollBar^.IsVisible then
-    Dec(result, VertScrollBar^.Width - OuterWidth);
+    Dec(result, VertScrollBar^.Width - 1);
   ContentWidth := result;
 end;
 
@@ -991,7 +992,7 @@ var
 begin
   result := inherited ContentHeight;
   if HorzScrollBar^.IsVisible then
-    Dec(result, HorzScrollBar^.Height - OuterWidth);
+    Dec(result, HorzScrollBar^.Height);
   ContentHeight := result;
 end;
 
@@ -1181,9 +1182,22 @@ begin
     VeridianApp^.DragRect.Y);
 end;
 
-procedure TWindowGrip.DragEnd(var AEvent: TDragEvent);
+procedure TWindow.MoveResize;
 var
   rect: TRect;
+begin
+  GetDrawRect(rect);
+  Graph^.SetDrawPage(Graph^.OffScreenPage);
+  SetBoundsRect(VeridianApp^.DragRect);
+  Show;
+  Graph^.CopyFromOffScreen(VeridianApp^.DragRect, VeridianApp^.DragRect);
+  Graph^.SetDrawPage(0);
+  HideEx(rect, VeridianApp^.DragRect);
+  Visible := true;
+end;
+
+procedure TWindowGrip.DragEnd(var AEvent: TDragEvent);
+var
   sizingEvent: TSizingEvent;
   sizedEvent: TSizeEvent;
 begin
@@ -1193,12 +1207,8 @@ begin
   ParentWindow^.CreateSizedEvent(sizedEvent);
   ParentWindow^.Resizing(sizingEvent);
   desktop^.BeginDrawing;
-  if sizingEvent.CanResize then begin
-    ParentWindow^.GetDrawRect(rect);
-    ParentWindow^.HideEx(rect, VeridianApp^.DragRect);
-    ParentWindow^.SetBoundsRect(VeridianApp^.DragRect);
-    ParentWindow^.Show;
-  end;
+  if sizingEvent.CanResize then
+    ParentWindow^.MoveResize;
   desktop^.MouseCursor := VeridianApp^.MouseCursors^.GetItemById('default');
   desktop^.EndDrawing;
   AEvent.Handled := true;
@@ -1268,12 +1278,8 @@ begin
   ParentWindow^.CreateMovingEvent(movingEvent);
   ParentWindow^.CreateMovedEvent(movedEvent);
   if movingEvent.CanMove then begin
-    desktop^.BeginDrawing;
-    ParentWindow^.HideEx(rect, VeridianApp^.DragRect);
-    ParentWindow^.SetBoundsRect(VeridianApp^.DragRect);
-    ParentWindow^.WindowState := wsNormal;
-    ParentWindow^.Show;
-    desktop^.EndDrawing;
+    ParentWindow^.MoveResize;
+    ParentWindow^.Visible := true;
     ParentWindow^.Moved(movedEvent);
   end;
   AEvent.Handled := true;
@@ -1590,6 +1596,8 @@ begin
 end;
 
 procedure TWindow.Draw;
+var
+  rect: TRect;
 begin
   if FInitialLayout then begin
     FInitialLayout := false;
@@ -1603,7 +1611,10 @@ begin
       wpParentCenter: CenterParent;
     end;
   end;
+  Graph^.PushState;
+  GetScreenBounds(rect);
   inherited Draw;
+  Graph^.PopState;
 end;
 
 
@@ -1793,6 +1804,9 @@ end;
 procedure TWindow.Activate;
 var
   activeWindow: PWindow;
+  rect, controlRect: TRect;
+  index: integer;
+  control: PControl;
 begin
   activeWindow := VeridianApp^.ActiveWindow;
   if VeridianApp^.ActiveWindow = @self then
@@ -1804,7 +1818,18 @@ begin
   VeridianApp^.ActiveWindow := @self;
 
   if BringToFront then begin
-    Draw
+    GetDrawRect(rect);
+    for index := 0 to Desktop^.Controls^.Count - 1 do begin
+      control := Desktop^.Controls^.GetItem(index);
+      if control = @self then
+        continue;
+      if not (control^.IsWindow and control^.IsVisible) then
+        continue;
+      control^.GetDrawRect(controlRect);
+      rect.Intersect(controlRect);
+    end;
+    PaintRegion(rect, nil);
+    TitleBar^.Draw;
   end
   else if Assigned(TitleBar) then
     TitleBar^.Draw;
@@ -1999,38 +2024,39 @@ var
 begin
   if not IsVisible then
     exit;
-  Graph^.WaitForVSync;
+  Graph^.PushState;
+  Graph^.SetDrawPage(Graph^.OffscreenPage);
   BeginDrawing;
   Graph^.SetBackColor(BackColor);
   GetDrawRect(scrollRect);
   Graph^.State^.FillPattern := @CheckerFillPattern;
   GetClipRect(clipRect);
+  scrollRect.Intersect(clipRect);
   Graph^.SetViewPort(clipRect);
-
   if Orientation = soHorizontal then begin
-    scrollRect.Width := ScrollSize;
-    Inc(scrollRect.X, Size + OuterWidth);
+    scrollRect.Translate(DecButton^.Width, 0);
+    scrollRect.Grow(-2 * DecButton^.Width, 0);
     rect.CreateRect(scrollRect);
-    rect.Width := Slider^.X - Size + 1;
-    rect.SetRect(scrollRect);
+    rect.Width := Slider^.X - DecButton^.Width + 1;
     Graph^.FillRect(rect);
-    Inc(rect.X, Slider^.X);
-    Dec(rect.Width, Slider^.X - Size + Slider^.OuterWidth);
+    rect.X := scrollRect.X + Slider^.X;
+    rect.Width := scrollRect.Width - Slider^.X;
     Graph^.FillRect(rect);
   end
   else begin
-    scrollRect.Height := ScrollSize;
-    Inc(scrollRect.Y, Size + OuterWidth);
+    scrollRect.Translate(0, DecButton^.Height);
+    scrollRect.Grow(0, -2 * DecButton^.Height);
     rect.CreateRect(scrollRect);
-    rect.Height := Slider^.Y - Size + 1;
-    rect.SetRect(scrollRect);
+    rect.Height := Slider^.Y - DecButton^.Height + 1;
     Graph^.FillRect(rect);
-    Inc(rect.Y, Slider^.Y);
-    Dec(rect.Height, Slider^.Y - Size + Slider^.OuterWidth);
+    rect.Y := scrollRect.Y + Slider^.Y;
+    rect.Height := scrollRect.Height - Slider^.Y;
     Graph^.FillRect(rect);
   end;
-  Slider^.DrawSelf;
+  DrawControls;
   EndDrawing;
+  Graph^.CopyFromOffScreen(clipRect, clipRect);
+  Graph^.PopState;
 end;
 
 procedure TScrollBar.ScrollByAmount(ADelta: integer);
@@ -2188,10 +2214,7 @@ begin
   ParentWindow^.CreateSizedEvent(sizedEvent);
   ParentWindow^.Resizing(sizingEvent);
   if sizingEvent.CanResize then begin
-    ParentWindow^.GetDrawRect(rect);
-    ParentWindow^.HideEx(rect, VeridianApp^.DragRect);
-    ParentWindow^.SetBoundsRect(VeridianApp^.DragRect);
-    ParentWindow^.Show;
+    ParentWindow^.MoveResize;
   end;
   desktop^.MouseCursor := VeridianApp^.MouseCursors^.GetItemById('default');
   desktop^.EndDrawing;
@@ -2245,7 +2268,7 @@ begin
   inherited Paint(ARect);
 end;
 
-function CanActivate(AItem: pointer): boolean;
+function CanActivate(AItem: pointer; var AValue): boolean;
 var
   control: PControl;
   window: PWindow;
@@ -2267,7 +2290,7 @@ begin
   AEvent.Handled := true;
   if Window^.Active and (Window^.WindowState <> wsMinimized) then begin
     Window^.Minimize;
-    last := Desktop^.Controls^.LastThat(CanActivate);
+    last := Desktop^.Controls^.LastThat(CanActivate, Nothing);
     if Assigned(last) then begin
       last^.BringToFront;
       if last^.IsWindow then begin

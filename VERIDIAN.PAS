@@ -222,6 +222,7 @@ procedure TVeridianApp.Initialized;
 var
   rect: TRect;
 begin
+  inherited Initialized;
 {  FOffScreen := New(PMemoryStream, Create(longint(Graph^.Mode^.Width) * Graph^.Mode^.Height));}  LoadFonts;
   FOffScreen := nil;
   Desktop := CreateDesktop;
@@ -416,7 +417,8 @@ var
 begin
   if Assigned(DragControl) then
     exit;
-  if Assigned(MouseOverControl) and (MouseOverControl <> AControl) then begin
+  if Assigned(MouseOverControl) and (MouseOverControl <> AControl)
+    and (MouseOverControl^.IsVisibleAndEnabled) then begin
     MouseOverControl^.MouseLeave(AEvent);
     MouseOverControl := nil;
   end;
@@ -1079,6 +1081,7 @@ var
 begin
   if not Assigned(DragControl) then
     DragRectVisible := false;
+  Graph^.WaitForVSync;
   if Assigned(DragControl) and not DragRectVisible then begin
     DragRectVisible := true;
     MoveMouseCursor(FMouseState, FOldMouseState, false);
@@ -1088,6 +1091,7 @@ begin
   else if Assigned(DragControl) and DragRectVisible then begin
     newRect.CreateRect(DragRect);
     oldRect.CreateRect(LastDragRect);
+    Graph^.WaitForVSync;
     Graph^.InverseRectangle(oldRect);
     MoveMouseCursor(FMouseState, FOldMouseState, false);
     Graph^.InverseRectangle(newRect);
