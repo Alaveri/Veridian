@@ -219,20 +219,16 @@ begin
 end;
 
 procedure TVeridianApp.Initialized;
-var
-  rect: TRect;
 begin
   inherited Initialized;
-{  FOffScreen := New(PMemoryStream, Create(longint(Graph^.Mode^.Width) * Graph^.Mode^.Height));}  LoadFonts;
+  LoadFonts;
   FOffScreen := nil;
   Desktop := CreateDesktop;
   Desktop^.Font := SystemFont;
   InitActions;
   InitControls;
-  Desktop^.GetPaintRect(rect);
-  Desktop^.Layout(rect);
-  MenuBar^.GetPaintRect(rect);
-  MenuBar^.Layout(rect);
+  Desktop^.Layout;
+  MenuBar^.Layout;
   Keyboard.GetKey;
   FNewWindowX := 10;
   FNewWindowY := MenuBar^.Height + 10;
@@ -255,8 +251,6 @@ begin
 end;
 
 procedure TVeridianApp.InitControls;
-var
-  rect: TRect;
 begin
   MenuBar := New(PMenuBar, Create);
   Taskbar := New(PTaskbar, Create);
@@ -267,8 +261,7 @@ begin
   FMemLabel^.SetBackColor(MenuBar^.BackColor);
   FMemLabel^.Font := Fonts^.GetItemById('editor');
   FMemLabel^.AutoSize := true;
-  FMemLabel^.GetPaintRect(rect);
-  FMemLabel^.Layout(rect);
+  FMemLabel^.Layout;
   {$ENDIF}
 end;
 
@@ -1043,7 +1036,7 @@ begin
   if Assigned(FMemLabel) and Assigned(MenuBar) and
     ((FMemAvail <> MemAvail) or (FMemMaxAvail <> MaxAvail))
     and State.DrawEnabled then begin
-    MenuBar^.GetPaintRect(rect);
+    MenuBar^.GetLayoutRect(rect);
     txt := 'MemAvail: ' + FormatLong(MemAvail) + ' MaxAvail: ' + FormatLong(MaxAvail);
     width := FMemLabel^.Font^.TextWidth('MemAvail: 555,555  MaxAvail: 555,555     ');
     rect.X := rect.Right - width;

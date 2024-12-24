@@ -93,7 +93,7 @@ type
     constructor Create(const AId, ACaption: string; AParentWindow: PWindow);
     procedure GetButtonArea(var ARect: TRect);
     procedure Init; virtual;
-    procedure Layout(ARect: TRect); virtual;
+    procedure LayoutRect(ARect: TRect); virtual;
     procedure Paint(ARect: TRect); virtual;
     procedure Draw; virtual;
     procedure MouseDown(var AEvent: TMouseEvent); virtual;
@@ -167,7 +167,7 @@ type
     procedure Init; virtual;
     procedure Paint(ARect: TRect); virtual;
     procedure Draw; virtual;
-    procedure Layout(ARect: TRect); virtual;
+    procedure LayoutRect(ARect: TRect); virtual;
     procedure SetMinMaxPos(const AMin, AMax, APosition: longint);
     procedure SetIncrement(const AIncrement: longint);
     procedure SetPageIncrement(const AIncrement: longint);
@@ -185,7 +185,7 @@ type
     function GetAutoHeight: longint; virtual;
     function IsView: boolean; virtual;
     procedure Init; virtual;
-    procedure Layout(ARect: TRect); virtual;
+    procedure LayoutRect(ARect: TRect); virtual;
     procedure Paint(ARect: TRect); virtual;
     procedure Draw; virtual;
     procedure DrawControls; virtual;
@@ -247,7 +247,7 @@ type
     procedure SetCloseVisible(AVisible: boolean);
     procedure GetMaximizedBounds(var ARect: TRect); virtual;
     procedure Initialized; virtual;
-    procedure Layout(ARect: TRect); virtual;
+    procedure LayoutRect(ARect: TRect); virtual;
     procedure Draw; virtual;
     procedure Activate;
     procedure Deactivate;
@@ -318,7 +318,7 @@ type
     constructor Create;
     destructor Free; virtual;
     procedure Init; virtual;
-    procedure Layout(ARect: TRect); virtual;
+    procedure LayoutRect(ARect: TRect); virtual;
     procedure AddWindow(AWindow: PWindow);
     procedure RemoveWindow(AWindow: PWindow);
     procedure SetWindow(AIndex: integer; AWindow: PWindow);
@@ -605,21 +605,18 @@ begin
   PageIncrement := AIncrement;
 end;
 
-procedure TScrollBar.Layout(ARect: TRect);
-var
-  rect: TRect;
+procedure TScrollBar.LayoutRect(ARect: TRect);
 begin
-  inherited Layout(ARect);
-  rect.CreateDims(0, 0, Width, Height);
+  inherited LayoutRect(ARect);
   DecButton^.SetBounds(0, 0, Size, Size);
   if Orientation = soHorizontal then begin
-    IncButton^.SetBounds(rect.Right - Size + 1, 0, Size, Size);
+    IncButton^.SetBounds(ARect.Right - Size + 1, 0, Size, Size);
   end
   else begin
-    IncButton^.SetBounds(0, rect.Bottom - Size + 1, Size, Size);
+    IncButton^.SetBounds(0, ARect.Bottom - Size + 1, Size, Size);
   end;
-  GetSliderRect(rect);
-  Slider^.SetBoundsRect(rect);
+  GetSliderRect(ARect);
+  Slider^.SetBoundsRect(ARect);
 end;
 
 procedure TScrollBar.GetSliderRect(var ARect: TRect);
@@ -756,7 +753,7 @@ begin
   Position := rpParentClient;
 end;
 
-procedure TTitleBar.Layout(ARect: TRect);
+procedure TTitleBar.LayoutRect(ARect: TRect);
 var
   rect: TRect;
   xPos: integer;
@@ -764,7 +761,7 @@ var
   pos: TPoint;
   size: TSize;
 begin
-  inherited Layout(ARect);
+  inherited LayoutRect(ARect);
   GetClientRect(rect);
   xPos := rect.Right - rect.X;
   totalWidth := 0;
@@ -1014,11 +1011,11 @@ begin
   EndDrawing;
 end;
 
-procedure TView.Layout(ARect: TRect);
+procedure TView.LayoutRect(ARect: TRect);
 var
   extent: TSize;
 begin
-  inherited Layout(ARect);
+  inherited LayoutRect(ARect);
   VertScrollBar^.BringToFront;
   HorzScrollBar^.BringToFront;
   case ScrollType of
@@ -1648,7 +1645,7 @@ begin
   Draw;
 end;
 
-procedure TWindow.Layout(ARect: TRect);
+procedure TWindow.LayoutRect(ARect: TRect);
 var
   barWidth: integer;
   barHeight: integer;
@@ -1657,7 +1654,7 @@ var
   index: TGripBorderType;
   extent: TSize;
 begin
-  inherited Layout(ARect);
+  inherited LayoutRect(ARect);
   titleHeight := GetTitleHeight;
   TitleBar^.SetBounds(OuterWidth, OuterWidth, ARect.Width - 2 * OuterWidth, titleHeight);
   for index := Low(TGripBorderType) to High(TGripBorderType) do begin
@@ -1804,9 +1801,7 @@ end;
 procedure TWindow.Activate;
 var
   activeWindow: PWindow;
-  rect, controlRect: TRect;
-  index: integer;
-  control: PControl;
+  rect: TRect;
 begin
   activeWindow := VeridianApp^.ActiveWindow;
   if VeridianApp^.ActiveWindow = @self then
@@ -1818,18 +1813,16 @@ begin
   VeridianApp^.ActiveWindow := @self;
 
   if BringToFront then begin
+    BeginDrawing;
     GetDrawRect(rect);
-    for index := 0 to Desktop^.Controls^.Count - 1 do begin
-      control := Desktop^.Controls^.GetItem(index);
-      if control = @self then
-        continue;
-      if not (control^.IsWindow and control^.IsVisible) then
-        continue;
-      control^.GetDrawRect(controlRect);
-      rect.Intersect(controlRect);
-    end;
-    PaintRegion(rect, nil);
-    TitleBar^.Draw;
+    Graph^.SetViewPort(rect);
+    rect.Intersect(Graph^.Mode^.Bounds);
+    Graph^.SetDrawPage(Graph^.OffScreenPage);
+    Draw;
+    Graph^.SetDrawPage(0);
+    Graph^.CopyFromOffScreen(rect, rect);
+    Graph^.PopState;
+    EndDrawing;
   end
   else if Assigned(TitleBar) then
     TitleBar^.Draw;
@@ -1889,12 +1882,12 @@ begin
 end;
 
 procedure TWindow.Show;
-var
-  rect: TRect;
 begin
-  GetPaintRect(rect);
   Visible := true;
-  Layout(rect);
+  VeridianApp^.PushState;
+  VeridianApp^.State.DrawEnabled := false;
+  Layout;
+  VeridianApp^.PopState;
   Visible := false;
   inherited Show;
 end;
@@ -2404,7 +2397,7 @@ begin
   end;
 end;
 
-procedure TTaskBar.Layout(ARect: TRect);
+procedure TTaskBar.LayoutRect(ARect: TRect);
 var
   rect: TRect;
   index, xPos: integer;
@@ -2415,7 +2408,7 @@ var
   maxHeight: integer;
   size: TSize;
 begin
-  inherited Layout(ARect);
+  inherited LayoutRect(ARect);
   Desktop^.GetBounds(rect);
   Width := rect.Width + 2 * OuterWidth;
   X := -OuterWidth;

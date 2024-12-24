@@ -135,7 +135,8 @@ type
     constructor CreateParent(AId: string; AParent: PControl);
     destructor Free; virtual;
     procedure Init; virtual;
-    procedure Layout(ARect: TRect); virtual;
+    procedure LayoutRect(ARect: TRect); virtual;
+    procedure Layout; virtual;
     function BorderWidth: byte; virtual;
     function BevelWidth: byte; virtual;
     function OuterWidth: byte;
@@ -189,7 +190,7 @@ type
     function CalculatedX: integer;
     function CalculatedY: integer;
     procedure GetBounds(var ARect: TRect);
-    procedure GetPaintRect(var ARect: TRect);
+    procedure GetLayoutRect(var ARect: TRect);
     procedure GetCalculatedBounds(var ARect: TRect);
     procedure GetClientRect(var ARect: TRect);
     procedure GetContentRect(var ARect: TRect);
@@ -280,7 +281,7 @@ type
     procedure GetAlign(var ABounds: TRect; var ASize: TSize;
       var AResult: TPoint);
     procedure Init; virtual;
-    procedure Layout(ARect: TRect); virtual;
+    procedure LayoutRect(ARect: TRect); virtual;
     procedure SetHorzAlign(AHorzAlign: THorzAlign);
     procedure SetVertAlign(AVertAlign: TVertAlign);
     procedure SetAutoSize(AAutoSize: boolean);
@@ -339,7 +340,7 @@ type
   public
     ActionList: PActionList;
     procedure Init; virtual;
-    procedure Layout(ARect: TRect); virtual;
+    procedure LayoutRect(ARect: TRect); virtual;
     function ContentX: integer; virtual;
     function ContentY: integer; virtual;
     function ContentWidth: integer; virtual;
@@ -392,7 +393,7 @@ type
     procedure Init; virtual;
     procedure Paint(ARect: TRect); virtual;
     procedure Clear; virtual;
-    procedure Layout(ARect: TRect); virtual;
+    procedure LayoutRect(ARect: TRect); virtual;
     destructor Free; virtual;
   end;
 
@@ -833,9 +834,17 @@ begin
   SetBoundsRect(rect);
 end;
 
-procedure TControl.Layout(ARect: TRect);
+procedure TControl.LayoutRect(ARect: TRect);
 begin
   AlignControl;
+end;
+
+procedure TControl.Layout;
+var
+  rect: TRect;
+begin
+  GetLayoutRect(rect);
+  LayoutRect(rect);
 end;
 
 function TControl.ScaleX(APercent: real): integer;
@@ -854,8 +863,7 @@ var
 begin
   if not IsVisible then
     exit;
-  GetPaintRect(rect);
-  Layout(rect);
+  Layout;
   if not VeridianApp^.State.DrawEnabled then
     exit;
   BeginDrawing;
@@ -1135,7 +1143,7 @@ begin
   ARect.CreateDims(X, Y, Width, Height);
 end;
 
-procedure TControl.GetPaintRect(var ARect: TRect);
+procedure TControl.GetLayoutRect(var ARect: TRect);
 begin
   ARect.CreateDims(0, 0, Width, Height);
 end;
@@ -1533,13 +1541,13 @@ begin
   AutoSize := false;
 end;
 
-procedure TContentControl.Layout(ARect: TRect);
+procedure TContentControl.LayoutRect(ARect: TRect);
 begin
   if AutoSize then begin
     Width := ContentWidth;
     Height := ContentHeight;
   end;
-  inherited Layout(ARect);
+  inherited LayoutRect(ARect);
 end;
 
 procedure TContentControl.GetAlign(var ABounds: TRect; var ASize: TSize;
@@ -1895,9 +1903,9 @@ begin
   SetCaption('');
 end;
 
-procedure TLabel.Layout(ARect: TRect);
+procedure TLabel.LayoutRect(ARect: TRect);
 begin
-  inherited Layout(ARect);
+  inherited LayoutRect(ARect);
 end;
 
 destructor TLabel.Free;
@@ -2083,9 +2091,9 @@ begin
   CreateControlList := New(PDesktopControlList, Create(@self));
 end;
 
-procedure TDesktop.Layout(ARect: TRect);
+procedure TDesktop.LayoutRect(ARect: TRect);
 begin
-  inherited Layout(ARect);
+  inherited LayoutRect(ARect);
   SetBounds(0, 0, Graph^.Mode^.Width, Graph^.Mode^.Height);
 end;
 
@@ -2096,13 +2104,10 @@ begin
 end;
 
 constructor TCaptionControl.CreateCaption(const AId, ACaption: string; AParent: PControl);
-var
-  rect: TRect;
 begin
   inherited CreateParent(AId, AParent);
   Caption := TString.New(ACaption);
-  GetPaintRect(rect);
-  Layout(rect);
+  Layout;
 end;
 
 procedure TCaptionControl.SetCaption(ACaption: string);
@@ -2281,11 +2286,10 @@ var
   size: longint;
 begin
   BeginDrawing;
-  GetPaintRect(rect);
-  Layout(rect);
-  GetScreenBounds(rect);
+  Layout;
   VeridianApp^.HideMouseCursor;
   size := longint(rect.Width) * rect.Height;
+  GetDrawRect(rect);
   if Graph^.Mode^.PageCount > 1 then
     Graph^.CopyToOffScreen(rect, rect)
   else begin

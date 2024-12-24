@@ -52,7 +52,7 @@ type
     function CloseMenu: boolean;
     procedure Init; virtual;
     procedure Paint(ARect: TRect); virtual;
-    procedure Layout(ARect: TRect); virtual;
+    procedure LayoutRect(ARect: TRect); virtual;
     procedure Deselect;
     procedure Select;
     procedure OpenMenu;
@@ -93,7 +93,7 @@ type
     MenuLocation: TMenuLocation;
     procedure Init; virtual;
     procedure Paint(ARect: TRect); virtual;
-    procedure Layout(ARect: TRect); virtual;
+    procedure LayoutRect(ARect: TRect); virtual;
     procedure KeyPress(var AEvent: TKeyEvent); virtual;
     procedure GetMenuDims(var ADims: TSize);
     function NewSeparator: PMenuItem;
@@ -105,7 +105,7 @@ type
   public
     constructor Create;
     procedure Init; virtual;
-    procedure Layout(ARect: TRect); virtual;
+    procedure LayoutRect(ARect: TRect); virtual;
     procedure Paint(ARect: TRect); virtual;
     procedure KeyPress(var AEvent: TKeyEvent); virtual;
     function NewMenu(const AId, ACaption: string): PMenu;
@@ -200,7 +200,7 @@ begin
   ADims.Grow(2 * borderWidth, 2 * borderWidth);
 end;
 
-procedure TMenu.Layout(ARect: TRect);
+procedure TMenu.LayoutRect(ARect: TRect);
 var
   itemRect, menuRect, parentItemRect: TRect;
   menuDims: TSize;
@@ -208,7 +208,7 @@ var
   itemHeight, index: integer;
   xPos, yPos: integer;
 begin
-  inherited Layout(ARect);
+  inherited LayoutRect(ARect);
   GetMenuDims(menuDims);
   menuRect.CreateDims(0, 0, menuDims.Width, menuDims.Height);
   if Assigned(ParentMenuItem) then begin
@@ -422,9 +422,9 @@ begin
   ShortcutColor := oldShortcutColor;
 end;
 
-procedure TMenuItem.Layout(ARect: TRect);
+procedure TMenuItem.LayoutRect(ARect: TRect);
 begin
-  inherited Layout(ARect);
+  inherited LayoutRect(ARect);
 end;
 
 function TMenuItem.CloseMenu: boolean;
@@ -553,7 +553,7 @@ begin
   Position := rpParentClient;
 end;
 
-procedure TMenuBar.Layout(ARect: TRect);
+procedure TMenuBar.LayoutRect(ARect: TRect);
 var
   txtWidth, xPos, currentHeight, maxHeight, index: integer;
   item: PMenuItem;
@@ -562,7 +562,7 @@ var
   size: TSize;
   txt: string;
 begin
-  inherited Layout(ARect);
+  inherited LayoutRect(ARect);
   itemRect.Create;
   xPos := 0;
   maxHeight := 0;

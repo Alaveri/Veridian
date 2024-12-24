@@ -92,7 +92,7 @@ type
     procedure Init; virtual;
     procedure BeforeShow; virtual;
     procedure AfterShow; virtual;
-    procedure Layout(ARect: TRect); virtual;
+    procedure LayoutRect(ARect: TRect); virtual;
     procedure CenterScreenX;
     procedure CenterScreenY;
     procedure Close(ASender: PControl); virtual;
@@ -158,7 +158,7 @@ type
     procedure SelectFile(AFile: PFile); virtual;
     procedure SelectText(AFilename: string); virtual;
     procedure ActionExecute(ASender: PActionControl; AAction: PAction); virtual;
-    procedure Layout(ARect: TRect); virtual;
+    procedure LayoutRect(ARect: TRect); virtual;
     procedure BeforeShow; virtual;
     procedure AfterShow; virtual;
     procedure Init; virtual;
@@ -180,7 +180,7 @@ type
     Message: string;
     constructor Create(const ATitle, AMessage: string; AButtons: TDialogButtons);
     procedure Init; virtual;
-    procedure Layout(ARect: TRect); virtual;
+    procedure LayoutRect(ARect: TRect); virtual;
   end;
 
 procedure ShowMessage(const ATitle, AMessage: string);
@@ -395,7 +395,7 @@ procedure TDialog.AfterShow;
 begin
 end;
 
-procedure TDialog.Layout(ARect: TRect);
+procedure TDialog.LayoutRect(ARect: TRect);
 var
   min, bx, by, bWidth, bHeight: integer;
   index: integer;
@@ -406,7 +406,7 @@ var
   rect: TRect;
   totalWidth: integer;
 begin
-  inherited Layout(ARect);
+  inherited LayoutRect(ARect);
   GetContentRect(rect);
   if FDialogButtons^.Count = 0 then
     exit;
@@ -923,7 +923,7 @@ begin
   CenterScreen;
   Padding.CreateValue(2);
   GetScreenBounds(rect);
-  Layout(rect);
+  LayoutRect(rect);
 end;
 
 function TFileDialog.MinHeight: integer;
@@ -931,7 +931,7 @@ begin
   MinHeight := 142;
 end;
 
-procedure TFileDialog.Layout(ARect: TRect);
+procedure TFileDialog.LayoutRect(ARect: TRect);
 var
   items: integer;
   lowRes: boolean;
@@ -941,7 +941,7 @@ var
   index: integer;
   buttonRect, rect: TRect;
 begin
-  inherited Layout(ARect);
+  inherited LayoutRect(ARect);
   FileView^.TabOrder := 0;
   FileNameEntry^.TabOrder := 1;
   for index := FDialogButtons^.Count - 1 downto 0 do begin
@@ -979,8 +979,6 @@ begin
     Height - TitleBar^.Height - dirHeight - entryHeight - 3 * Padding.Height
       - buttonRect.Height
   );
-  FileView^.GetPaintRect(rect);
-  FileView^.Layout(rect);
 
   FilenameEntry^.SetBounds(
     xPos,
@@ -1024,12 +1022,12 @@ begin
   Height := ScaleY(20);
 end;
 
-procedure TShowMessageDialog.Layout(ARect: TRect);
+procedure TShowMessageDialog.LayoutRect(ARect: TRect);
 var
   labelWidth: integer;
   button: PDialogButton;
 begin
-  inherited Layout(ARect);
+  inherited LayoutRect(ARect);
   labelWidth := FLabel^.Font^.TextWidthLarge(FLabel^.Caption);
   button := PDialogButton(FDialogButtons^.GetItem(0));
   FLabel^.SetBounds(

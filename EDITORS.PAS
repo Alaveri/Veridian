@@ -218,11 +218,8 @@ begin
 end;
 
 procedure TEdit.Init;
-var
-  rect: TRect;
 begin
   inherited Init;
-  GetPaintRect(rect);
   Font := VeridianApp^.Fonts^.GetItemById('Editor');
   CanEdit := true;
   UsesCursor := true;

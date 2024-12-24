@@ -100,7 +100,7 @@ type
     procedure UnFocus; virtual;
     procedure Init; virtual;
     procedure Paint(ARect: TRect); virtual;
-    procedure Layout(ARect: TRect); virtual;
+    procedure LayoutRect(ARect: TRect); virtual;
     procedure SetSelectedIndex(AIndex: integer);
     procedure KeyPress(var AEvent: TKeyEvent); virtual;
     procedure MouseDown(var AEvent: TMouseEvent); virtual;
@@ -126,7 +126,7 @@ type
   TDropDownListView = object(TListView)
   private
   public
-    procedure Layout(ARect: TRect); virtual;
+    procedure LayoutRect(ARect: TRect); virtual;
     procedure SelectedIndexChanged(var AEvent: TIndexChangedEvent); virtual;
   end;
 
@@ -153,7 +153,7 @@ type
     procedure Unfocus; virtual;
     procedure KeyPress(var AEvent: TKeyEvent); virtual;
     procedure Init; virtual;
-    procedure Layout(ARect: TRect); virtual;
+    procedure LayoutRect(ARect: TRect); virtual;
     procedure SetText(const AText: string); virtual;
     procedure AutoSizeControl; virtual;
     destructor Free; virtual;
@@ -505,7 +505,7 @@ begin
   inherited DrawControls;
 end;
 
-procedure TListView.Layout(ARect: TRect);
+procedure TListView.LayoutRect(ARect: TRect);
 var
   max: longint;
   rect: TRect;
@@ -516,7 +516,7 @@ begin
       + Padding.Height;
     SetBounds(X, Y, Width, Size);
   end;
-  inherited Layout(ARect);
+  inherited LayoutRect(ARect);
   GetBounds(rect);
   VertScrollbar^.Increment := ItemHeight;
   VertScrollbar^.PageIncrement := Round(rect.Height / ItemHeight) * ItemHeight;
@@ -728,12 +728,12 @@ begin
   end;
 end;
 
-procedure TDropDownListView.Layout(ARect: TRect);
+procedure TDropDownListView.LayoutRect(ARect: TRect);
 var
   max: longint;
   maxItems, itemCount, listHeight, size: integer;
 begin
-  inherited Layout(ARect);
+  inherited LayoutRect(ARect);
   maxItems := PDropDownList(Parent)^.MaxItems;
   itemCount := Min(Items^.Count, maxItems);
   listHeight := itemCount * ItemHeight + 2 * Parent^.OuterWidth;
@@ -862,11 +862,9 @@ begin
   if FList^.IsVisible then
     exit;
   FOldIndex := SelectedIndex;
-  GetPaintRect(rect);
   BringToFront;
-  Layout(rect);
-  FList^.GetPaintRect(rect);
-  FList^.Layout(rect);
+  Layout;
+  FList^.Layout;
   Inc(Height, FList^.Height);
   VeridianApp^.ActiveDropDown := @self;
   VeridianApp^.ActiveControl := nil;
@@ -972,12 +970,12 @@ begin
   end;
 end;
 
-procedure TDropDownList.Layout(ARect: TRect);
+procedure TDropDownList.LayoutRect(ARect: TRect);
 var
   rect, listBounds: TRect;
   listHeight, itemCount: integer;
 begin
-  inherited Layout(ARect);
+  inherited LayoutRect(ARect);
   FButtonSize := 17;
   if Graph^.Mode^.Width <= 320 then
     FButtonSize := 11;

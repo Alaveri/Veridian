@@ -31,7 +31,7 @@ type
     TextOffsetY: integer;
     function IsCheckBox: boolean; virtual;
     procedure Init; virtual;
-    procedure Layout(ARect: TRect); virtual;
+    procedure LayoutRect(ARect: TRect); virtual;
     procedure Paint(ARect: TRect); virtual;
     procedure PaintGlyph; virtual;
     procedure DrawGlyph; virtual;
@@ -78,7 +78,7 @@ type
     procedure SetBoundsRect(var ARect: TRect); virtual;
     procedure Paint(ARect: TRect); virtual;
     procedure Init; virtual;
-    procedure Layout(ARect: TRect); virtual;
+    procedure LayoutRect(ARect: TRect); virtual;
   end;
 
 implementation
@@ -165,9 +165,9 @@ begin
   end;
 end;
 
-procedure TCheckBox.Layout(ARect: TRect);
+procedure TCheckBox.LayoutRect(ARect: TRect);
 begin
-  inherited Layout(ARect);
+  inherited LayoutRect(ARect);
   if AutoSize then begin
     Width := Font^.TextWidthLarge(Caption) + 2 * FocusRectWidth
       + BoxSize + Spacing + 1;
@@ -375,11 +375,8 @@ begin
 end;
 
 procedure TNumericUpDown.SetBoundsRect(var ARect: TRect);
-var
-  rect: TRect;
 begin
   inherited SetBoundsRect(ARect);
-  GetPaintRect(rect);
   FEntry^.SetBounds(ARect.X + 16, 0, ARect.Width - 32, ARect.Height);
   FEntry^.MoveEnd;
 end;
@@ -387,6 +384,8 @@ end;
 procedure TNumericUpDown.Init;
 begin
   inherited Init;
+  VeridianApp^.PushState;
+  VeridianApp^.State.DrawEnabled := false;
   Font := VeridianApp^.GetFont('editor');
   CanFocus := false;
   FEntry := New(PEdit, CreateParent('Entry', @self));
@@ -413,6 +412,7 @@ begin
   FValue := 0;
   FEntry^.VertAlign := vaCenter;
   FEntry^.Padding.CreateAll(3, 0, 2, 0);
+  VeridianApp^.PopState;
 end;
 
 function TNumericUpDown.Value: longint;
@@ -486,18 +486,17 @@ begin
     FEntry^.UnFocus;
 end;
 
-procedure TNumericUpDown.Layout(ARect: TRect);
+procedure TNumericUpDown.LayoutRect(ARect: TRect);
 var
-  rect: TRect;
   minWidth, maxWidth: integer;
 begin
-  inherited Layout(ARect);
   FEntry^.SetBounds(ARect.X + 16, 0, ARect.Width - 32, ARect.Height);
   minWidth := Length(IntToStr(FMinValue));
   maxWidth := Length(IntToStr(FMaxValue));
   FEntry^.MaxLength := Max(minWidth, maxWidth);
   FDecButton^.SetBounds(0, 0, 17, ARect.Height);
   FIncButton^.SetBounds(ARect.Width - 17, 0, 17, ARect.Height);
+  inherited LayoutRect(ARect);
 end;
 
 end.
