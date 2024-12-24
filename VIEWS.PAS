@@ -184,15 +184,17 @@ type
     function GetAutoWidth: longint; virtual;
     function GetAutoHeight: longint; virtual;
     function IsView: boolean; virtual;
+    function ContentWidth: integer; virtual;
+    function ContentHeight: integer; virtual;
+    function ContentOffsetX: integer; virtual;
+    function ContentOffsetY: integer; virtual;
+    function ScrollX: longint; virtual;
+    function ScrollY: longint; virtual;
     procedure Init; virtual;
     procedure LayoutRect(ARect: TRect); virtual;
     procedure Paint(ARect: TRect); virtual;
     procedure Draw; virtual;
     procedure DrawControls; virtual;
-    function ContentWidth: integer; virtual;
-    function ContentHeight: integer; virtual;
-    function ContentOffsetX: integer; virtual;
-    function ContentOffsetY: integer; virtual;
     procedure SetScrollBarBounds(AOrientation: TScrollOrientation); virtual;
     procedure ScrollVert(ADelta: integer); virtual;
     procedure ScrollHorz(ADelta: integer); virtual;
@@ -564,8 +566,6 @@ var
   pos: real;
 begin
   parentView := PView(Parent);
-  if Assigned(parentView) then
-    parentView^.ScrollPositionChanged(AEvent);
   if not VeridianApp^.Settings.UpdateScrollContents then begin
     pos := PosFromCoord;
     SetRealPosition(pos);
@@ -884,8 +884,6 @@ begin
   VertScrollBar := New(PScrollBar, CreateParent('VertScrollBar', @self, soVertical));
   ScrollType := scNone;
   AutoSize := false;
-  ScrollX := 0;
-  ScrollY := 0;
 end;
 
 function TView.ContentOffsetX: integer;
@@ -896,6 +894,16 @@ end;
 function TView.ContentOffsetY: integer;
 begin
   ContentOffsetY := -ScrollY;
+end;
+
+function TView.ScrollX: longint;
+begin
+  ScrollX := Round(HorzScrollBar^.FPosition);
+end;
+
+function TView.ScrollY: longint;
+begin
+  ScrollY := Round(VertScrollBar^.FPosition);
 end;
 
 procedure TView.GetContentExtent(var ASize: TSize);
@@ -935,10 +943,6 @@ end;
 
 procedure TView.ScrollPositionChanged(var AEvent: TScrollEvent);
 begin
-  if AEvent.Orientation = soVertical then
-    ScrollY := AEvent.ScrollPosition
-  else
-    ScrollX := AEvent.ScrollPosition;
 end;
 
 procedure TView.SetScrollBarBounds(AOrientation: TScrollOrientation);
@@ -1049,14 +1053,10 @@ begin
       VertScrollBar^.Visible := extent.Height > ContentHeight - Padding.Height;
       HorzScrollBar^.Visible := extent.Width > ContentWidth - Padding.Width;
 
-      if not VertScrollbar^.Visible then begin
+      if not VertScrollbar^.Visible then
         VertScrollBar^.FPosition := 0;
-        ScrollY := 0;
-      end;
-      if not HorzScrollbar^.Visible then begin
+      if not HorzScrollbar^.Visible then
         HorzScrollBar^.FPosition := 0;
-        ScrollX := 0;
-      end;
     end;
   end;
   SetScrollBarBounds(soVertical);
@@ -1698,7 +1698,7 @@ begin
     VeridianApp^.LeftMouseDownControl := nil;
   if VeridianApp^.RightMouseDownControl = ASender then
     VeridianApp^.RightMouseDownControl := nil;
-  if VeridianApp^.SelectingControl = ASender then
+  if PControl(VeridianApp^.SelectingControl) = ASender then
     VeridianApp^.SelectingControl := nil;
   if PControl(VeridianApp^.ActiveControl) = ASender then
     VeridianApp^.ActiveControl := nil;
@@ -1882,12 +1882,11 @@ begin
 end;
 
 procedure TWindow.Show;
+var
+  rect: TRect;
 begin
   Visible := true;
-  VeridianApp^.PushState;
-  VeridianApp^.State.DrawEnabled := false;
   Layout;
-  VeridianApp^.PopState;
   Visible := false;
   inherited Show;
 end;
@@ -1953,12 +1952,6 @@ begin
     exit;
   parentView := PView(Parent);
   FPosition := APosition;
-
-  parentView := PView(Parent);
-  if Orientation = soVertical then
-    parentView^.ScrollY := ScrollPosition
-  else
-    parentView^.ScrollX := ScrollPosition;
 
   with parentView^ do begin
     BeginDrawing;
@@ -2112,7 +2105,6 @@ procedure TGripBorder.Init;
 begin
   inherited Init;
   BorderType := wbTop;
-  Include(ControlOptions, coCanDrag);
   Position := rpParentRelative;
 end;
 

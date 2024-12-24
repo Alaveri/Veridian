@@ -107,13 +107,23 @@ type
     MouseCursor: PMouseCursor;
     Parent: PControl;
     Controls: PControlList;
-    Position: TRelativePosition;
-    Visible: boolean;
-    Enabled: boolean;
     Align: TAlign;
     Tag: integer;
     Margins: TSpacing;
     Padding: TSpacing;
+    { Defines what the control's bounds are in relation to.  Valid value are:
+      rpAbsolute - Bounds are relative to absolute screen coordinates.
+      rpParentClient - Bounds are relative to the parent's client area, usually
+        the area inside the parents's borders and bevels.
+      rpParentContent - Bounds are relative to the parent's content area,
+        usually the client area adjusted for additional parent controls such as
+        scroll bars.  For views, this is the area that scrolls within the view.
+        This is the default value.
+      rpParentRelative - Bounds are relative to the parent's bounds, not
+        including any borders, bevels, padding or other controls. }
+    Position: TRelativePosition;
+    Visible: boolean;
+    Enabled: boolean;
     OnKeyPress: PKeyEventProc;
     OnMouseDown: PMouseEventProc;
     OnMouseMove: PMouseEventProc;
@@ -129,21 +139,13 @@ type
     OnEnter: PEventProc;
     OnExit: PEventProc;
     OnRun: PEventProc;
-    ScrollX, ScrollY: integer;
     ControlOptions: TControlOptions;
-    constructor Create(AId: string);
-    constructor CreateParent(AId: string; AParent: PControl);
     destructor Free; virtual;
-    procedure Init; virtual;
-    procedure LayoutRect(ARect: TRect); virtual;
-    procedure Layout; virtual;
     function BorderWidth: byte; virtual;
     function BevelWidth: byte; virtual;
     function OuterWidth: byte;
     function SpacingWidth: integer;
     function SpacingHeight: integer;
-    function BringToFront: boolean;
-    function SendToBack: boolean;
     function CreateControlList: PControlList; virtual;
     function GetSize: word;
     function ScaleX(APercent: real): integer;
@@ -151,11 +153,13 @@ type
     function FindControl(const AId: string): PControl;
     function ContainsControl(AControl: PControl): boolean;
     function FindControlThat(AFunc: TControlPredicate): PControl;
+    function BringToFront: boolean;
+    function SendToBack: boolean;
 
+    function IsMouseOver: boolean;
     function IsVisible: boolean;
     function IsEnabled: boolean;
     function IsVisibleAndEnabled: boolean;
-    function IsMouseOver: boolean;
 
     function IsActionControl: boolean; virtual;
     function IsFocusControl: boolean; virtual;
@@ -174,56 +178,89 @@ type
     function IsCheckBox: boolean; virtual;
     function IsRadioButton: boolean; virtual;
 
+    { Returns X position of the control's client area.  This is usually the area
+      inside the control's borders, bevels, padding, etc. }
     function ClientX: integer; virtual;
+    { Returns Y position of the control's client area.  This is usually the area
+      inside the control's borders, bevels, padding, etc. }
     function ClientY: integer; virtual;
+    { Returns width of the control's client area.  This is usually the area
+      inside the control's borders, bevels, padding, etc. }
     function ClientWidth: integer; virtual;
+    { Returns height of the control's client area.  This is usually the area
+      inside the control's borders, bevels, padding, etc. }
     function ClientHeight: integer; virtual;
+    { Returns X position of the control's content area.  This is usually the
+      area inside the control's borders, bevels, padding, etc, adjusted for
+      other controls such as scroll bars. }
     function ContentX: integer; virtual;
+    { Returns Y position of the control's content area.  This is usually the
+      area inside the control's borders, bevels, padding, etc, adjusted for
+      other controls such as scroll bars. }
     function ContentY: integer; virtual;
+    { Returns the X offset of the control's content area.  For Views, this
+      is defined by the View's scroll position. }
     function ContentOffsetX: integer; virtual;
+    { Returns the Y offset of the control's content area.  For Views, this
+      is defined by the View's scroll position. }
     function ContentOffsetY: integer; virtual;
+    { Returns width of the control's content area.  This is usually the area
+      inside the control's borders, bevels, padding, etc, adjusted for other
+      controls such as scroll bars. }
     function ContentWidth: integer; virtual;
+    { Returns height of the control's content area.  This is usually the area
+      inside the control's borders, bevels, padding, etc, adjusted for other
+      controls such as scroll bars. }
     function ContentHeight: integer; virtual;
-
+    { Returns the X position of the control in absolute screen coordinates. }
     function ScreenX: integer;
+    { Returns the Y position of the control in absolute screen coordinates. }
     function ScreenY: integer;
+    { Returns the X position of the control based on the control's Position
+      value. }
     function CalculatedX: integer;
+    { Returns the Y position of the control based on the control's Position
+      value. }
     function CalculatedY: integer;
+    { Gets a rectangle set to the control's X, Y, Width, and Height values. }
     procedure GetBounds(var ARect: TRect);
+    { Gets the bounds of the control used for calls to LayoutRect. A control's
+      LayoutRect method should position the contents of the control relative to
+      this value.  Usually equivalent to GetBounds at coordinates (0, 0). }
     procedure GetLayoutRect(var ARect: TRect);
+    { Gets the bounds of the control based on the control's Position value. }
     procedure GetCalculatedBounds(var ARect: TRect);
+    { Gets the area defined as the client area of the control.  This is usually
+      the area inside the control's borders, bevels, padding, etc. }
     procedure GetClientRect(var ARect: TRect);
+    { Gets the area defined as the content area of the control.  This is usually
+      the client area adjusted for other parent controls such as scroll bars. }
     procedure GetContentRect(var ARect: TRect);
+    { Gets the content area of the control in absolute screen coordinates. }
     procedure GetContentScreenRect(var ARect: TRect);
+    { Gets the content area of the control in absolute screen coordinates,
+      adjusted by the control's ContentOffsetX and Y.  For Views, the offsets
+      are set based on the View's scroll position. }
     procedure GetContentDrawRect(var ARect: TRect);
+    { Equivalent to GetClientRect in absolute screen coordinates. }
     procedure GetClientScreenRect(var ARect: TRect);
+    { Gets the area of the screen that the control occupies. }
     procedure GetScreenBounds(var ARect: TRect);
+    { Gets the clipping area of the control in screen coordinates. If clipping
+      is enabled in the control's ControlOptions, then the graphics viewport is
+      set to this value automatically in BeginDrawing. }
     procedure GetClipRect(var ARect: TRect);
+    { Gets the area of the screen that the control occupies, adjusted by the
+      control's ContentOffsetX and Y.  This area is passed into the Paint method
+      when the control's Draw or DrawControl method is called, with the graphics
+      viewport set to the value of GetClipRect. }
     procedure GetDrawRect(var ARect: TRect);
+    { Adjusts the specified rectangle by a control's ContentOffsetX and Y, and
+      by the offsets of any parent controls that have a Position value of
+      rpParentContent. }
+    constructor Create(AId: string);
+    constructor CreateParent(AId: string; AParent: PControl);
     procedure OffsetRect(AControl: PControl; var ARect: TRect);
-
-    procedure SetWidthHeight(AWidth, AHeight: word); virtual;
-    procedure SetWidth(AWidth: word); virtual;
-    procedure SetHeight(AHeight: word); virtual;
-    procedure SetStayOnTop(AStayOnTop: boolean);
-    procedure DrawControl(ADrawControls: boolean); virtual;
-    procedure AlignControl;
-    procedure Draw; virtual;
-    procedure DrawSelf;
-    procedure DrawControls; virtual;
-    procedure Hide; virtual;
-    procedure HideEx(var AStart, AEnd: TRect); virtual;
-    procedure Show; virtual;
-    procedure Run; virtual;
-    procedure BeginDrawing; virtual;
-    procedure EndDrawing; virtual;
-    procedure SetBounds(APX, APY: integer; AWidth, AHeight: integer); virtual;
-    procedure SetBoundsRect(var ARect: TRect); virtual;
-    procedure SetSize(AWidth, AHeight: integer); virtual;
-    procedure SetXY(APX, APY: integer); virtual;
-    procedure SetEnabled(AEnabled: boolean); virtual;
-    procedure Paint(ARect: TRect); virtual;
-    procedure PaintRegion(var ARect: TRect; AExclude: PControl); virtual;
     procedure KeyPress(var AEvent: TKeyEvent); virtual;
     procedure MouseDown(var AEvent: TMouseEvent); virtual;
     procedure MouseUp(var AEvent: TMouseEvent); virtual;
@@ -236,6 +273,31 @@ type
     procedure DragStart(var AEvent: TDragEvent); virtual;
     procedure DragMove(var AEvent: TDragEvent); virtual;
     procedure DragEnd(var AEvent: TDragEvent); virtual;
+    procedure Init; virtual;
+    procedure LayoutRect(ARect: TRect); virtual;
+    procedure Layout;
+    procedure AlignControl;
+    procedure SetWidthHeight(AWidth, AHeight: word); virtual;
+    procedure SetWidth(AWidth: word); virtual;
+    procedure SetHeight(AHeight: word); virtual;
+    procedure SetBounds(APX, APY: integer; AWidth, AHeight: integer); virtual;
+    procedure SetBoundsRect(var ARect: TRect); virtual;
+    procedure SetSize(AWidth, AHeight: integer); virtual;
+    procedure SetXY(APX, APY: integer); virtual;
+    procedure SetEnabled(AEnabled: boolean); virtual;
+    procedure SetStayOnTop(AStayOnTop: boolean);
+    procedure DrawControl(ADrawControls: boolean); virtual;
+    procedure Draw; virtual;
+    procedure DrawSelf;
+    procedure DrawControls; virtual;
+    procedure Hide; virtual;
+    procedure HideEx(var AStart, AEnd: TRect); virtual;
+    procedure Show; virtual;
+    procedure Run; virtual;
+    procedure BeginDrawing; virtual;
+    procedure EndDrawing; virtual;
+    procedure Paint(ARect: TRect); virtual;
+    procedure PaintRegion(var ARect: TRect; AExclude: PControl); virtual;
   end;
 
   TVisualControl = object(TControl)
@@ -447,65 +509,6 @@ uses
   Gr8Drv,
   Strings;
 
-constructor TControl.Create(AId: string);
-begin
-  inherited CreateId(AId);
-end;
-
-constructor TControl.CreateParent(AId: string; AParent: PControl);
-begin
-  inherited CreateId(AId);
-  Parent := AParent;
-  if Assigned(Parent) then
-    AParent^.Controls^.Add(@self);
-end;
-
-procedure TControl.Init;
-begin
-  inherited Init;
-  Parent := nil;
-  Controls := CreateControlList;
-  X := 0;
-  Y := 0;
-  Width := 0;
-  Height := 0;
-  ScrollX := 0;
-  ScrollY := 0;
-  Include(ControlOptions, coClipping);;
-  Visible := true;
-  Enabled := true;
-  Align := alNone;
-  Position := rpParentContent;
-  Margins.Create;
-  Padding.Create;
-  Tag := 0;
-  ControlOptions := [coClipping];
-  OnDragEnd := nil;
-  OnDragMove := nil;
-  OnDragStart := nil;
-  OnEnter := nil;
-  OnExit := nil;
-  OnKeyPress := nil;
-  OnMouseDown := nil;
-  OnMouseMove := nil;
-  OnMouseUp := nil;
-  OnMouseDown := nil;
-  OnMouseClick := nil;
-  OnMouseDoubleClick := nil;
-  OnMouseEnter := nil;
-  OnMouseLeave := nil;
-  OnMouseWheelChanged := nil;
-  OnEnter := nil;
-  OnExit := nil;
-  OnRun := nil;
-  MouseCursor := VeridianApp^.MouseCursors^.GetItemById('Default');
-end;
-
-function TControl.CreateControlList: PControlList;
-begin
-  CreateControlList := New(PControlList, Create(@Self));
-end;
-
 function TControl.IsVisualControl: boolean;
 begin
   IsVisualControl := false;
@@ -584,6 +587,281 @@ end;
 function TControl.IsContentControl: boolean;
 begin
   IsContentControl := false;
+end;
+
+constructor TControl.Create(AId: string);
+begin
+  inherited CreateId(AId);
+end;
+
+constructor TControl.CreateParent(AId: string; AParent: PControl);
+begin
+  inherited CreateId(AId);
+  Parent := AParent;
+  if Assigned(Parent) then
+    AParent^.Controls^.Add(@self);
+end;
+
+procedure TControl.OffsetRect(AControl: PControl; var ARect: TRect);
+begin
+  if Assigned(AControl^.Parent) then begin
+    if AControl^.Position = rpParentContent then
+      ARect.Translate(AControl^.Parent^.ContentOffsetX, AControl^.Parent^.ContentOffsetY);
+    OffsetRect(AControl^.Parent, ARect);
+  end;
+end;
+
+function TControl.IsMouseOver: boolean;
+begin
+  IsMouseOver := VeridianApp^.MouseOverControl = @self;
+end;
+
+function TControl.IsEnabled: boolean;
+var
+  parentControl: PControl;
+  result: boolean;
+  function ControlEnabled(AControl: PControl): boolean;
+  var
+    actionControl: PActionControl;
+  begin
+    ControlEnabled := AControl^.Enabled;
+    if not AControl^.IsActionControl then
+      exit;
+    actionControl := PActionControl(AControl);
+    if Assigned(actionControl^.Action) then
+      ControlEnabled := actionControl^.Action^.Enabled;
+  end;
+begin
+  IsEnabled := false;
+  result := ControlEnabled(@self);
+  if result and (VeridianApp^.ActiveDialog = @self) then begin
+    IsEnabled := true;
+    exit;
+  end;
+
+  parentControl := Parent;
+  while Assigned(parentControl) do begin
+    if Assigned(VeridianApp^.ActiveDialog) and (parentControl = PControl(VeridianApp^.ActiveDialog)) then
+      break;
+    if not ControlEnabled(parentControl) then begin
+      result := false;
+      break;
+    end;
+    parentControl := parentControl^.Parent;
+  end;
+  IsEnabled := result;
+end;
+
+
+function TControl.IsVisibleAndEnabled: boolean;
+begin
+  IsVisibleAndEnabled := IsVisible and IsEnabled;
+end;
+
+function TControl.IsVisible: boolean;
+var
+  par: PControl;
+begin
+  IsVisible := Visible;
+  if not Visible then
+    exit;
+  par := Parent;
+  while Assigned(par) do begin
+    if not par^.Visible then begin
+      IsVisible := false;
+      exit;
+    end;
+    par := par^.Parent;
+  end;
+end;
+
+function TControl.ContentX: integer;
+var
+  result: integer;
+begin
+  result := ClientX;
+  ContentX := result;
+end;
+
+function TControl.ContentY: integer;
+var
+  result: integer;
+begin
+  result := ClientY;
+  ContentY := result;
+end;
+
+function TControl.ContentWidth: integer;
+begin
+  ContentWidth := ClientWidth;
+end;
+
+function TControl.ContentHeight: integer;
+begin
+  ContentHeight := ClientHeight;
+end;
+
+procedure TControl.GetBounds(var ARect: TRect);
+begin
+  ARect.CreateDims(X, Y, Width, Height);
+end;
+
+procedure TControl.GetLayoutRect(var ARect: TRect);
+begin
+  ARect.CreateDims(0, 0, Width, Height);
+end;
+
+procedure TControl.GetCalculatedBounds(var ARect: TRect);
+begin
+  ARect.CreateDims(CalculatedX, CalculatedY, Width, Height);
+end;
+
+procedure TControl.GetClientRect(var ARect: TRect);
+begin
+  ARect.CreateDims(ClientX, ClientY, ClientWidth, ClientHeight);
+end;
+
+procedure TControl.GetContentRect(var ARect: TRect);
+begin
+  ARect.CreateDims(ContentX, ContentY, ContentWidth, ContentHeight);
+end;
+
+procedure TControl.GetContentScreenRect(var ARect: TRect);
+begin
+  GetContentRect(ARect);
+  ARect.Translate(ScreenX, ScreenY);
+end;
+
+procedure TControl.GetClientScreenRect(var ARect: TRect);
+begin
+  GetClientRect(ARect);
+  ARect.Translate(ScreenX, ScreenY);
+end;
+
+function TControl.ScreenX: integer;
+var
+  result: integer;
+begin
+  result := CalculatedX;
+  ScreenX := result;
+  if Position = rpAbsolute then
+    exit;
+  if not Assigned(Parent) then
+    exit;
+  Inc(result, Parent^.ScreenX);
+  ScreenX := result;
+end;
+
+function TControl.ScreenY: integer;
+var
+  result: integer;
+begin
+  result := CalculatedY;
+  ScreenY := result;
+  if Position = rpAbsolute then
+    exit;
+  if not Assigned(Parent) then
+    exit;
+  Inc(result, Parent^.ScreenY);
+  ScreenY := result;
+end;
+
+function TControl.ContentOffsetX: integer;
+begin
+  ContentOffsetX := 0;
+end;
+
+function TControl.ContentOffsetY: integer;
+begin
+  ContentOffsetY := 0;
+end;
+
+procedure TControl.GetScreenBounds(var ARect: TRect);
+begin
+  ARect.CreateDims(ScreenX, ScreenY, Width, Height);
+end;
+
+procedure TControl.GetContentDrawRect(var ARect: TRect);
+begin
+  GetContentScreenRect(ARect);
+  OffsetRect(@self, ARect);
+end;
+
+procedure TControl.GetDrawRect(var ARect: TRect);
+begin
+  GetScreenBounds(ARect);
+  OffsetRect(@self, ARect);
+end;
+
+procedure TControl.GetClipRect(var ARect: TRect);
+var
+  parentRect: TRect;
+  par: PControl;
+  current: PControl;
+begin
+  GetDrawRect(ARect);
+  if not Assigned(Parent) then
+    exit;
+  case Position of
+    rpParentContent: Parent^.GetContentScreenRect(parentRect);
+    rpParentClient: Parent^.GetClientScreenRect(parentRect);
+    rpParentRelative: Parent^.GetScreenBounds(parentRect);
+    rpAbsolute: exit;
+  end;
+  Parent^.OffsetRect(Parent, parentRect);
+  ARect.Intersect(parentRect);
+  par := Parent;
+  while Assigned(par) do begin
+    par^.GetClipRect(parentRect);
+    ARect.Intersect(parentRect);
+    if par^.Position = rpAbsolute then
+      break;
+    par := par^.Parent;
+  end;
+end;
+
+procedure TControl.Init;
+begin
+  inherited Init;
+  Parent := nil;
+  Controls := CreateControlList;
+  X := 0;
+  Y := 0;
+  Width := 0;
+  Height := 0;
+  Include(ControlOptions, coClipping);
+  Visible := true;
+  Enabled := true;
+  Align := alNone;
+  Position := rpParentContent;
+  Margins.Create;
+  Padding.Create;
+  Tag := 0;
+  ControlOptions := [coClipping];
+  OnDragEnd := nil;
+  OnDragMove := nil;
+  OnDragStart := nil;
+  OnEnter := nil;
+  OnExit := nil;
+  OnKeyPress := nil;
+  OnMouseDown := nil;
+  OnMouseMove := nil;
+  OnMouseUp := nil;
+  OnMouseDown := nil;
+  OnMouseClick := nil;
+  OnMouseDoubleClick := nil;
+  OnMouseEnter := nil;
+  OnMouseLeave := nil;
+  OnMouseWheelChanged := nil;
+  OnEnter := nil;
+  OnExit := nil;
+  OnRun := nil;
+  MouseCursor := VeridianApp^.MouseCursors^.GetItemById('Default');
+end;
+
+function TControl.CreateControlList: PControlList;
+begin
+  CreateControlList := New(PControlList, Create(@Self));
 end;
 
 procedure TControl.SetWidthHeight(AWidth, AHeight: word);
@@ -736,43 +1014,6 @@ begin
     exit;
   Visible := true;
   Draw;
-end;
-
-procedure TControl.DragStart(var AEvent: TDragEvent);
-begin
-  Invoke(OnDragStart, AEvent);
-end;
-
-procedure TControl.DragMove(var AEvent: TDragEvent);
-begin
-  Invoke(OnDragMove, AEvent);
-end;
-
-procedure TControl.DragEnd(var AEvent: TDragEvent);
-begin
-  Invoke(OnDragEnd,  AEvent);
-end;
-
-function TControl.IsVisible: boolean;
-var
-  par: PControl;
-begin
-  IsVisible := Visible;
-  if not Visible then
-    exit;
-  par := Parent;
-  while Assigned(par) do begin
-    if not par^.Visible then begin
-      IsVisible := false;
-      exit;
-    end;
-    par := par^.Parent;
-  end;
-end;
-
-function TControl.IsMouseOver: boolean;
-begin
-  IsMouseOver := VeridianApp^.MouseOverControl = @self;
 end;
 
 procedure TControl.AlignControl;
@@ -1102,22 +1343,6 @@ begin
   ClientY := Padding.Top + OuterWidth;
 end;
 
-function TControl.ContentX: integer;
-var
-  result: integer;
-begin
-  result := ClientX;
-  ContentX := result;
-end;
-
-function TControl.ContentY: integer;
-var
-  result: integer;
-begin
-  result := ClientY;
-  ContentY := result;
-end;
-
 function TControl.ClientWidth: integer;
 begin
   ClientWidth := Width - 2 * OuterWidth - Padding.Width;
@@ -1126,144 +1351,6 @@ end;
 function TControl.ClientHeight: integer;
 begin
   ClientHeight := Height - 2 * OuterWidth - Padding.Height;
-end;
-
-function TControl.ContentWidth: integer;
-begin
-  ContentWidth := ClientWidth;
-end;
-
-function TControl.ContentHeight: integer;
-begin
-  ContentHeight := ClientHeight;
-end;
-
-procedure TControl.GetBounds(var ARect: TRect);
-begin
-  ARect.CreateDims(X, Y, Width, Height);
-end;
-
-procedure TControl.GetLayoutRect(var ARect: TRect);
-begin
-  ARect.CreateDims(0, 0, Width, Height);
-end;
-
-procedure TControl.GetCalculatedBounds(var ARect: TRect);
-begin
-  ARect.CreateDims(CalculatedX, CalculatedY, Width, Height);
-end;
-
-procedure TControl.GetClientRect(var ARect: TRect);
-begin
-  ARect.CreateDims(ClientX, ClientY, ClientWidth, ClientHeight);
-end;
-
-procedure TControl.GetContentRect(var ARect: TRect);
-begin
-  ARect.CreateDims(ContentX, ContentY, ContentWidth, ContentHeight);
-end;
-
-procedure TControl.GetContentScreenRect(var ARect: TRect);
-begin
-  GetContentRect(ARect);
-  ARect.Translate(ScreenX, ScreenY);
-end;
-
-procedure TControl.GetContentDrawRect(var ARect: TRect);
-begin
-  GetContentScreenRect(ARect);
-  OffsetRect(@self, ARect);
-end;
-
-procedure TControl.GetClientScreenRect(var ARect: TRect);
-begin
-  GetClientRect(ARect);
-  ARect.Translate(ScreenX, ScreenY);
-end;
-
-function TControl.ScreenX: integer;
-var
-  result: integer;
-begin
-  result := CalculatedX;
-  ScreenX := result;
-  if Position = rpAbsolute then
-    exit;
-  if not Assigned(Parent) then
-    exit;
-  Inc(result, Parent^.ScreenX);
-  ScreenX := result;
-end;
-
-function TControl.ScreenY: integer;
-var
-  result: integer;
-begin
-  result := CalculatedY;
-  ScreenY := result;
-  if Position = rpAbsolute then
-    exit;
-  if not Assigned(Parent) then
-    exit;
-  Inc(result, Parent^.ScreenY);
-  ScreenY := result;
-end;
-
-function TControl.ContentOffsetX: integer;
-begin
-  ContentOffsetX := 0;
-end;
-
-function TControl.ContentOffsetY: integer;
-begin
-  ContentOffsetY := 0;
-end;
-
-procedure TControl.GetScreenBounds(var ARect: TRect);
-begin
-  ARect.CreateDims(ScreenX, ScreenY, Width, Height);
-end;
-
-procedure TControl.OffsetRect(AControl: PControl; var ARect: TRect);
-begin
-  if Assigned(AControl^.Parent) then begin
-    if AControl^.Position = rpParentContent then
-      ARect.Translate(AControl^.Parent^.ContentOffsetX, AControl^.Parent^.ContentOffsetY);
-    OffsetRect(AControl^.Parent, ARect);
-  end;
-end;
-
-procedure TControl.GetDrawRect(var ARect: TRect);
-begin
-  GetScreenBounds(ARect);
-  OffsetRect(@self, ARect);
-end;
-
-procedure TControl.GetClipRect(var ARect: TRect);
-var
-  parentRect: TRect;
-  par: PControl;
-  current: PControl;
-begin
-  GetDrawRect(ARect);
-  if not Assigned(Parent) then
-    exit;
-  case Position of
-    rpParentContent: Parent^.GetContentScreenRect(parentRect);
-    rpParentClient: Parent^.GetClientScreenRect(parentRect);
-    rpParentRelative: Parent^.GetScreenBounds(parentRect);
-    rpAbsolute: exit;
-  end;
-  Parent^.OffsetRect(Parent, parentRect);
-  ARect.Intersect(parentRect);
-  par := Parent;
-  while Assigned(par) do begin
-    par^.GetClipRect(parentRect);
-    ARect.Intersect(parentRect);
-    if par^.Position = rpAbsolute then
-      break;
-    par := par^.Parent;
-  end;
 end;
 
 procedure TControl.SetBounds(APX, APY: integer; AWidth, AHeight: integer);
@@ -1441,6 +1528,21 @@ begin
   Invoke(OnMouseWheelChanged, AEvent);
 end;
 
+procedure TControl.DragStart(var AEvent: TDragEvent);
+begin
+  Invoke(OnDragStart, AEvent);
+end;
+
+procedure TControl.DragMove(var AEvent: TDragEvent);
+begin
+  Invoke(OnDragMove, AEvent);
+end;
+
+procedure TControl.DragEnd(var AEvent: TDragEvent);
+begin
+  Invoke(OnDragEnd, AEvent);
+end;
+
 procedure TControl.Run;
 var
   event: TEvent;
@@ -1453,47 +1555,6 @@ procedure TControl.SetEnabled(AEnabled: boolean);
 begin
   Enabled := AEnabled;
   Draw;
-end;
-
-function TControl.IsEnabled: boolean;
-var
-  parentControl: PControl;
-  result: boolean;
-  function ControlEnabled(AControl: PControl): boolean;
-  var
-    actionControl: PActionControl;
-  begin
-    ControlEnabled := AControl^.Enabled;
-    if not AControl^.IsActionControl then
-      exit;
-    actionControl := PActionControl(AControl);
-    if Assigned(actionControl^.Action) then
-      ControlEnabled := actionControl^.Action^.Enabled;
-  end;
-begin
-  IsEnabled := false;
-  result := ControlEnabled(@self);
-  if result and (VeridianApp^.ActiveDialog = @self) then begin
-    IsEnabled := true;
-    exit;
-  end;
-
-  parentControl := Parent;
-  while Assigned(parentControl) do begin
-    if Assigned(VeridianApp^.ActiveDialog) and (parentControl = PControl(VeridianApp^.ActiveDialog)) then
-      break;
-    if not ControlEnabled(parentControl) then begin
-      result := false;
-      break;
-    end;
-    parentControl := parentControl^.Parent;
-  end;
-  IsEnabled := result;
-end;
-
-function TControl.IsVisibleAndEnabled: boolean;
-begin
-  IsVisibleAndEnabled := IsVisible and IsEnabled;
 end;
 
 procedure TVisualControl.SetForeColor(AForeColor: byte);

@@ -529,8 +529,8 @@ procedure TListView.Clear;
 begin
   Items^.Clear;
   SelectedIndex := 0;
-  ScrollY := 0;
   VertScrollbar^.SetScrollPosition(0);
+  HorzScrollbar^.SetScrollPosition(0);
 end;
 
 procedure TListView.Paint(ARect: TRect);
