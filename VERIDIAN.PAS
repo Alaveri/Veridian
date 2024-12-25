@@ -675,7 +675,7 @@ begin
       DragControl^.DragMove(dragEvent);
     end;
     if Assigned(LeftMouseDownControl)
-      and (coCanDrag in LeftMouseDownControl^.ControlOptions)
+      and (LeftMouseDownControl^.CanDrag(AEvent))
       and not Assigned(DragControl) then begin
       if not LeftMouseDownControl^.IsVisibleAndEnabled then
         exit;
@@ -687,7 +687,7 @@ begin
       dragEvent.X := DragInitialPos.X;
       dragEvent.Y := DragInitialPos.Y;
       DragInitialSize.CreateDims(DragControl^.Width, DragControl^.Height);
-        LeftMouseDownControl^.DragStart(dragEvent);
+      LeftMouseDownControl^.DragStart(dragEvent);
     end;
     HandleMouseEnter(control, FMouseEvent);
   end;

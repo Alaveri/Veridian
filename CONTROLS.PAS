@@ -62,7 +62,6 @@ type
 
   TControlOption = (
     coClipping,
-    coCanDrag,
     coCanUndo,
     coStayOnTop
   );
@@ -155,6 +154,7 @@ type
     function FindControlThat(AFunc: TControlPredicate): PControl;
     function BringToFront: boolean;
     function SendToBack: boolean;
+    function CanDrag(var AEvent: TMouseEvent): boolean; virtual;
 
     function IsMouseOver: boolean;
     function IsVisible: boolean;
@@ -673,6 +673,11 @@ begin
     end;
     par := par^.Parent;
   end;
+end;
+
+function TControl.CanDrag(var AEvent: TMouseEvent): boolean;
+begin
+  CanDrag := false;
 end;
 
 function TControl.ContentX: integer;
