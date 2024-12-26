@@ -11,6 +11,7 @@ uses
   Drawing,
   Dialogs,
   Lists,
+  AplStr,
   Graphics,
   Gr8Drv,
   GraphIni,
@@ -80,6 +81,7 @@ type
     FNewWindowX, FNewWindowY: integer;
     AltKeyDown: boolean;
     SwitchingWindows: boolean;
+    ErrorDialog: PShowMessageDialog;
     function LoadFont(const AFilename: string): PFont;
     function CreateDesktop: PDesktop; virtual;
     function HandleWindowSwitch: boolean;
@@ -150,6 +152,7 @@ type
     function GetFont(const AId: string): PFont;
     function DefaultWindowX: integer;
     function DefaultWindowY: integer;
+    procedure Error(var ASender; ACode: word); virtual;
     procedure ProcessEvents; virtual;
     procedure Run; virtual;
     procedure Init; virtual;
@@ -195,6 +198,7 @@ var
 procedure OnAllocError(ASize: word); far;
 begin
   with VeridianApp^ do begin
+    Error(VeridianApp, ecNotEnoughMemory);
   end;
 end;
 
@@ -232,10 +236,19 @@ begin
   Keyboard.GetKey;
   FNewWindowX := 10;
   FNewWindowY := MenuBar^.Height + 10;
+  ErrorDialog := New(PShowMessageDialog, Create('Error', '', [mbOk]));
+  TString.Free(ErrorDialog^.MessageLabel^.Caption);
+  GetMem(ErrorDialog^.MessageLabel^.Caption, 256);
+  FillChar(ErrorDialog^.MessageLabel^.Caption^, 256, 0);
+  if not (Assigned(ErrorDialog) and Assigned(ErrorDialog^.MessageLabel^.Caption)) then begin
+    WriteLn(ErrorMessage(ecNotEnoughMemory));
+    Halt(ecNotEnoughMemory);
+  end;
 end;
 
 destructor TVeridianApp.Free;
 begin
+  FreeMem(ErrorDialog^.MessageLabel^.Caption, 256);
   FreeAndNil(FOffScreen);
   StateStack.DisposeObjects := true;
   StateStack.Free;
@@ -1192,33 +1205,51 @@ end;
 procedure TVeridianApp.CleanupWindows;
 var
   index: integer;
-  window: PControl;
+  control: PControl;
+  window: PWindow;
 begin
-  window := Desktop^.FindControlThat(IsClosed);
-  if not Assigned(window) then
+  control := Desktop^.FindControlThat(IsClosed);
+  if not Assigned(control) then
     exit;
-  if PControl(ActiveWindow) = window then
-    ActiveWindow := nil;
-  if window^.ContainsControl(ActiveControl) then
-    ActiveControl := nil;
-  if window^.ContainsControl(LeftMouseDownControl) then
-    LeftMouseDownControl := nil;
-  if window^.ContainsControl(RightMouseDownControl) then
-    RightMouseDownControl := nil;
-  if window^.ContainsControl(MouseOverControl) then
-    MouseOverControl := nil;
-  if window^.ContainsControl(SelectingControl) then
-    SelectingControl := nil;
-  if window^.ContainsControl(DragControl) then
-    DragControl := nil;
-  if window^.ContainsControl(ActiveDropDown) then
-    ActiveDropDown := nil;
-  if window^.ContainsControl(ActiveDialog) then
-    ActiveDialog := nil;
-  while Assigned(window) and Assigned(window^.Parent) do begin
+  while Assigned(control) and Assigned(control^.Parent) do begin
+    window := PWindow(control);
+    if ActiveWindow = window then
+      ActiveWindow := nil;
+    if window^.ContainsControl(ActiveControl) then
+      ActiveControl := nil;
+    if window^.ContainsControl(LeftMouseDownControl) then
+      LeftMouseDownControl := nil;
+    if window^.ContainsControl(RightMouseDownControl) then
+      RightMouseDownControl := nil;
+    if window^.ContainsControl(MouseOverControl) then
+      MouseOverControl := nil;
+    if window^.ContainsControl(SelectingControl) then
+      SelectingControl := nil;
+    if window^.ContainsControl(DragControl) then
+      DragControl := nil;
+    if window^.ContainsControl(ActiveDropDown) then
+      ActiveDropDown := nil;
+    if window^.ContainsControl(ActiveDialog) then
+      ActiveDialog := nil;
+    if Assigned(TaskBar) then
+      TaskBar^.RemoveWindow(window);
     window^.Parent^.Controls^.DeleteItem(window);
-    window := Desktop^.FindControlThat(IsClosed);
+    control := Desktop^.FindControlThat(IsClosed);
   end;
+end;
+
+procedure TVeridianApp.Error(var ASender; ACode: word);
+var
+  message: string;
+begin
+  case ACode of
+    ecNotEnoughMemory: message := 'Not enough memory to complete the last operation.'
+    else
+      message := ErrorMessage(ACode) + '.';
+  end;
+  FillChar(ErrorDialog^.Caption, 256, 0);
+  Move(message[1], ErrorDialog^.Caption^, Length(message));
+  ErrorDialog^.ShowDialog;
 end;
 
 procedure TVeridianApp.ProcessEvents;

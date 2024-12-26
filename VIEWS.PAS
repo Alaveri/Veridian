@@ -242,6 +242,8 @@ type
     constructor CreateBackground(const AId, ATitle: string; AParent: PControl);
     constructor Create(const AId, ATitle: string; AParent: PControl);
     destructor Free; virtual;
+    function IsWindowType(const AType: string): boolean;
+    function WindowType: string; virtual;
     function TitleVisible: boolean;
     function Active: boolean;
     function CanDrag(var AEvent: TMouseEvent): boolean; virtual;
@@ -1235,7 +1237,7 @@ begin
     rect.Width := ParentWindow^.RestoredBounds.Width;
     rect.Height := ParentWindow^.RestoredBounds.Height;
     ParentWindow^.WindowState := wsNormal;
-    TString.Reassign(MaximizeButton^.Caption, #7);
+    TString.Assign(MaximizeButton^.Caption, #7);
   end;
   desktop^.BeginDrawing;
   VeridianApp^.DragRect := rect;
@@ -1347,6 +1349,16 @@ end;
 function TWindow.CanDrag(var AEvent: TMouseEvent): boolean;
 begin
   CanDrag := FDragBorder <> gbNone;
+end;
+
+function TWindow.WindowType: string;
+begin
+  WindowType := 'Window';
+end;
+
+function TWindow.IsWindowType(const AType: string): boolean;
+begin
+  IsWindowType := LowerCase(AType) = LowerCase(WindowType);
 end;
 
 procedure TWindow.CenterDesktop;
@@ -2059,8 +2071,6 @@ begin
     exit;
   if not (woResizeable in Options) then
     exit;
-{  point.CreateCoords(AEvent.X, AEvent.Y);
-  FDragBorder := GetGripBorder(point);}
   AEvent.Handled := true;
   if FDragBorder = gbNone then
     exit;
@@ -2256,109 +2266,6 @@ begin
     exit;
   HorzScrollBar^.ScrollByAmount(ADelta);
 end;
-
-{  MouseCursor := VeridianApp^.MouseCursors^.GetItemById(GripCursors[BorderType]);
-
-procedure TGripBorder.DragStart(var AEvent: TDragEvent);
-var
-  rect: TRect;
-begin
-  if AEvent.Handled then
-    exit;
-  if not (woResizeable in PWindow(Parent)^.Options) then
-    exit;
-  AEvent.Handled := true;
-  ParentWindow^.GetDrawRect(rect);
-  desktop^.BeginDrawing;
-  VeridianApp^.DragRect := rect;
-  desktop^.MouseCursor := MouseCursor;
-  desktop^.EndDrawing;
-end;
-
-procedure TGripBorder.DragMove(var AEvent: TDragEvent);
-var
-  rect, originalRect: TRect;
-  dx, dy: integer;
-  minSize: integer;
-  horzBar, vertBar: PScrollBar;
-begin
-  if AEvent.Handled then
-    exit;
-  ParentWindow^.GetDrawRect(rect);
-  originalRect.CreateRect(rect);
-  dx := AEvent.X - AEvent.InitialX;
-  dy := AEvent.Y - AEvent.InitialY;
-  if (dx = 0) and (dy = 0) then
-    exit;
-  case BorderType of
-    wbTop: begin
-      rect.Translate(0, dy);
-      rect.Grow(0, -dy);
-    end;
-    wbBottom: begin
-      rect.Grow(0, dy);
-    end;
-    wbLeft: begin
-      rect.Translate(dx, 0);
-      rect.Grow(-dx, 0);
-    end;
-    wbRight: begin
-      rect.Grow(dx, 0);
-    end;
-    wpTopLeft: begin
-      rect.Translate(dx, dy);
-      rect.Grow(-dx, -dy);
-    end;
-    wpTopRight: begin
-      rect.Translate(0, dy);
-      rect.Grow(dx, -dy);
-    end;
-    wpBottomLeft: begin
-      rect.Translate(dx, 0);
-      rect.Grow(-dx, dy);
-    end;
-    wpBottomRight: begin
-      rect.Grow(dx, dy);
-    end;
-  end;
-  minSize := ParentWindow^.MinWidth;
-  if rect.Width < minSize then begin
-    rect.Width := minSize;
-    if BorderType in [wbLeft, wpTopLeft, wpBottomLeft] then
-      rect.X := originalRect.Right - minSize;
-  end;
-  minSize := ParentWindow^.MinHeight;
-  if rect.Height < minSize then begin
-    rect.Height := minSize;
-    if BorderType in [wbTop, wpTopLeft, wpTopRight] then
-      rect.Y := originalRect.Bottom - minSize;
-  end;
-  VeridianApp^.DragRect := rect;
-  AEvent.Handled := true;
-end;
-
-procedure TGripBorder.DragEnd(var AEvent: TDragEvent);
-var
-  rect: TRect;
-  sizingEvent: TSizingEvent;
-  sizedEvent: TSizeEvent;
-begin
-  if AEvent.Handled then
-    exit;
-  desktop^.BeginDrawing;
-  ParentWindow^.CreateSizingEvent(sizingEvent);
-  ParentWindow^.CreateSizedEvent(sizedEvent);
-  ParentWindow^.Resizing(sizingEvent);
-  if sizingEvent.CanResize then begin
-    ParentWindow^.MoveResize;
-  end;
-  desktop^.MouseCursor := VeridianApp^.MouseCursors^.GetItemById('default');
-  desktop^.EndDrawing;
-  AEvent.Handled := true;
-  if sizingEvent.CanResize then
-    ParentWindow^.Resized(sizedEvent);
-end;
-}
 
 constructor TTaskButton.Create(const AId: string; AParentTaskBar: PTaskBar; AWindow: PWindow);
 begin

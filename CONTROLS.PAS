@@ -2177,9 +2177,14 @@ begin
 end;
 
 procedure TCaptionControl.SetCaption(ACaption: string);
+var
+  wasVisible: boolean;
 begin
+  wasVisible := IsVisible;
+  Hide;
   TString.AssignString(Caption, ACaption);
-  Draw;
+  if wasVisible then
+    Show;
 end;
 
 procedure TCaptionControl.SetWrap(AWrap: boolean);

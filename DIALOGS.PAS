@@ -116,8 +116,8 @@ type
 
   TFileDialogOption =
   (
-    doFileMustExist,
-    doOverwritePrompt
+    foFileMustExist,
+    foOverwritePrompt
   );
 
   TFileDialogOptions = set of TFileDialogOption;
@@ -175,9 +175,9 @@ type
 
   TShowMessageDialog = object(TDialog)
   private
-    FLabel: PLabel;
   public
     Message: string;
+    MessageLabel: PLabel;
     constructor Create(const ATitle, AMessage: string; AButtons: TDialogButtons);
     procedure Init; virtual;
     procedure LayoutRect(ARect: TRect); virtual;
@@ -375,6 +375,7 @@ begin
   ActionList^.DisposeObjects := true;
   VeridianApp^.PopState;
   Padding.CreateValue(2);
+  Visible := false;
 end;
 
 procedure TDialog.CenterScreenX;
@@ -704,11 +705,11 @@ begin
         exists := true;
     end;
   end;
-  if not exists and (doFileMustExist in FileOptions) then begin
+  if not exists and (foFileMustExist in FileOptions) then begin
     ShowMessage('Error', 'File ' + ExtractFullName(AFilename) + ' does not exist.');
     exit;
   end
-  else if exists and (doOverwritePrompt in FileOptions) then begin
+  else if exists and (foOverwritePrompt in FileOptions) then begin
     result := MessageBox(
       'Warning',
       'File ' + ExtractFullName(AFilename) + ' already exists.  Overwrite?',
@@ -1015,8 +1016,8 @@ begin
   CancelButton := mbOk;
   ScrollType := scNone;
   ButtonAlign := haCenter;
-  FLabel := New(PLabel, CreateParent(Message, @self));
-  FLabel^.Caption := TString.New(Message);
+  MessageLabel := New(PLabel, CreateParent(Message, @self));
+  MessageLabel^.Caption := TString.New(Message);
   labelWidth := Font^.TextWidth(Message);
   Width := ScaleX(60);
   Height := ScaleY(20);
@@ -1028,9 +1029,9 @@ var
   button: PDialogButton;
 begin
   inherited LayoutRect(ARect);
-  labelWidth := FLabel^.Font^.TextWidthLarge(FLabel^.Caption);
+  labelWidth := MessageLabel^.Font^.TextWidthLarge(MessageLabel^.Caption);
   button := PDialogButton(FDialogButtons^.GetItem(0));
-  FLabel^.SetBounds(
+  MessageLabel^.SetBounds(
     ARect.X + (ARect.Width - labelWidth) div 2,
     Font^.Height,
     labelWidth,
