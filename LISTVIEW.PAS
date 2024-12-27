@@ -989,7 +989,7 @@ begin
 
   FButton^.CanFocus := false;
   FButton^.SetBounds(
-    ARect.Width - FButtonSize,
+    Width - FButtonSize,
     0,
     FButtonSize,
     FButtonSize

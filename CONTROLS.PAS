@@ -62,7 +62,6 @@ type
 
   TControlOption = (
     coClipping,
-    coCanUndo,
     coStayOnTop
   );
 
@@ -155,7 +154,7 @@ type
     function BringToFront: boolean;
     function SendToBack: boolean;
     function CanDrag(var AEvent: TMouseEvent): boolean; virtual;
-
+    function CanUndo: boolean;
     function IsMouseOver: boolean;
     function IsVisible: boolean;
     function IsEnabled: boolean;
@@ -678,6 +677,11 @@ end;
 function TControl.CanDrag(var AEvent: TMouseEvent): boolean;
 begin
   CanDrag := false;
+end;
+
+function TControl.CanUndo: boolean;
+begin
+  CanUndo := false;
 end;
 
 function TControl.ContentX: integer;

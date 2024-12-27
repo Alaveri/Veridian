@@ -302,7 +302,6 @@ begin
   if not TransparentBack then
     Graph^.FillRect(ARect);
   GetTextAlign(ARect, pos);
-  Inc(pos.Y, OuterWidth);
   pos.X := ARect.X + Padding.Left - ScrollPos + BorderWidth;
   charRect.Create;
   index := 0;

@@ -98,13 +98,13 @@ const
     MenuBorder: egaBlack;
     MenuSelected: egaWhite;
     MenuSelectedBack: egaBlue;
-    MenuDisabled: egaDarkGray;
+    MenuDisabled: egaLightGray;
     MenuDisabledBack: egaWhite;
     Scrollbar: egaLightGray;
     ScrollbarBack: egaDarkGray;
     Editor: egaBlack;
     EditorBack: egaWhite;
-    EditorDisabled: egaDarkGray;
+    EditorDisabled: egaLightGray;
     EditorDisabledBack: egaWhite;
     EditorFocused: egaWhite;
     EditorFocusedBack: egaBlue;

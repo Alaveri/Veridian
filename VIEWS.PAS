@@ -222,7 +222,7 @@ type
     TitleBar: PTitleBar;
     TaskButton: PTaskButton;
     Grip: PLabel;
-    Options: TWindowOptions;
+    WindowOptions: TWindowOptions;
     Closed: boolean;
     WindowState: TWindowState;
     OnCreate: PEvent;
@@ -1123,7 +1123,7 @@ var
 begin
   if AEvent.Handled then
     exit;
-  if not (woResizeable in PWindow(Parent)^.Options) then
+  if not (woResizeable in PWindow(Parent)^.WindowOptions) then
     exit;
   ParentWindow^.GetDrawRect(rect);
   desktop^.BeginDrawing;
@@ -1227,7 +1227,7 @@ begin
   if AEvent.Handled then
     exit;
   AEvent.Handled := true;
-  if not (woMoveable in PWindow(Parent)^.Options) then
+  if not (woMoveable in PWindow(Parent)^.WindowOptions) then
     exit;
   ParentWindow^.GetDrawRect(rect);
   if ParentWindow^.WindowState = wsMaximized then begin
@@ -1249,7 +1249,7 @@ var
   rect: TRect;
   dx, dy: integer;
 begin
-  if not (woMoveable in PWindow(Parent)^.Options) then
+  if not (woMoveable in PWindow(Parent)^.WindowOptions) then
     exit;
   if AEvent.Handled then
     exit;
@@ -1313,13 +1313,13 @@ begin
   RestoredState := wsNormal;
   CanFocus := false;
   Position := rpParentClient;
-  Options := [Low(TWindowOption)..High(TWindowOption)];
+  WindowOptions := [Low(TWindowOption)..High(TWindowOption)];
   TitleBar := New(PTitleBar, Create('TitleBar', '', @self));
-  TitleBar^.Visible := woTitleBar in Options;
+  TitleBar^.Visible := woTitleBar in WindowOptions;
   TitleBar^.Position := rpParentRelative;
   Grip := New(PWindowGrip, Create('Grip', @self));
   Grip^.TransparentBack := false;
-  Grip^.Visible := woResizeable in Options;
+  Grip^.Visible := woResizeable in WindowOptions;
   Grip^.VertAlign := vaCenter;
   Grip^.HorzAlign := haCenter;
   Grip^.Position := rpParentRelative;
@@ -1416,7 +1416,7 @@ var
   movingEvent: TMovingEvent;
   maximizedEvent: TEvent;
 begin
-  if not (woResizeable in Options) then
+  if not (woResizeable in WindowOptions) then
     exit;
   sizingEvent.Create;
   movingEvent.Create;
@@ -1535,7 +1535,7 @@ end;
 
 procedure TWindow.AddToTaskBar;
 begin
-  if not (woShowInTaskBar in Options)  then
+  if not (woShowInTaskBar in WindowOptions)  then
     exit;
   if not Assigned(VeridianApp^.TaskBar) then
     exit;
@@ -1568,7 +1568,7 @@ var
  event: TEvent;
 begin
   inherited CreateParent(AId, AParent);
-  Exclude(Options, woShowInTaskBar);
+  Exclude(WindowOptions, woShowInTaskBar);
   TString.AssignString(TitleBar^.Caption, ATitle);
   event.Create;
   Initialized;
@@ -1679,7 +1679,7 @@ begin
   titleHeight := GetTitleHeight;
   TitleBar^.SetBounds(OuterWidth, OuterWidth, ARect.Width - 2 * OuterWidth, titleHeight);
   barSize := VertScrollBar^.Size;
-  TitleBar^.Visible := woTitleBar in Options;
+  TitleBar^.Visible := woTitleBar in WindowOptions;
   Grip^.Autosize := false;
   Grip^.SetBounds(ARect.Right - barSize,
     ARect.Bottom - barSize, barSize - 1, barSize - 1);
@@ -1909,7 +1909,7 @@ end;
 procedure TWindow.SetScrollBarBounds(AOrientation: TScrollOrientation);
 begin
   inherited SetScrollBarBounds(AOrientation);
-  Grip^.Visible := [woShowGrip, woResizeable] * Options = [woShowGrip, woResizeable];
+  Grip^.Visible := [woShowGrip, woResizeable] * WindowOptions = [woShowGrip, woResizeable];
   if AOrientation = soVertical then begin
     if Grip^.Visible and not HorzScrollBar^.Visible then
       Dec(VertScrollBar^.Height, HorzScrollBar^.Size);
@@ -1948,6 +1948,8 @@ begin
   if (not Active) and (AEvent.NewMouseState.ButtonState = [bsLeft]) then begin
     Activate;
   end;
+  if not (woResizeable in WindowOptions) then
+    exit;
   point.CreateCoords(AEvent.NewMouseState.X, AEvent.NewMouseState.Y);
   FDragBorder := GetGripBorder(point);
 end;
@@ -1958,6 +1960,8 @@ var
   cursor: PMouseCursor;
   gripBorder: TGripBorderType;
 begin
+  if not (woResizeable in WindowOptions) then
+    exit;
   if (FDragBorder = gbNone) and not Assigned(VeridianApp^.DragControl) then begin
     point.CreateCoords(AEvent.X, AEvent.Y);
     point.Translate(ScreenX, ScreenY);
@@ -2069,7 +2073,7 @@ begin
   inherited DragStart(AEvent);
   if AEvent.Handled then
     exit;
-  if not (woResizeable in Options) then
+  if not (woResizeable in WindowOptions) then
     exit;
   AEvent.Handled := true;
   if FDragBorder = gbNone then
@@ -2394,7 +2398,7 @@ procedure TTaskBar.AddWindow(AWindow: PWindow);
 var
   button: PTaskButton;
 begin
-  if (woShowInTaskBar in AWindow^.Options) and Assigned(VeridianApp^.TaskBar) then begin
+  if (woShowInTaskBar in AWindow^.WindowOptions) and Assigned(VeridianApp^.TaskBar) then begin
     Windows.Add(AWindow);
     button := NewButton(AWindow);
     button^.Caption := TString.New(AWindow^.TitleBar^.GetCaption);
@@ -2431,7 +2435,7 @@ end;
 procedure TTaskBar.SetWindow(AIndex: integer; AWindow: PWindow);
 begin
   Windows.SetItem(AIndex, AWindow);
-  if (woShowInTaskBar in AWindow^.Options) and Assigned(VeridianApp^.TaskBar) then begin
+  if (woShowInTaskBar in AWindow^.WindowOptions) and Assigned(VeridianApp^.TaskBar) then begin
     Draw;
   end;
 end;

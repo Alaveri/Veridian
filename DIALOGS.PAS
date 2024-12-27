@@ -362,7 +362,7 @@ begin
   DefaultButton := mbNone;
   CancelButton := mbNone;
   ModalResult := mrNone;
-  Options := [
+  WindowOptions := [
     woTitleBar,
     woCloseButton,
     woMoveable
@@ -896,7 +896,7 @@ begin
   TString.AssignString(LastDir, GetCurrentDirectory);
   FileOptions := [];
   Buttons := [mbOk, mbCancel];
-  Include(Options, woResizeable);
+  Include(WindowOptions, woResizeable);
   ScrollType := scNone;
   ButtonAlign := haRight;
   CurrentDir := nil;
