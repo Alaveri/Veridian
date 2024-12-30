@@ -854,7 +854,7 @@ begin
     name := FirstUpper(TString.GetString(newFile^.Name));
     if faDirectory in newFile^.Attr then
       name := '[ ' + name + ' ]';
-    FileView^.Items^.AddItem(name, newFile);
+    FileView^.AddItemValue(name, newFile);
   end;
 end;
 

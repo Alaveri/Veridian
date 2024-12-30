@@ -207,6 +207,7 @@ var
   item: PMenuItem;
   itemHeight, index: integer;
   xPos, yPos: integer;
+  offset: TPoint;
 begin
   inherited LayoutRect(ARect);
   GetMenuDims(menuDims);
@@ -391,8 +392,6 @@ var
   oldBackColor: byte;
   oldShortcutColor: byte;
   rect, viewPort: TRect;
-  bwidth: integer;
-  pos: TPoint;
 begin
   oldForeColor := ForeColor;
   oldBackColor := BackColor;
@@ -409,14 +408,6 @@ begin
     exit;
   end;
   inherited Paint(ARect);
-  if Assigned(Menu) and not IsMainMenuItem then begin
-    bwidth  := 0;
-    if Assigned(Parent) then
-      bwidth := Parent^.BorderWidth;
-    GetTextAlign(rect, pos);
-    pos.X := rect.Right - TrueTextWidth(#16) - Padding.Right;
-    Graph^.DrawText(pos.X, pos.Y, #16);
-  end;
   ForeColor := oldForeColor;
   BackColor := oldBackColor;
   ShortcutColor := oldShortcutColor;

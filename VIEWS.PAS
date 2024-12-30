@@ -215,7 +215,8 @@ type
     FGripBorders: TGripRects;
     FInitialLayout: boolean;
     FDragBorder: TGripBorderType;
-    procedure MoveResize;
+    procedure Move;
+    procedure Resize;
     procedure HandleDragCursors(var AEvent: TMouseEvent);
     function GetGripBorder(const APoint: TPoint): TGripBorderType;
   public
@@ -253,6 +254,7 @@ type
     function ContentY: integer; virtual;
     function GetTitleHeight: integer; virtual;
     function ContentHeight: integer; virtual;
+    function Title: string;
     procedure SetScrollBarBounds(AOrientation: TScrollOrientation); virtual;
     procedure SetTitle(const ATitle: string);
     procedure SetTitleVisible(AVisible: boolean);
@@ -711,7 +713,7 @@ begin
   ActiveBackColor := VeridianApp^.Colors.WindowTitleActiveBack;
   VertAlign := vaCenter;
   HorzAlign := haLeft;
-  Padding.CreateAll(4, 0, 2, 0);
+  Padding.CreateAll(4, 0, 0, 0);
   ButtonWidth := 16;
   ButtonHeight := 16;
   ParentWindow := nil;
@@ -1186,7 +1188,7 @@ begin
     VeridianApp^.DragRect.Y);
 end;
 
-procedure TWindow.MoveResize;
+procedure TWindow.Resize;
 var
   rect: TRect;
 begin
@@ -1197,6 +1199,35 @@ begin
   Graph^.CopyFromOffScreen(VeridianApp^.DragRect, VeridianApp^.DragRect);
   Graph^.SetDrawPage(0);
   HideEx(rect, VeridianApp^.DragRect);
+  Visible := true;
+end;
+
+procedure TWindow.Move;
+var
+  taskRect, source, dest: TRect;
+begin
+  GetDrawRect(source);
+  dest.CreateRect(VeridianApp^.DragRect);
+  Graph^.InverseRectangle(dest);
+  source.Width := dest.Width;
+  source.Height := dest.Height;
+  BeginDrawing;
+  Graph^.PushState;
+  Graph^.SetDrawPage(Graph^.OffScreenPage);
+  if Assigned(VeridianApp^.TaskBar) then begin
+    VeridianApp^.TaskBar^.GetDrawRect(taskRect);
+    if taskRect.IntersectsRect(source) then
+      VeridianApp^.TaskBar^.Hide;
+  end;
+  Graph^.CopyToOffScreen(source, dest);
+  Graph^.CopyFromOffScreen(dest, dest);
+  if Assigned(VeridianApp^.TaskBar) then
+    VeridianApp^.TaskBar^.Draw;
+  Graph^.PopState;
+  GetDrawRect(source);
+  HideEx(source, dest);
+  EndDrawing;
+  SetBoundsRect(dest);
   Visible := true;
 end;
 
@@ -1212,7 +1243,7 @@ begin
   ParentWindow^.Resizing(sizingEvent);
   desktop^.BeginDrawing;
   if sizingEvent.CanResize then
-    ParentWindow^.MoveResize;
+    ParentWindow^.Resize;
   desktop^.MouseCursor := VeridianApp^.MouseCursors^.GetItemById('default');
   desktop^.EndDrawing;
   AEvent.Handled := true;
@@ -1282,7 +1313,7 @@ begin
   ParentWindow^.CreateMovingEvent(movingEvent);
   ParentWindow^.CreateMovedEvent(movedEvent);
   if movingEvent.CanMove then begin
-    ParentWindow^.MoveResize;
+    ParentWindow^.Resize;
     ParentWindow^.Visible := true;
     ParentWindow^.Moved(movedEvent);
   end;
@@ -1613,6 +1644,21 @@ begin
   MinHeight := minH;
 end;
 
+function TWindow.Title: string;
+begin
+  Title := TitleBar^.GetCaption;
+end;
+
+procedure TWindow.SetTitle(const ATitle: string);
+begin
+  TitleBar^.SetCaption(ATitle);
+  if Assigned(VeridianApp^.TaskBar) then begin
+    TString.AssignString(TaskButton^.Caption, ATitle);
+    VeridianApp^.TaskBar^.Layout;
+    TaskButton^.Draw;
+  end;
+end;
+
 procedure TWindow.Draw;
 var
   rect: TRect;
@@ -1847,12 +1893,6 @@ begin
   end;
 end;
 
-procedure TWindow.SetTitle(const ATitle: string);
-begin
-  TString.AssignString(TitleBar^.Caption, ATitle);
-  TitleBar^.Draw;
-end;
-
 procedure TWindow.Deactivate;
 var
   activeWindow: PWindow;
@@ -1869,11 +1909,16 @@ begin
 end;
 
 function TWindow.GetTitleHeight: integer;
+var
+  result: integer;
 begin
   GetTitleHeight := 0;
   if not TitleBar^.IsVisible then
     exit;
-  GetTitleHeight := Font^.Height + 2 * TitleBar^.Margins.Height + 2;
+  result := Font^.Height + 2 * TitleBar^.Margins.Height
+    + TitleBar^.Padding.Height;
+  result := Max(result, 16);
+  GetTitleHeight := result;
 end;
 
 function TWindow.ContentY: integer;
@@ -2101,7 +2146,7 @@ begin
   CreateSizedEvent(sizedEvent);
   Resizing(sizingEvent);
   if sizingEvent.CanResize then begin
-    MoveResize;
+    Resize;
   end;
   desktop^.MouseCursor := VeridianApp^.MouseCursors^.GetItemById('default');
   desktop^.EndDrawing;
@@ -2369,7 +2414,7 @@ begin
   BackColor := VeridianApp^.Colors.ButtonBack;
   ForeColor := VeridianApp^.Colors.Button;
   Include(ControlOptions, coStayOnTop);
-  MaxButtonWidth := 120;
+  MaxButtonWidth := 150;
   Font := VeridianApp^.Fonts^.GetItemById('editor');
   Position := rpParentClient;
 end;

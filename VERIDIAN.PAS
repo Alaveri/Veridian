@@ -16,13 +16,14 @@ uses
   Gr8Drv,
   GraphIni,
   GraphApp,
+  Colors,
   MouseDrv,
   MemDrv,
   DateTime,
   Streams,
   Actions,
-  Colors,
   Controls,
+  Palettes,
   ListView,
   Views,
   Events,
@@ -174,6 +175,7 @@ type
     procedure EnableDrawing;
     procedure DisableDrawing;
     procedure GetMouseState(var AMouseState: TMouseState);
+    procedure DrawDragRect(var ARect: TRect);
     function FocusNext(AControl: PControl; AReverse: boolean): boolean;
     function FocusFirst: boolean;
     function FocusLast: boolean;
@@ -1081,26 +1083,41 @@ begin
      EndWindowSwitch;
 end;
 
+procedure TVeridianApp.DrawDragRect(var ARect: TRect);
+  procedure DrawRect;
+  begin
+    Graph^.HLine(ARect.X, ARect.Y, ARect.Width);
+    Graph^.HLine(ARect.X, ARect.Bottom, ARect.Width);
+    Graph^.VLine(ARect.X, ARect.Y, ARect.Height);
+    Graph^.VLine(ARect.Right, ARect.Y, ARect.Height);
+  end;
+begin
+  Graph^.PushState;
+  Graph^.State^.Inverse := true;
+  Graph^.SetBackColor(TransparentColor);
+  Graph^.State^.LinePattern := @CheckerLinePattern;
+  DrawRect;
+  Graph^.PopState;
+end;
+
 procedure TVeridianApp.HandleMouseCursor;
 var
   newRect, oldRect: TRect;
 begin
   if not Assigned(DragControl) then
     DragRectVisible := false;
-  Graph^.WaitForVSync;
   if Assigned(DragControl) and not DragRectVisible then begin
     DragRectVisible := true;
     MoveMouseCursor(FMouseState, FOldMouseState, false);
-    Graph^.InverseRectangle(DragRect);
+    DrawDragRect(DragRect);
     LastDragRect.Assign(DragRect);
   end
   else if Assigned(DragControl) and DragRectVisible then begin
     newRect.CreateRect(DragRect);
     oldRect.CreateRect(LastDragRect);
-    Graph^.WaitForVSync;
-    Graph^.InverseRectangle(oldRect);
+    DrawDragRect(oldRect);
     MoveMouseCursor(FMouseState, FOldMouseState, false);
-    Graph^.InverseRectangle(newRect);
+    DrawDragRect(newRect);
     MouseCursor^.Draw;
     LastDragRect.Assign(DragRect);
   end

@@ -288,6 +288,7 @@ type
     procedure DrawControl(ADrawControls: boolean); virtual;
     procedure Draw; virtual;
     procedure DrawSelf;
+    procedure DrawDoubleBuffered;
     procedure DrawControls; virtual;
     procedure Hide; virtual;
     procedure HideEx(var AStart, AEnd: TRect); virtual;
@@ -1405,6 +1406,18 @@ begin
   if IsVisualControl then begin
     Graph^.State^.Font := PVisualControl(@self)^.Font;
   end;
+end;
+
+procedure TControl.DrawDoubleBuffered;
+var
+  rect: TRect;
+begin
+  Graph^.PushState;
+  Graph^.SetDrawPage(Graph^.OffScreenPage);
+  GetDrawRect(rect);
+  Draw;
+  Graph^.CopyFromOffScreen(rect, rect);
+  Graph^.PopState;
 end;
 
 procedure TControl.PaintRegion(var ARect: TRect; AExclude: PControl);
