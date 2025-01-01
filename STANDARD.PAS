@@ -10,6 +10,7 @@ uses
   VeriType,
   Drawing,
   Graphics,
+  Palettes,
   Editors,
   Controls;
 
@@ -179,7 +180,6 @@ procedure TCheckBox.Paint(ARect: TRect);
 var
   rect: TRect;
 begin
-  TPanel.Paint(ARect);
   PaintGlyph;
   GetDrawRect(rect);
   Graph^.SetForeColor(ForeColor);
@@ -230,8 +230,12 @@ begin
   if CanFocus then begin
     if Focused then
       Graph^.SetForeColor(FocusedBackColor)
-    else
-      Graph^.SetForeColor(BackColor);
+    else begin
+      if Assigned(Parent) and Parent^.IsVisualControl then
+        Graph^.SetForeColor(PVisualControl(Parent)^.BackColor)
+      else
+        Graph^.SetForeColor(BackColor)
+    end;
     Graph^.Rectangle(rect);
   end;
 end;

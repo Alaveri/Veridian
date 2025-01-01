@@ -62,6 +62,7 @@ type
     CheckBox: PCheckBox;
     procedure Init; virtual;
     function Checked: boolean;
+    procedure SetChecked(AValue: boolean);
   end;
 
   TListItems = object(TObjectList)
@@ -74,7 +75,7 @@ type
     function Add(AItem: PListItem): integer;
     function IndexOf(AItem: PListItem): integer;
     function IndexOfValue(AValue: pointer): integer;
-    function IndexOfTag(ATag: integer): integer;
+    function IndexOfTag(ATag: longint): integer;
     procedure SetItem(AIndex: integer; AItem: PListItem);
     procedure Insert(AIndex: integer; AItem: PListItem);
     procedure RemoveItem(AItem: PListItem);
@@ -98,7 +99,6 @@ type
 
   TListView = object(TView)
   private
-    procedure PaintItem(AIndex: integer);
   public
     Items: PListItems;
     SelectedIndex: integer;
@@ -110,26 +110,29 @@ type
     ItemSpacing: integer;
     VisibleItems: integer;
     AutoHeight: boolean;
+    TextOffsetX, TextOffsetY: integer;
     function SelectedItem: PListItem;
     function GetSelectedIndex(AEvent: TMouseEvent): integer;
-    function ItemHeight: integer;
+    function ItemHeight: integer; virtual;
     function ContentWidth: integer; virtual;
     function ContentHeight: integer; virtual;
     function ContentX: integer; virtual;
     function ContentY: integer; virtual;
     function CreateItems: PListItems; virtual;
+    function CreateItem: PListItem; virtual;
     function AddItem(const AText: string): PListItem;
     function AddItemValue(const AText: string; AValue: pointer): PListItem;
-    function AddItemTag(const AText: string; ATag: integer): PListItem;
+    function AddItemTag(const AText: string; ATag: longint): PListItem;
     function AddItemAll(const AText: string; AValue: pointer;
-      ATag: integer): PListItem;
+      ATag: longint): PListItem;
     function InsertItem(AIndex: integer; const AText: string): PListItem;
     function InsertItemValue(AIndex: integer; const AText: string;
       AValue: pointer): PListItem;
     function InsertItemTag(AIndex: integer; const AText: string;
-      ATag: integer): PListItem;
+      ATag: longint): PListItem;
     function InsertItemAll(AIndex: integer; const AText: string;
-      AValue: pointer; ATag: integer): PListItem;
+      AValue: pointer; ATag: longint): PListItem;
+    procedure PaintItem(AIndex: integer); virtual;
     procedure GetContentExtent(var ASize: TSize); virtual;
     procedure Focus; virtual;
     procedure UnFocus; virtual;
@@ -142,7 +145,7 @@ type
     procedure MouseWheelChanged(var AEvent: TMouseEvent); virtual;
     procedure SelectedIndexChanged(var AEvent: TIndexChangedEvent); virtual;
     procedure GetItemRect(AIndex: integer; var ARect: TRect); virtual;
-    procedure GetItemClientRect(AIndex: integer; var ARect: TRect); virtual;
+    procedure GetItemLayoutRect(AIndex: integer; var ARect: TRect); virtual;
     procedure ChangeSelect(ADelta: integer); virtual;
     procedure SetScrollBarBounds(AOrientation: TScrollOrientation); virtual;
     procedure Clear; virtual;
@@ -199,10 +202,25 @@ type
   TCheckListView = object(TListView)
   private
   public
+    procedure PaintItem(AIndex: integer); virtual;
     procedure Init; virtual;
     function CheckListItems: PCheckListItems; virtual;
     function CreateItems: PListItems; virtual;
+    function CreateItem: PListItem; virtual;
     function Checked(AIndex: integer): boolean;
+    function AddItem(const AText: string): PCheckListItem;
+    function AddItemValue(const AText: string; AValue: pointer): PCheckListItem;
+    function AddItemTag(const AText: string; ATag: longint): PCheckListItem;
+    function AddItemAll(const AText: string; AValue: pointer;
+      ATag: longint): PCheckListItem;
+    function InsertItem(AIndex: integer; const AText: string): PCheckListItem;
+    function InsertItemValue(AIndex: integer; const AText: string;
+      AValue: pointer): PCheckListItem;
+    function InsertItemTag(AIndex: integer; const AText: string;
+      ATag: longint): PCheckListItem;
+    function InsertItemAll(AIndex: integer; const AText: string;
+      AValue: pointer; ATag: longint): PCheckListItem;
+    function ItemHeight: integer; virtual;
     procedure SetChecked(AIndex: integer; AChecked: boolean);
     procedure LayoutRect(ARect: TRect); virtual;
   end;
@@ -278,6 +296,8 @@ end;
 procedure TListView.Init;
 begin
   inherited Init;
+  TextOffsetX := 0;
+  TextOffsetY := 0;
   TransparentBack := false;
   ScrollType := scAsNeeded;
   CanFocus := true;
@@ -365,32 +385,48 @@ end;
 function TListView.AddItem(const AText: string): PListItem;
 var
   index: integer;
+  result: PListItem;
 begin
-  index := Items^.Add(New(PListItem, CreateText(AText)));
+  result := CreateItem;
+  TString.AssignString(result^.Text, AText);
+  index := Items^.Add(result);
   AddItem := Items^.GetItem(index);
 end;
 
 function TListView.AddItemValue(const AText: string; AValue: pointer): PListItem;
 var
   index: integer;
+  result: PListItem;
 begin
-  index := Items^.Add(New(PListItem, CreateTextValue(AText, AValue)));
+  result := CreateItem;
+  TString.AssignString(result^.Text, AText);
+  result^.Value := AValue;
+  index := Items^.Add(result);
   AddItemValue := Items^.GetItem(index);
 end;
 
-function TListView.AddItemTag(const AText: string; ATag: integer): PListItem;
+function TListView.AddItemTag(const AText: string; ATag: longint): PListItem;
 var
   index: integer;
+  result: PListItem;
 begin
-  index := Items^.Add(New(PListItem, CreateAll(AText, nil, ATag)));
+  result := CreateItem;
+  TString.AssignString(result^.Text, AText);
+  result^.Tag := ATag;
+  index := Items^.Add(result);
   AddItemTag := Items^.GetItem(index);
 end;
 
-function TListView.AddItemAll(const AText: string; AValue: pointer; ATag: integer): PListItem;
+function TListView.AddItemAll(const AText: string; AValue: pointer; ATag: longint): PListItem;
 var
   index: integer;
+  result: PListItem;
 begin
-  index := Items^.Add(New(PListItem, CreateAll(AText, AValue, ATag)));
+  result := CreateItem;
+  TString.AssignString(result^.Text, AText);
+  result^.Value := AValue;
+  result^.Tag := ATag;
+  index := Items^.Add(result);
   AddItemAll := Items^.GetItem(index);
 end;
 
@@ -398,7 +434,8 @@ function TListView.InsertItem(AIndex: integer; const AText: string): PListItem;
 var
   result: PListItem;
 begin
-  result := New(PListItem, CreateText(AText));
+  result := CreateItem;
+  TString.AssignString(result^.Text, AText);
   Items^.Insert(AIndex, result);
   InsertItem := result;
 end;
@@ -408,29 +445,45 @@ function TListView.InsertItemValue(AIndex: integer; const AText: string;
 var
   result: PListItem;
 begin
-  result := New(PListItem, CreateTextValue(AText, AValue));
+  result := CreateItem;
+  TString.AssignString(result^.Text, AText);
+  result^.Value := AValue;
   Items^.Insert(AIndex, result);
   InsertItemValue := result;
 end;
 
 function TListView.InsertItemTag(AIndex: integer; const AText: string;
-  ATag: integer): PListItem;
+  ATag: longint): PListItem;
 var
   result: PListItem;
 begin
-  result := New(PListItem, CreateAll(AText, nil, ATag));
+  result := CreateItem;
+  TString.AssignString(result^.Text, AText);
+  result^.Tag := ATag;
   Items^.Insert(AIndex, result);
   InsertItemTag := result;
 end;
 
 function TListView.InsertItemAll(AIndex: integer; const AText: string;
-  AValue: pointer; ATag: integer): PListItem;
+  AValue: pointer; ATag: longint): PListItem;
 var
   result: PListItem;
 begin
-  result := New(PListItem, CreateAll(AText, AValue, ATag));
+  result := CreateItem;
+  TString.AssignString(result^.Text, AText);
+  result^.Value := AValue;
+  result^.Tag := ATag;
   Items^.Insert(AIndex, result);
   InsertItemAll := result;
+end;
+
+function TListView.CreateItem: PListItem;
+var
+  result: PListItem;
+begin
+  result := New(PListItem, Create);
+  result^.Owner := @self;
+  CreateItem := result;
 end;
 
 procedure TListView.GetItemRect(AIndex: integer; var ARect: TRect);
@@ -445,7 +498,7 @@ begin
   ARect.CreateDims(rect.X, cy, rect.Width, ItemHeight);
 end;
 
-procedure TListView.GetItemClientRect(AIndex: integer; var ARect: TRect);
+procedure TListView.GetItemLayoutRect(AIndex: integer; var ARect: TRect);
 var
   cx: integer;
   cy: integer;
@@ -498,8 +551,8 @@ begin
   clipRect.Intersect(Graph^.State^.ViewPort);
   Graph^.SetViewPort(clipRect);
   Graph^.FillRect(itemRect);
-  Graph^.DrawTextLarge(itemRect.X + Padding.Left,
-    itemRect.Y + ItemSpacing div 2, item^.Text);
+  Graph^.DrawTextLarge(itemRect.X + Padding.Left + TextOffsetX,
+    itemRect.Y + TextOffsetY + ItemSpacing div 2, item^.Text);
   Graph^.PopState;
 end;
 
@@ -644,7 +697,7 @@ end;
 
 procedure TListView.Draw;
 begin
-   inherited Draw;
+  inherited Draw;
 end;
 
 procedure TListView.DrawControls;
@@ -702,7 +755,7 @@ begin
     PaintItem(index);
   Graph^.SetBackColor(BackColor);
   if Items^.Count * ItemHeight < ARect.Height then begin
-    yPos := ARect.Y + Items^.Count * ItemHeight;
+    yPos := ARect.Y + Items^.Count * ItemHeight + OuterWidth;
     ARect.CreateDims(ARect.X + OuterWidth, yPos, ARect.Width - 2 * OuterWidth, ARect.Bottom - yPos);
     Graph^.FillRect(ARect);
   end;
@@ -742,7 +795,7 @@ begin
   end;
 end;
 
-function TListItems.IndexOfTag(ATag: integer): integer;
+function TListItems.IndexOfTag(ATag: longint): integer;
 var
   index: integer;
 begin
@@ -1173,6 +1226,67 @@ begin
   inherited Init;
 end;
 
+function TCheckListView.AddItem(const AText: string): PCheckListItem;
+begin
+  AddItem := PCheckListItem(inherited AddItem(AText));
+end;
+
+function TCheckListView.AddItemValue(const AText: string; AValue: pointer): PCheckListItem;
+begin
+  AddItemValue := PCheckListItem(inherited AddItemValue(AText, AValue));
+end;
+
+function TCheckListView.AddItemTag(const AText: string; ATag: longint): PCheckListItem;
+begin
+  AddItemTag := PCheckListItem(inherited AddItemTag(AText, ATag));
+end;
+
+function TCheckListView.AddItemAll(const AText: string; AValue: pointer;
+  ATag: longint): PCheckListItem;
+begin
+  AddItemAll := PCheckListItem(inherited AddItemAll(AText, AValue, ATag));
+end;
+
+function TCheckListView.InsertItem(AIndex: integer; const AText: string): PCheckListItem;
+begin
+  InsertItem := PCheckListItem(inherited InsertItem(AIndex, AText));
+end;
+
+function TCheckListView.InsertItemValue(AIndex: integer; const AText: string;
+  AValue: pointer): PCheckListItem;
+begin
+  InsertItemValue := PCheckListItem(inherited InsertItemValue(AIndex, AText, AValue));
+end;
+
+function TCheckListView.InsertItemTag(AIndex: integer; const AText: string; ATag: longint): PCheckListItem;
+begin
+  InsertItemTag := PCheckListItem(inherited InsertItemTag(AIndex, AText, ATag));
+end;
+
+function TCheckListView.InsertItemAll(AIndex: integer; const AText: string;
+  AValue: pointer; ATag: longint): PCheckListItem;
+begin
+  InsertItemAll := PCheckListItem(inherited InsertItemAll(AIndex, AText, AValue, ATag));
+end;
+
+function TCheckListView.ItemHeight: integer;
+var
+  result: integer;
+begin
+  result := Max(Font^.Height + ItemSpacing, 17);
+  ItemHeight := result;
+end;
+
+procedure TCheckListView.PaintItem(AIndex: integer);
+var
+  item: PCheckListItem;
+begin
+  inherited PaintItem(AIndex);
+  item := CheckListItems^.GetItem(AIndex);
+  if item^.CheckBox^.IsVisible then
+    item^.CheckBox^.DrawSelf;
+end;
+
 procedure TCheckListView.LayoutRect(ARect: TRect);
 var
   index: integer;
@@ -1182,15 +1296,17 @@ begin
   inherited LayoutRect(ARect);
   for index := 0 to Items^.Count - 1 do begin
     item := CheckListItems^.GetItem(index);
-    GetItemRect(index, itemRect);
+    GetItemLayoutRect(index, itemRect);
     item^.CheckBox^.SetXY(itemRect.X, itemRect.Y);
     item^.CheckBox^.Layout;
+    TextOffsetX := item^.CheckBox^.Width + 2;
+    TextOffsetY := item^.CheckBox^.Height div 2 - item^.CheckBox^.Font^.Height div 2;
   end;
 end;
 
 function TCheckListView.CheckListItems: PCheckListItems;
 begin
-  CheckListItems := @self;
+  CheckListItems := PCheckListItems(Items);
 end;
 
 function TCheckListView.Checked(AIndex: integer): boolean;
@@ -1208,12 +1324,30 @@ begin
   CreateItems := New(PCheckListItems, Create(@self));
 end;
 
+function TCheckListView.CreateItem: PListItem;
+var
+  result: PCheckListItem;
+begin
+  result := New(PCheckListItem, Create);
+  result^.Owner := @self;
+  result^.CheckBox := New(PCheckBox, CreateParent('', @self));
+  result^.CheckBox^.AutoSize := false;
+  result^.CheckBox^.Width := 15;
+  result^.CheckBox^.Height := 15;
+  result^.CheckBox^.CanFocus := true;
+  result^.CheckBox^.Checked := false;
+  CreateItem := result;
+end;
+
 procedure TCheckListItem.Init;
 begin
   inherited Init;
-  CheckBox := New(PCheckBox, CreateParent('', Owner));
-  CheckBox^.CanFocus := false;
-  CheckBox^.Checked := false;
+end;
+
+procedure TCheckListItem.SetChecked(AValue: boolean);
+begin
+  CheckBox^.Checked := AValue;
+  CheckBox^.Draw;
 end;
 
 function TCheckListItem.Checked: boolean;
@@ -1280,9 +1414,7 @@ var
   check: PCheckBox;
 begin
   check := GetItem(AIndex)^.CheckBox;
-  check^.Checked := AChecked;
-  check^.Draw;
+  check^.SetChecked(AChecked);
 end;
-
 
 end.

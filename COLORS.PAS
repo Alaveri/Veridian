@@ -115,8 +115,8 @@ const
     SelectBack: egaWhite;
     ListSelected: egaWhite;
     ListSelectedBack: egaBlue;
-    ListUnfocusedSelect: egaLightGray;
-    ListUnfocusedSelectBack: egaDarkGray;
+    ListUnfocusedSelect: egaBlack;
+    ListUnfocusedSelectBack: egaLightGray;
     Focused: egaWhite;
     FocusedBack: egaBlue;
     FocusRectColor: egaBlue

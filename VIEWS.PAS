@@ -1193,11 +1193,12 @@ var
   rect: TRect;
 begin
   GetDrawRect(rect);
+  Graph^.PushState;
   Graph^.SetDrawPage(Graph^.OffScreenPage);
   SetBoundsRect(VeridianApp^.DragRect);
   Show;
   Graph^.CopyFromOffScreen(VeridianApp^.DragRect, VeridianApp^.DragRect);
-  Graph^.SetDrawPage(0);
+  Graph^.PopState;
   HideEx(rect, VeridianApp^.DragRect);
   Visible := true;
 end;
@@ -1676,7 +1677,6 @@ begin
     end;
   end;
   Graph^.PushState;
-  GetScreenBounds(rect);
   inherited Draw;
   Graph^.PopState;
 end;
@@ -1882,7 +1882,6 @@ begin
     Draw;
     Graph^.SetDrawPage(0);
     Graph^.CopyFromOffScreen(rect, rect);
-    Graph^.PopState;
     EndDrawing;
   end
   else if Assigned(TitleBar) then

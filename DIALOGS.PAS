@@ -398,7 +398,7 @@ end;
 
 procedure TDialog.LayoutRect(ARect: TRect);
 var
-  min, bx, by, bWidth, bHeight: integer;
+  min, bx, by, buttonWidth, buttonHeight: integer;
   index: integer;
   control: PControl;
   button: PDialogButton;
@@ -416,15 +416,15 @@ begin
     fontHeight := Font^.Height;
   button := PDialogButton(FDialogButtons^.GetItem(0));
   fontHeight := button^.Font^.Height;
-  bHeight := fontHeight + button^.Padding.Height + 2 * button^.OuterWidth;
-  by := rect.Height;
+  buttonHeight := fontHeight + button^.Padding.Height + 2 * button^.OuterWidth;
+  by := rect.Height - Padding.Bottom;
   min := 65;
   bx := 0;
   totalWidth := 0;
   for index := FDialogButtons^.Count - 1 downto 0 do begin
     button := PDialogButton(FDialogButtons^.GetItem(index));
-    bWidth := Max(min, button^.TrueTextWidth(button^.GetCaption) + button^.Padding.Width);
-    Inc(totalWidth, bWidth + 3);
+    buttonWidth := Max(min, button^.TrueTextWidth(button^.GetCaption) + button^.Padding.Width);
+    Inc(totalWidth, buttonWidth + 3);
   end;
   case ButtonAlign of
     haLeft: bx := rect.X;
@@ -433,9 +433,9 @@ begin
   end;
   for index := FDialogButtons^.Count - 1 downto 0 do begin
     button := PDialogButton(FDialogButtons^.GetItem(index));
-    bWidth := Max(min, button^.TrueTextWidth(button^.GetCaption) + button^.Padding.Width);
-    Dec(bx, bWidth);
-    button^.SetBounds(bx, by, bWidth, bHeight);
+    buttonWidth := Max(min, button^.TrueTextWidth(button^.GetCaption) + button^.Padding.Width);
+    Dec(bx, buttonWidth);
+    button^.SetBounds(bx, by, buttonWidth, buttonHeight);
     Dec(bx, 3);
   end;
 end;

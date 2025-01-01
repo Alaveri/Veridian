@@ -937,7 +937,7 @@ begin
         { Decreased X and Y }
         partialRect.CreateDims(er + 1, sy, sx - ex, sh);
         Desktop^.PaintRegion(partialRect, @self);
-        partialRect.SetDims(sx, eb + 1, ex + ew, sy - ey + 1);
+        partialRect.SetDims(sx, eb + 1, sw, sy - ey + 1);
         Desktop^.PaintRegion(partialRect, @self);
       end
       else if (ex >= sx) and (ey <= sy) then begin
