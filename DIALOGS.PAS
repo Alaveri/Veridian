@@ -92,7 +92,7 @@ type
     procedure Init; virtual;
     procedure BeforeShow; virtual;
     procedure AfterShow; virtual;
-    procedure LayoutRect(ARect: TRect); virtual;
+    procedure Layout; virtual;
     procedure CenterScreenX;
     procedure CenterScreenY;
     procedure Close(ASender: PControl); virtual;
@@ -158,7 +158,7 @@ type
     procedure SelectFile(AFile: PFile); virtual;
     procedure SelectText(AFilename: string); virtual;
     procedure ActionExecute(ASender: PActionControl; AAction: PAction); virtual;
-    procedure LayoutRect(ARect: TRect); virtual;
+    procedure Layout; virtual;
     procedure BeforeShow; virtual;
     procedure AfterShow; virtual;
     procedure Init; virtual;
@@ -180,7 +180,7 @@ type
     MessageLabel: PLabel;
     constructor Create(const ATitle, AMessage: string; AButtons: TDialogButtons);
     procedure Init; virtual;
-    procedure LayoutRect(ARect: TRect); virtual;
+    procedure Layout; virtual;
   end;
 
 procedure ShowMessage(const ATitle, AMessage: string);
@@ -396,7 +396,7 @@ procedure TDialog.AfterShow;
 begin
 end;
 
-procedure TDialog.LayoutRect(ARect: TRect);
+procedure TDialog.Layout;
 var
   min, bx, by, buttonWidth, buttonHeight: integer;
   index: integer;
@@ -404,21 +404,23 @@ var
   button: PDialogButton;
   lowRes: boolean;
   fontHeight: integer;
-  rect: TRect;
   totalWidth: integer;
+  rect: TRect;
 begin
-  inherited LayoutRect(ARect);
-  GetContentRect(rect);
+  inherited Layout;
+  rect.CreateDims(0, 0, Width, Height);
   if FDialogButtons^.Count = 0 then
     exit;
-  lowRes := Graph^.Mode^.Height < 640;
+  lowRes := Graph^.Mode^.Height < 512;
   if lowRes then
     fontHeight := Font^.Height;
   button := PDialogButton(FDialogButtons^.GetItem(0));
   fontHeight := button^.Font^.Height;
   buttonHeight := fontHeight + button^.Padding.Height + 2 * button^.OuterWidth;
-  by := rect.Height - Padding.Bottom;
+  by := Height - Padding.Bottom - buttonHeight - OuterWidth;
   min := 65;
+  if Graph^.Mode^.Width < 512 then
+    min := 35;
   bx := 0;
   totalWidth := 0;
   for index := FDialogButtons^.Count - 1 downto 0 do begin
@@ -428,7 +430,7 @@ begin
   end;
   case ButtonAlign of
     haLeft: bx := rect.X;
-    haRight: bx := rect.Right + 1;
+    haRight: bx := rect.Right - outerWidth - Padding.Right;
     haCenter: bx := rect.Right - (rect.Width - totalWidth) div 2;
   end;
   for index := FDialogButtons^.Count - 1 downto 0 do begin
@@ -921,10 +923,12 @@ begin
 
   Width := 300;
   Height := 350;
+  if Graph^.Mode^.Width < 512 then begin
+    Width := 150;
+    Height := 150;
+  end;
   CenterScreen;
   Padding.CreateValue(2);
-  GetScreenBounds(rect);
-  LayoutRect(rect);
 end;
 
 function TFileDialog.MinHeight: integer;
@@ -932,7 +936,7 @@ begin
   MinHeight := 142;
 end;
 
-procedure TFileDialog.LayoutRect(ARect: TRect);
+procedure TFileDialog.Layout;
 var
   items: integer;
   lowRes: boolean;
@@ -942,7 +946,7 @@ var
   index: integer;
   buttonRect, rect: TRect;
 begin
-  inherited LayoutRect(ARect);
+  inherited Layout;
   FileView^.TabOrder := 0;
   FileNameEntry^.TabOrder := 1;
   for index := FDialogButtons^.Count - 1 downto 0 do begin
@@ -950,15 +954,14 @@ begin
   end;
   Grip^.Visible := false;
 
-  lowRes := Graph^.Mode^.Width < 640;
+  dirHeight := DirectoryLabel^.Font^.Height + 2;
+  lowRes := Graph^.Mode^.Width < 512;
   if lowRes then begin
     items := 12;
-    dirHeight := Font^.Height + 3;
     entryHeight := Font^.Height + 4;
   end
   else begin
     items := 17;
-    dirHeight := Font^.Height + 4;
     entryHeight := FilenameEntry^.Font^.Height + 6;
   end;
 
@@ -967,7 +970,7 @@ begin
 
   DirectoryLabel^.SetBounds(
     xPos,
-    ARect.Y,
+    0,
     entryWidth,
     dirHeight);
   DirectoryLabel^.VertAlign := vaCenter;
@@ -975,7 +978,7 @@ begin
   GetButtonArea(buttonRect);
   FileView^.SetBounds(
     xPos,
-    ARect.Y + DirectoryLabel^.Height,
+    DirectoryLabel^.Height,
     entryWidth,
     Height - TitleBar^.Height - dirHeight - entryHeight - 3 * Padding.Height
       - buttonRect.Height
@@ -1009,7 +1012,7 @@ end;
 
 procedure TShowMessageDialog.Init;
 var
-  labelWidth: integer;
+  lines: integer;
 begin
   inherited Init;
   DefaultButton := mbOk;
@@ -1018,22 +1021,30 @@ begin
   ButtonAlign := haCenter;
   MessageLabel := New(PLabel, CreateParent(Message, @self));
   MessageLabel^.Caption := TString.New(Message);
-  labelWidth := Font^.TextWidth(Message);
-  Width := ScaleX(60);
-  Height := ScaleY(20);
 end;
 
-procedure TShowMessageDialog.LayoutRect(ARect: TRect);
+procedure TShowMessageDialog.Layout;
 var
   labelWidth: integer;
   button: PDialogButton;
+  lines: integer;
+  size: TSize;
 begin
-  inherited LayoutRect(ARect);
+  inherited Layout;
   labelWidth := MessageLabel^.Font^.TextWidthLarge(MessageLabel^.Caption);
   button := PDialogButton(FDialogButtons^.GetItem(0));
+
+  lines := TString.GetLineCount(MessageLabel^.Caption);
+  size.CreateDims(MessageLabel^.Font^.TextWidth(Message),
+    MessageLabel^.Font^.Height * lines);
+  Size.Grow(Padding.Width, Padding.Height + FDialogButtons^.GetItem(0)^.Height + 2 * MessageLabel^.Font^.Height);
+  Width := Size.Width;
+  Height := Size.Height;
+
+  MessageLabel^.Wrap := true;
   MessageLabel^.SetBounds(
-    ARect.X + (ARect.Width - labelWidth) div 2,
-    Font^.Height,
+    (Width - labelWidth) div 2,
+    MessageLabel^.Font^.Height,
     labelWidth,
     Font^.Height
   );

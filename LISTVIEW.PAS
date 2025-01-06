@@ -138,14 +138,14 @@ type
     procedure UnFocus; virtual;
     procedure Init; virtual;
     procedure Paint(ARect: TRect); virtual;
-    procedure LayoutRect(ARect: TRect); virtual;
+    procedure Layout; virtual;
     procedure SetSelectedIndex(AIndex: integer);
     procedure KeyPress(var AEvent: TKeyEvent); virtual;
     procedure MouseDown(var AEvent: TMouseEvent); virtual;
     procedure MouseWheelChanged(var AEvent: TMouseEvent); virtual;
     procedure SelectedIndexChanged(var AEvent: TIndexChangedEvent); virtual;
     procedure GetItemRect(AIndex: integer; var ARect: TRect); virtual;
-    procedure GetItemLayoutRect(AIndex: integer; var ARect: TRect); virtual;
+    procedure GetItemLayout(AIndex: integer; var ARect: TRect); virtual;
     procedure ChangeSelect(ADelta: integer); virtual;
     procedure SetScrollBarBounds(AOrientation: TScrollOrientation); virtual;
     procedure Clear; virtual;
@@ -165,7 +165,7 @@ type
   TDropDownListView = object(TListView)
   private
   public
-    procedure LayoutRect(ARect: TRect); virtual;
+    procedure Layout; virtual;
     procedure SelectedIndexChanged(var AEvent: TIndexChangedEvent); virtual;
   end;
 
@@ -193,7 +193,7 @@ type
     procedure Unfocus; virtual;
     procedure KeyPress(var AEvent: TKeyEvent); virtual;
     procedure Init; virtual;
-    procedure LayoutRect(ARect: TRect); virtual;
+    procedure Layout; virtual;
     procedure SetText(const AText: string); virtual;
     procedure AutoSizeControl; virtual;
     destructor Free; virtual;
@@ -222,7 +222,7 @@ type
       AValue: pointer; ATag: longint): PCheckListItem;
     function ItemHeight: integer; virtual;
     procedure SetChecked(AIndex: integer; AChecked: boolean);
-    procedure LayoutRect(ARect: TRect); virtual;
+    procedure Layout; virtual;
   end;
 
 implementation
@@ -498,7 +498,7 @@ begin
   ARect.CreateDims(rect.X, cy, rect.Width, ItemHeight);
 end;
 
-procedure TListView.GetItemLayoutRect(AIndex: integer; var ARect: TRect);
+procedure TListView.GetItemLayout(AIndex: integer; var ARect: TRect);
 var
   cx: integer;
   cy: integer;
@@ -705,7 +705,7 @@ begin
   inherited DrawControls;
 end;
 
-procedure TListView.LayoutRect(ARect: TRect);
+procedure TListView.Layout;
 var
   max: longint;
   rect: TRect;
@@ -716,7 +716,7 @@ begin
       + Padding.Height;
     SetBounds(X, Y, Width, Size);
   end;
-  inherited LayoutRect(ARect);
+  inherited Layout;
   GetBounds(rect);
   VertScrollbar^.Increment := ItemHeight;
   VertScrollbar^.PageIncrement := Round(rect.Height / ItemHeight) * ItemHeight;
@@ -883,12 +883,12 @@ begin
   end;
 end;
 
-procedure TDropDownListView.LayoutRect(ARect: TRect);
+procedure TDropDownListView.Layout;
 var
   max: longint;
   maxItems, itemCount, listHeight, size: integer;
 begin
-  inherited LayoutRect(ARect);
+  inherited Layout;
   maxItems := PDropDownList(Parent)^.MaxItems;
   itemCount := Min(Items^.Count, maxItems);
   listHeight := itemCount * ItemHeight + 2 * Parent^.OuterWidth;
@@ -896,7 +896,7 @@ begin
   Height := listHeight;
   VertScrollBar^.Visible := Items^.Count > maxItems;
   VertScrollbar^.Increment := ItemHeight;
-  VertScrollbar^.PageIncrement := Round(ARect.Height / ItemHeight) * ItemHeight;
+  VertScrollbar^.PageIncrement := Round(Height / ItemHeight) * ItemHeight;
 
   max := Items^.Count * ItemHeight;
   Dec(max, Height);
@@ -1125,12 +1125,12 @@ begin
   end;
 end;
 
-procedure TDropDownList.LayoutRect(ARect: TRect);
+procedure TDropDownList.Layout;
 var
   rect, listBounds: TRect;
   listHeight, itemCount: integer;
 begin
-  inherited LayoutRect(ARect);
+  inherited Layout;
   FButtonSize := 17;
   if Graph^.Mode^.Width <= 320 then
     FButtonSize := 11;
@@ -1138,7 +1138,7 @@ begin
   AutoSizeControl;
   itemCount := Min(FList^.Items^.Count, MaxItems);
   listHeight := itemCount * FList^.ItemHeight + 2 * OuterWidth;
-  listBounds.CreateDims(ARect.X, ARect.Bottom, ARect.Width, listHeight);
+  listBounds.CreateDims(0, Y + Height - 1, Width, listHeight);
   FList^.SetBoundsRect(listBounds);
   FList^.BringToFront;
 
@@ -1287,16 +1287,16 @@ begin
     item^.CheckBox^.DrawSelf;
 end;
 
-procedure TCheckListView.LayoutRect(ARect: TRect);
+procedure TCheckListView.Layout;
 var
   index: integer;
   item: PCheckListItem;
   itemRect: TRect;
 begin
-  inherited LayoutRect(ARect);
+  inherited Layout;
   for index := 0 to Items^.Count - 1 do begin
     item := CheckListItems^.GetItem(index);
-    GetItemLayoutRect(index, itemRect);
+    GetItemLayout(index, itemRect);
     item^.CheckBox^.SetXY(itemRect.X, itemRect.Y);
     item^.CheckBox^.Layout;
     TextOffsetX := item^.CheckBox^.Width + 2;

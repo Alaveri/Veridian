@@ -225,6 +225,8 @@ begin
 end;
 
 procedure TVeridianApp.Initialized;
+var
+  increment: integer;
 begin
   inherited Initialized;
   LoadFonts;
@@ -236,8 +238,12 @@ begin
   Desktop^.Layout;
   MenuBar^.Layout;
   Keyboard.GetKey;
-  FNewWindowX := 10;
-  FNewWindowY := MenuBar^.Height + 10;
+
+  increment := 10;
+  if Graph^.Mode^.Width < 512 then
+    increment := 3;
+  FNewWindowX := increment;
+  FNewWindowY := increment;
   ErrorDialog := New(PShowMessageDialog, Create('Error', '', [mbOk]));
   TString.Free(ErrorDialog^.MessageLabel^.Caption);
   GetMem(ErrorDialog^.MessageLabel^.Caption, 256);
@@ -314,11 +320,11 @@ var
   font: PFont;
 begin
   Fonts := New(PFontList, Create);
-  if Graph^.Mode^.Width <= 320 then begin
-    font := LoadFont('portland.fnt');
+  if Graph^.Mode^.Width < 512 then begin
+    font := LoadFont('factoria.fnt');
     font^.SetId('system');
     SystemFont := font;
-    font := LoadFont('fremont.fnt');
+    font := LoadFont('factoria.fnt');
     font^.SetId('editor');
     EditorFont := font;
     font := LoadFont('symsmall.fnt');
@@ -405,12 +411,12 @@ procedure TVeridianApp.ActionExecute(ASender: PActionControl; AAction: PAction);
 var
   event: TActionEvent;
 begin
-  if not (Assigned(ASender) and Assigned(AAction)) then
+  if not (Assigned(ASender) and Assigned(AAction) and AAction^.Enabled) then
     exit;
   UpdateActionControl(ASender);
   if not (ASender^.IsVisibleAndEnabled) then
     exit;
-  if Assigned(AAction^.OnExecute) then begin
+  if Assigned(AAction^.OnExecute) and AAction^.Enabled then begin
     event.Create;
     event.Action := AAction;
     event.Sender := ASender;
@@ -456,9 +462,10 @@ begin
   AControl^.GetDrawRect(rect);
   AControl^.GetClipRect(clipRect);
   rect.Intersect(clipRect);
-  if rect.Contains(AEvent.NewMouseState.X, AEvent.NewMouseState.Y) then begin
+  if rect.Contains(AEvent.NewMouseState.X, AEvent.NewMouseState.Y) then
     AControl^.MouseWheelChanged(AEvent);
-  end;
+  if (not AEvent.Handled) and Assigned(AControl^.Parent) then
+    HandleMouseWheelChanged(AControl^.Parent, AEvent);
 end;
 
 procedure TVeridianApp.HandleMouseUp(AControl: PControl; var AEvent: TMouseEvent;
@@ -469,6 +476,7 @@ var
   now: TDateTime;
   scrollParent: PScrollBar;
   scrollEvent: TScrollEvent;
+  actionControl: PActionControl;
 begin
   if AButton in AEvent.NewMouseState.ButtonState then
     exit;
@@ -512,12 +520,15 @@ begin
   if AEvent.Handled then
     exit;
 
-  if AControl^.IsActionControl and Assigned(PActionControl(AControl)^.Action) then begin
+  if not AControl^.IsActionControl then
+    exit;
+  actionControl := PActionControl(AControl);
+  if Assigned(actionControl^.Action) and actionControl^.Action^.Enabled then begin
     if Assigned(ActiveDialog) then begin
-      ActiveDialog^.ActionExecute(PActionControl(AControl), PActionControl(AControl)^.Action);
+      ActiveDialog^.ActionExecute(actionControl, actionControl^.Action);
       exit;
     end;
-    ActionExecute(PActionControl(AControl), PActionControl(AControl)^.Action);
+    ActionExecute(actionControl, actionControl^.Action);
   end;
 end;
 
@@ -656,7 +667,7 @@ begin
     GetMouseControl := AControl;
 end;
 
-procedure TVeridianApp.HandleMouseEvent(AControl: PControl;  var AEvent: TMouseEvent);
+procedure TVeridianApp.HandleMouseEvent(AControl: PControl; var AEvent: TMouseEvent);
 var
   index: integer;
   control: PControl;
@@ -956,19 +967,31 @@ begin
 end;
 
 function TVeridianApp.DefaultWindowX: integer;
+var
+  increment: integer;
 begin
-  FNewWindowX := FNewWindowX + 10;
+  increment := 10;
+  if Graph^.Mode^.Width < 512 then
+    increment := 3;
   if FNewWindowX > Graph^.Mode^.Width div 2 then
-    FNewWindowX := 10;
+    FNewWindowX := increment;
   DefaultWindowX := FNewWindowX;
+  Inc(FNewWindowX, increment);
 end;
 
 function TVeridianApp.DefaultWindowY: integer;
+var
+  increment: integer;
 begin
-  FNewWindowY := FNewWindowY + 10;
+  increment := 10;
+  if Graph^.Mode^.Width < 512 then
+    increment := 3;
   if FNewWindowY > Graph^.Mode^.Height div 2 then
     FNewWindowY := 10;
+  if MenuBar^.IsVisible then
+    Inc(FNewWindowY, MenuBar^.Height);
   DefaultWindowY := FNewWindowY;
+  Inc(FNewWindowY, increment);
 end;
 
 procedure TVeridianApp.CursorOn;
@@ -1051,7 +1074,7 @@ begin
   if Assigned(FMemLabel) and Assigned(MenuBar) and
     ((FMemAvail <> MemAvail) or (FMemMaxAvail <> MaxAvail))
     and State.DrawEnabled then begin
-    MenuBar^.GetLayoutRect(rect);
+    rect.CreateDims(0, 0, MenuBar^.Width, MenuBar^.Height);
     txt := 'MemAvail: ' + FormatLong(MemAvail) + ' MaxAvail: ' + FormatLong(MaxAvail);
     width := FMemLabel^.Font^.TextWidth('MemAvail: 555,555  MaxAvail: 555,555     ');
     rect.X := rect.Right - width;
@@ -1405,7 +1428,7 @@ begin
   Desktop^.Draw;
   mx := Graph^.Mode^.Width div 2;
   my := Graph^.Mode^.Height div 2;
-  if Graph^.Mode^.Width < 640 then
+  if Graph^.Mode^.Width < 512 then
     Mouse.SetMousePosition(mx * 2, my)
   else
     Mouse.SetMousePosition(mx, my);

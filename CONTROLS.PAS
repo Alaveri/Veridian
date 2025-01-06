@@ -223,10 +223,6 @@ type
     function CalculatedY: integer;
     { Gets a rectangle set to the control's X, Y, Width, and Height values. }
     procedure GetBounds(var ARect: TRect);
-    { Gets the bounds of the control used for calls to LayoutRect. A control's
-      LayoutRect method should position the contents of the control relative to
-      this value.  Usually equivalent to GetBounds at coordinates (0, 0). }
-    procedure GetLayoutRect(var ARect: TRect);
     { Gets the bounds of the control based on the control's Position value. }
     procedure GetCalculatedBounds(var ARect: TRect);
     { Gets the area defined as the client area of the control.  This is usually
@@ -273,8 +269,7 @@ type
     procedure DragMove(var AEvent: TDragEvent); virtual;
     procedure DragEnd(var AEvent: TDragEvent); virtual;
     procedure Init; virtual;
-    procedure LayoutRect(ARect: TRect); virtual;
-    procedure Layout;
+    procedure Layout; virtual;
     procedure AlignControl;
     procedure SetWidthHeight(AWidth, AHeight: word); virtual;
     procedure SetWidth(AWidth: word); virtual;
@@ -343,7 +338,7 @@ type
     procedure GetAlign(var ABounds: TRect; var ASize: TSize;
       var AResult: TPoint);
     procedure Init; virtual;
-    procedure LayoutRect(ARect: TRect); virtual;
+    procedure Layout; virtual;
     procedure SetHorzAlign(AHorzAlign: THorzAlign);
     procedure SetVertAlign(AVertAlign: TVertAlign);
     procedure SetAutoSize(AAutoSize: boolean);
@@ -402,7 +397,7 @@ type
   public
     ActionList: PActionList;
     procedure Init; virtual;
-    procedure LayoutRect(ARect: TRect); virtual;
+    procedure Layout; virtual;
     function ContentX: integer; virtual;
     function ContentY: integer; virtual;
     function ContentWidth: integer; virtual;
@@ -455,7 +450,7 @@ type
     procedure Init; virtual;
     procedure Paint(ARect: TRect); virtual;
     procedure Clear; virtual;
-    procedure LayoutRect(ARect: TRect); virtual;
+    procedure Layout; virtual;
     destructor Free; virtual;
   end;
 
@@ -714,11 +709,6 @@ end;
 procedure TControl.GetBounds(var ARect: TRect);
 begin
   ARect.CreateDims(X, Y, Width, Height);
-end;
-
-procedure TControl.GetLayoutRect(var ARect: TRect);
-begin
-  ARect.CreateDims(0, 0, Width, Height);
 end;
 
 procedure TControl.GetCalculatedBounds(var ARect: TRect);
@@ -1085,17 +1075,9 @@ begin
   SetBoundsRect(rect);
 end;
 
-procedure TControl.LayoutRect(ARect: TRect);
+procedure TControl.Layout;
 begin
   AlignControl;
-end;
-
-procedure TControl.Layout;
-var
-  rect: TRect;
-begin
-  GetLayoutRect(rect);
-  LayoutRect(rect);
 end;
 
 function TControl.ScaleX(APercent: real): integer;
@@ -1624,13 +1606,13 @@ begin
   AutoSize := false;
 end;
 
-procedure TContentControl.LayoutRect(ARect: TRect);
+procedure TContentControl.Layout;
 begin
   if AutoSize then begin
     Width := ContentWidth;
     Height := ContentHeight;
   end;
-  inherited LayoutRect(ARect);
+  inherited Layout;
 end;
 
 procedure TContentControl.GetAlign(var ABounds: TRect; var ASize: TSize;
@@ -1986,9 +1968,9 @@ begin
   SetCaption('');
 end;
 
-procedure TLabel.LayoutRect(ARect: TRect);
+procedure TLabel.Layout;
 begin
-  inherited LayoutRect(ARect);
+  inherited Layout;
 end;
 
 destructor TLabel.Free;
@@ -2174,9 +2156,9 @@ begin
   CreateControlList := New(PDesktopControlList, Create(@self));
 end;
 
-procedure TDesktop.LayoutRect(ARect: TRect);
+procedure TDesktop.Layout;
 begin
-  inherited LayoutRect(ARect);
+  inherited Layout;
   SetBounds(0, 0, Graph^.Mode^.Width, Graph^.Mode^.Height);
 end;
 
@@ -2296,8 +2278,8 @@ var
     for breakIndex := 0 to lineWidth - 1 do begin
       currentChar := Caption[index + breakIndex];
       charWidth := Font^.TextWidth(currentChar);
-      Inc(totalWidth);
-      if (currentChar = #0) or (currentChar = #13) then begin
+       Inc(totalWidth);
+      if (currentChar = #0) or (currentChar = #10) then begin
         { End of string reached before break }
         GetLineBreakIndex := index + breakIndex;
         exit;
@@ -2330,7 +2312,6 @@ begin
   while true do begin
     ch := Caption[index];
     cw := Font^.TextWidth(ch);
-    Inc(tw, cw);
     if (ch = #0) or (index > MaxVarSize) then
       exit;
     if not Wrap then begin
@@ -2344,6 +2325,7 @@ begin
       Graph^.DrawText(pos.X, pos.Y, ch);
       Inc(index);
       Inc(pos.X, cw);
+      Inc(tw, cw);
       ch := Caption[index];
     end;
     while (ch in WhiteSpaceChars) and (ch <> #0) do begin
@@ -2352,7 +2334,7 @@ begin
     end;
     pos.X := left;
     tw := 0;
-    Inc(pos.Y);
+    Inc(pos.Y, Font^.Height);
   end;
 end;
 

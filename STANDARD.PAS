@@ -32,7 +32,7 @@ type
     TextOffsetY: integer;
     function IsCheckBox: boolean; virtual;
     procedure Init; virtual;
-    procedure LayoutRect(ARect: TRect); virtual;
+    procedure Layout; virtual;
     procedure Paint(ARect: TRect); virtual;
     procedure PaintGlyph; virtual;
     procedure DrawGlyph; virtual;
@@ -79,7 +79,7 @@ type
     procedure SetBoundsRect(var ARect: TRect); virtual;
     procedure Paint(ARect: TRect); virtual;
     procedure Init; virtual;
-    procedure LayoutRect(ARect: TRect); virtual;
+    procedure Layout; virtual;
   end;
 
 implementation
@@ -166,9 +166,9 @@ begin
   end;
 end;
 
-procedure TCheckBox.LayoutRect(ARect: TRect);
+procedure TCheckBox.Layout;
 begin
-  inherited LayoutRect(ARect);
+  inherited Layout;
   if AutoSize then begin
     Width := Font^.TextWidthLarge(Caption) + 2 * FocusRectWidth
       + BoxSize + Spacing + 1;
@@ -490,17 +490,21 @@ begin
     FEntry^.UnFocus;
 end;
 
-procedure TNumericUpDown.LayoutRect(ARect: TRect);
+procedure TNumericUpDown.Layout;
 var
   minWidth, maxWidth: integer;
+  size: integer;
 begin
-  FEntry^.SetBounds(ARect.X + 16, 0, ARect.Width - 32, ARect.Height);
+  size := 17;
+  if Graph^.Mode^.Width < 512 then
+    size := 11;
+  FEntry^.SetBounds(size - 1, 0, Width - 2 * (size - 1), Height);
   minWidth := Length(IntToStr(FMinValue));
   maxWidth := Length(IntToStr(FMaxValue));
   FEntry^.MaxLength := Max(minWidth, maxWidth);
-  FDecButton^.SetBounds(0, 0, 17, ARect.Height);
-  FIncButton^.SetBounds(ARect.Width - 17, 0, 17, ARect.Height);
-  inherited LayoutRect(ARect);
+  FDecButton^.SetBounds(0, 0, size, Height);
+  FIncButton^.SetBounds(Width - size, 0, size, Height);
+  inherited Layout;
 end;
 
 end.

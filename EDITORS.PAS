@@ -154,11 +154,13 @@ procedure TEdit.GetCursorRect(var ARect: TRect);
 var
   clipRect: TRect;
   pos: TPoint;
+  offset: integer;
 begin
   inherited GetCursorRect(ARect);
+  offset := 1;
   GetDrawRect(clipRect);
   GetTextAlign(clipRect, pos);
-  ARect.SetDims(pos.X + FCursorX - ScrollPos, pos.Y + Padding.Top - 1, 1, Font^.Height + 1);
+  ARect.SetDims(pos.X + FCursorX - ScrollPos, pos.Y + Padding.Top - offset, 1, Font^.Height + 2 * offset);
 end;
 
 function TEdit.GetIndexAt(AX, AY: integer): longint;
@@ -234,6 +236,8 @@ begin
   TextAlign := haLeft;
   VertAlign := vaCenter;
   Padding.CreateAll(3, 0, 3, 0);
+  if Graph^.Mode^.Width < 512 then
+    Padding.CreateAll(1, 0, 1, 0);
   CanFocus := true;
   BorderStyle := bsSingle;
   MouseCursor := VeridianApp^.MouseCursors^.GetItemById('Beam');
@@ -316,7 +320,7 @@ begin
     charWidth := Font^.TextWidth(ch);
     if pos.X > ARect.Right then
       break;
-    charRect.SetDims(pos.X, pos.Y + Padding.Top - 1, charWidth, Font^.Height + 1);
+    charRect.SetDims(pos.X, pos.Y + Padding.Top - 1, charWidth, Font^.Height + 2);
     charRect.Intersect(Graph^.State^.ViewPort);
     if Focused and selected and (index >= SelectStart) and (index < SelectEnd) then begin
       Graph^.SetForeColor(SelectForeColor);

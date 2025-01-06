@@ -52,7 +52,7 @@ type
     function CloseMenu: boolean;
     procedure Init; virtual;
     procedure Paint(ARect: TRect); virtual;
-    procedure LayoutRect(ARect: TRect); virtual;
+    procedure Layout; virtual;
     procedure Deselect;
     procedure Select;
     procedure OpenMenu;
@@ -93,7 +93,7 @@ type
     MenuLocation: TMenuLocation;
     procedure Init; virtual;
     procedure Paint(ARect: TRect); virtual;
-    procedure LayoutRect(ARect: TRect); virtual;
+    procedure Layout; virtual;
     procedure KeyPress(var AEvent: TKeyEvent); virtual;
     procedure GetMenuDims(var ADims: TSize);
     function NewSeparator: PMenuItem;
@@ -105,7 +105,7 @@ type
   public
     constructor Create;
     procedure Init; virtual;
-    procedure LayoutRect(ARect: TRect); virtual;
+    procedure Layout; virtual;
     procedure Paint(ARect: TRect); virtual;
     procedure KeyPress(var AEvent: TKeyEvent); virtual;
     function NewMenu(const AId, ACaption: string): PMenu;
@@ -187,7 +187,7 @@ begin
     item := MenuItems^.GetItem(index);
     if not item^.Visible then
       continue;
-    itemHeight := item^.Font^.Height + item^.SpacingHeight;
+    itemHeight := item^.Font^.Height + item^.SpacingHeight - 1;
     if item^.IsSeparator then
       itemHeight := itemHeight div 2;
     Inc(ADims.Height, itemHeight);
@@ -200,7 +200,7 @@ begin
   ADims.Grow(2 * borderWidth, 2 * borderWidth);
 end;
 
-procedure TMenu.LayoutRect(ARect: TRect);
+procedure TMenu.Layout;
 var
   itemRect, menuRect, parentItemRect: TRect;
   menuDims: TSize;
@@ -209,7 +209,7 @@ var
   xPos, yPos: integer;
   offset: TPoint;
 begin
-  inherited LayoutRect(ARect);
+  inherited Layout;
   GetMenuDims(menuDims);
   menuRect.CreateDims(0, 0, menuDims.Width, menuDims.Height);
   if Assigned(ParentMenuItem) then begin
@@ -234,7 +234,7 @@ begin
     item := MenuItems^.GetItem(index);
     if not item^.Visible then
       continue;
-    itemHeight := item^.Font^.Height + item^.SpacingHeight;
+    itemHeight := item^.Font^.Height + item^.SpacingHeight - 1;
     if item^.IsSeparator then
       itemHeight := itemHeight div 2;
     itemRect.SetDims(xPos, yPos, menuDims.Width - 2 * OuterWidth, itemHeight);
@@ -413,9 +413,9 @@ begin
   ShortcutColor := oldShortcutColor;
 end;
 
-procedure TMenuItem.LayoutRect(ARect: TRect);
+procedure TMenuItem.Layout;
 begin
-  inherited LayoutRect(ARect);
+  inherited Layout;
 end;
 
 function TMenuItem.CloseMenu: boolean;
@@ -544,7 +544,7 @@ begin
   Position := rpParentClient;
 end;
 
-procedure TMenuBar.LayoutRect(ARect: TRect);
+procedure TMenuBar.Layout;
 var
   txtWidth, xPos, currentHeight, maxHeight, index: integer;
   item: PMenuItem;
@@ -553,7 +553,7 @@ var
   size: TSize;
   txt: string;
 begin
-  inherited LayoutRect(ARect);
+  inherited Layout;
   itemRect.Create;
   xPos := 0;
   maxHeight := 0;
