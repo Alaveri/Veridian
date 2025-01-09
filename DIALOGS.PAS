@@ -412,8 +412,6 @@ begin
   if FDialogButtons^.Count = 0 then
     exit;
   lowRes := Graph^.Mode^.Height < 512;
-  if lowRes then
-    fontHeight := Font^.Height;
   button := PDialogButton(FDialogButtons^.GetItem(0));
   fontHeight := button^.Font^.Height;
   buttonHeight := fontHeight + button^.Padding.Height + 2 * button^.OuterWidth;
@@ -1021,32 +1019,39 @@ begin
   ButtonAlign := haCenter;
   MessageLabel := New(PLabel, CreateParent(Message, @self));
   MessageLabel^.Caption := TString.New(Message);
+  MessageLabel^.AutoSize := false;
+  MessageLabel^.HorzAlign := haCenter;
+  VertAlign := vaCenter;
+  Padding.CreateAll(5, 2, 5, 2);
 end;
 
 procedure TShowMessageDialog.Layout;
 var
   labelWidth: integer;
   button: PDialogButton;
-  lines: integer;
+  lines: word;
   size: TSize;
+  pos: TPoint;
+  rect: TRect;
 begin
-  inherited Layout;
-  labelWidth := MessageLabel^.Font^.TextWidthLarge(MessageLabel^.Caption);
+  lines := MessageLabel^.LineCount;
+  labelWidth := MessageLabel^.MaxLineWidth;
+  Width := labelWidth + OuterWidth + Padding.Width + 8;
   button := PDialogButton(FDialogButtons^.GetItem(0));
-
-  lines := TString.GetLineCount(MessageLabel^.Caption);
-  size.CreateDims(MessageLabel^.Font^.TextWidth(Message),
-    MessageLabel^.Font^.Height * lines);
-  Size.Grow(Padding.Width, Padding.Height + FDialogButtons^.GetItem(0)^.Height + 2 * MessageLabel^.Font^.Height);
-  Width := Size.Width;
-  Height := Size.Height;
-
-  MessageLabel^.Wrap := true;
+  Height :=
+    (MessageLabel^.Font^.Height + MessageLabel^.VertSpacing) * (lines + 3)
+    + Padding.Height
+    + button^.Height
+    + GetTitleHeight;
+  inherited Layout;
+  rect.CreateDims(0, 0, ContentWidth, ContentHeight - button^.Height);
+  size.CreateDims(labelWidth, (MessageLabel^.Font^.Height + MessageLabel^.Font^.Spacing) * lines);
+  GetAlign(rect, size, pos);
   MessageLabel^.SetBounds(
-    (Width - labelWidth) div 2,
-    MessageLabel^.Font^.Height,
+    pos.X,
+    pos.Y,
     labelWidth,
-    Font^.Height
+    Font^.Height * lines
   );
 end;
 

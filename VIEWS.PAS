@@ -778,7 +778,7 @@ var
 begin
   inherited Layout;
   Width := Parent^.Width - Parent^.OuterWidth * 2;
-  xPos := Width - Parent^.OuterWidth - 1;
+  xPos := Width - Parent^.OuterWidth - 3;
   totalWidth := 0;
   size.CreateDims(ButtonWidth, ButtonHeight);
   rect.CreateDims(0, 0, Width, Height);
@@ -1930,7 +1930,7 @@ begin
   GetTitleHeight := 0;
   if not TitleBar^.IsVisible then
     exit;
-  result := Font^.Height + 2 * TitleBar^.Margins.Height
+  result := TitleBar^.Font^.Height + 2 * TitleBar^.Margins.Height
     + TitleBar^.Padding.Height;
   min := 16;
   if Graph^.Mode^.Width < 512 then

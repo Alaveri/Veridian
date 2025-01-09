@@ -56,9 +56,11 @@ type
   PContentControl = ^TContentControl;
   PTextControl = ^TTextControl;
   PVisualControl = ^TVisualControl;
+  PWrapRenderProc = ^TWrapRenderProc;
 
   TControlPredicate = function(AItem: PControl): boolean;
-
+  TWrapRenderProc = procedure(AControl: PContentControl; var ARect: TRect;
+    const APos: TPoint; AText: PChar; ALength: word; var ACounter: word);
 
   TControlOption = (
     coClipping,
@@ -347,9 +349,12 @@ type
 
   TCaptionControl = object(TContentControl)
   private
+    procedure RenderWrappedText(var ARect: TRect; AText: PChar;
+      var ACounter: word; ARenderProc: TWrapRenderProc);
   public
     Caption: PChar;
     Wrap: boolean;
+    VertSpacing: byte;
     constructor CreateCaption(const AId, ACaption: string; AParent: PControl);
     function ContentHeight: integer; virtual;
     function ContentWidth: integer; virtual;
@@ -360,6 +365,8 @@ type
     procedure GetTextAlign(var ABounds: TRect; var AResult: TPoint);
     function TrueTextWidth(const AText: string): integer;
     function GetCaption: string; virtual;
+    function LineCount: word;
+    function MaxLineWidth: word;
     destructor Free; virtual;
   end;
 
@@ -1026,15 +1033,18 @@ var
 begin
   if not Assigned(Parent) then
     exit;
-  Parent^.GetBounds(rect);
+  if Align = alNone then
+    exit;
+  rect.CreateDims(0, 0, Parent^.ContentWidth, Parent^.ContentHeight);
   selfIndex := Parent^.Controls^.IndexOf(@self);
   offsetX := 0;
   offsetY := 0;
   for index := 0 to selfIndex - 1 do begin
     control := Parent^.Controls^.GetItem(index);
-    if control = @self then
+    if (control^.Position <> rpParentContent) or (control = @self)
+      or not (control^.IsVisible) then
       continue;
-    if (Align <> alClient) and (control^.Align <> Align) then
+    if (control^.Align = alNone) or ((Align <> alClient) and (control^.Align <> Align)) then
       continue;
     case control^.Align of
       alLeft: Inc(offsetX, control^.Width);
@@ -1044,13 +1054,13 @@ begin
     end;
   end;
   case Align of
-    alLeft: SetBounds(rect.X + offsetX, rect.Y + offsetY,
+    alLeft: SetBounds(rect.X + offsetX + 1, rect.Y + offsetY + 1,
       Width, rect.Height);
-    alRight: SetBounds(rect.Right - Width + offsetX, rect.Y + offsetY,
+    alRight: SetBounds(rect.Right - Width + offsetX + 1, rect.Y + offsetY,
       Width, rect.Height);
-    alTop: SetBounds(rect.X + offsetX, rect.Y + offsetY,
+    alTop: SetBounds(rect.X + offsetX + 1, rect.Y + offsetY + 1,
       rect.Width, Height);
-    alBottom: SetBounds(rect.X + offsetX, rect.Bottom - Height + offsetY,
+    alBottom: SetBounds(rect.X + offsetX + 1, rect.Bottom - Height + offsetY + 1,
       rect.Width, Height);
   end;
   if Align <> alClient then
@@ -2251,91 +2261,145 @@ begin
   inherited Init;
   Caption := nil;
   Wrap := false;
+  VertSpacing := 2;
+end;
+
+procedure PaintWrappedLine(AControl: PContentControl; var ARect: TRect;
+  const APos: TPoint; AText: PChar; ALength: word; var ACounter: word); far;
+var
+  pos: TPoint;
+  size: TSize;
+  index: integer;
+begin
+  size.CreateDims(0, AControl^.Font^.Height);
+  for index := 0 to ALength - 1 do
+    Inc(size.Width, AControl^.Font^.TextWidth(AText[index]));
+  AControl^.GetAlign(ARect, size, pos);
+  Graph^.RenderText(APos.X + pos.X, APos.Y + pos.Y, ALength, AText);
+  Inc(ACounter);
+end;
+
+procedure CountWrappedLine(AControl: PContentControl; var ARect: TRect;
+  const APos: TPoint; AText: PChar; ALength: word; var ACounter: word); far;
+begin
+  Inc(ACounter);
+end;
+
+procedure GetWrappedLineWidth(AControl: PContentControl; var ARect: TRect;
+  const APos: TPoint; AText: PChar; ALength: word; var ACounter: word); far;
+var
+  width: word;
+begin
+  width := AControl^.Font^.TextWidthAny(AText, ALength);
+  if width > ACounter then
+    ACounter := width;
+end;
+
+function TCaptionControl.LineCount: word;
+var
+  result: word;
+  rect: TRect;
+begin
+  result := 0;
+  GetDrawRect(rect);
+  RenderWrappedText(rect, Caption, result, CountWrappedLine);
+  LineCount := result;
+end;
+
+function TCaptionControl.MaxLineWidth: word;
+var
+  result: word;
+  rect: TRect;
+begin
+  result := 0;
+  GetDrawRect(rect);
+  RenderWrappedText(rect, Caption, result, GetWrappedLineWidth);
+  MaxLineWidth := result;
+end;
+
+procedure TCaptionControl.RenderWrappedText(var ARect: TRect; AText: PChar;
+  var ACounter: word; ARenderProc: TWrapRenderProc);
+var
+  tx, ty, tw: integer;
+  ch: char;
+  charPtr, startPtr, endPtr: PChar;
+  pos: TPoint;
+  rect: TRect;
+begin
+  Graph^.PushState;
+  charPtr := Caption;
+  startPtr := charPtr;
+  endPtr := charPtr;
+  Parent^.GetClipRect(rect);
+  Graph^.SetViewPort(rect);
+  tx := 0;
+  ty := 0;
+  pos.Create;
+  rect.Create;
+  repeat
+    ch := charPtr^;
+    if ch = #0 then
+      break;
+    if ch = #13 then
+      continue;
+    tw := Font^.TextWidth(ch);
+    if ch = #10 then begin
+      pos.SetCoords(0, ty);
+      rect.SetRect(ARect);
+      ARenderProc(@self, rect, pos, startPtr, endPtr - startPtr, ACounter);
+      tx := 0;
+      Inc(ty, Font^.Height + VertSpacing);
+      startPtr := endPtr;
+      charPtr := endPtr;
+      Inc(startPtr);
+    end;
+    if Wrap then begin
+      if (tx + tw > ARect.Width) and not (ch in WhiteSpaceChars) then begin
+        while (endPtr > startPtr) and not (endPtr^ in WhiteSpaceChars) do
+          Dec(endPtr);
+        if endPtr = startPtr then
+          endPtr := charPtr;
+        pos.SetCoords(0, ty);
+        rect.SetRect(ARect);
+        ARenderProc(@self, rect, pos, startPtr, endPtr - startPtr, ACounter);
+        tx := 0;
+        Inc(ty, Font^.Height + VertSpacing);
+        while (endPtr < charPtr) and (endPtr^ in WhiteSpaceChars) do
+          Inc(endPtr);
+        charPtr := endPtr;
+        startPtr := endPtr;
+      end;
+    end;
+    Inc(endPtr);
+    Inc(tx, tw);
+    Inc(charPtr);
+  until false;
+  if endPtr > startPtr then begin
+    pos.SetCoords(0, ty);
+    rect.SetRect(ARect);
+    ARenderProc(@self, ARect, pos, startPtr, endPtr - startPtr, ACounter);
+  end;
+  Graph^.PopState;
 end;
 
 procedure TCaptionControl.Paint(ARect: TRect);
 var
-  next, index: word;
-  left, right: integer;
-  pos: TPoint;
-  current, cw, tw: word;
+  tx, ty, tw: integer;
   ch: char;
-  { Returns the index of the next break in the caption }
-  { for the current line, High(word) if no break is }
-  { found, or High(word) - 1 if the end of the string }
-  { is reached before a break }
-  function GetLineBreakIndex: word;
-  var
-    currentChar: char;
-    current: word;
-    breakIndex: word;
-    lineWidth: integer;
-    charWidth, totalWidth: integer;
-  begin
-    lineWidth := right - left;
-    current := index + lineWidth + 1; { Default to end of line }
-    totalWidth := 0;
-    for breakIndex := 0 to lineWidth - 1 do begin
-      currentChar := Caption[index + breakIndex];
-      charWidth := Font^.TextWidth(currentChar);
-       Inc(totalWidth);
-      if (currentChar = #0) or (currentChar = #10) then begin
-        { End of string reached before break }
-        GetLineBreakIndex := index + breakIndex;
-        exit;
-      end;
-      if currentChar in WhiteSpaceChars then begin
-        { Found a break }
-        { Break is after the end of the line, return previous }
-        if totalWidth >= (right - left) then
-          break;
-        { Set current break index }
-        current := index + breakIndex;
-      end;
-    end;
-    GetLineBreakIndex := current;
-  end;
+  charPtr, startPtr, endPtr: PChar;
+  pos: TPoint;
+  lines, index: word;
 begin
+  if ARect.IsEmpty then
+    exit;
   inherited Paint(ARect);
   if not Assigned(Caption) then
     exit;
-  if ARect.IsEmpty then
+  if TString.Length(Caption) = 0 then
     exit;
-  right := ARect.Right;
-  Graph^.SetForeColor(ForeColor);
-  Graph^.SetBackColor(BackColor);
-  GetTextAlign(ARect, pos);
-  left := pos.X;
-  index := 0;
-  ch := Caption^;
-  tw := 0;
-  while true do begin
-    ch := Caption[index];
-    cw := Font^.TextWidth(ch);
-    if (ch = #0) or (index > MaxVarSize) then
-      exit;
-    if not Wrap then begin
-      Graph^.DrawText(pos.X, pos.Y, ch);
-      Inc(index);
-      Inc(pos.X, cw);
-      continue;
-    end;
-    next := GetLineBreakIndex;
-    while tw < next do begin
-      Graph^.DrawText(pos.X, pos.Y, ch);
-      Inc(index);
-      Inc(pos.X, cw);
-      Inc(tw, cw);
-      ch := Caption[index];
-    end;
-    while (ch in WhiteSpaceChars) and (ch <> #0) do begin
-      Inc(index);
-      ch := Caption[index];
-    end;
-    pos.X := left;
-    tw := 0;
-    Inc(pos.Y, Font^.Height);
-  end;
+  lines := 0;
+  pos.CreateCoords(0, 0);
+  RenderWrappedText(ARect, Caption, lines, PaintWrappedLine);
 end;
 
 destructor TCaptionControl.Free;
