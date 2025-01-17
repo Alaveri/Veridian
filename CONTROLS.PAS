@@ -2340,8 +2340,11 @@ begin
     ch := charPtr^;
     if ch = #0 then
       break;
-    if ch = #13 then
+    if ch = #13 then begin
+      Inc(endPtr);
+      Inc(charPtr);
       continue;
+    end;
     tw := Font^.TextWidth(ch);
     if ch = #10 then begin
       pos.SetCoords(0, ty);
