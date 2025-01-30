@@ -13,6 +13,7 @@ uses
   AplUtils,
   MemDrv,
   Gr8Drv,
+  GrCanvas,
   VeriType,
   VeriCons,
   Views,
@@ -68,7 +69,7 @@ type
     function GetText: string; virtual;
     function GetTextLarge: PChar; virtual;
     procedure Init; virtual;
-    procedure Paint(ARect: TRect); virtual;
+    procedure Paint(ARect: TRect; var ACanvas: TCanvas); virtual;
     procedure Draw; virtual;
     procedure MouseDown(var AEvent: TMouseEvent); virtual;
     procedure MouseUp(var AEvent: TMouseEvent); virtual;
@@ -272,7 +273,7 @@ begin
   VeridianApp^.PopState;
 end;
 
-procedure TEdit.Paint(ARect: TRect);
+procedure TEdit.Paint(ARect: TRect; var ACanvas: TCanvas);
 var
   charRect: TRect;
   index: integer;
@@ -281,7 +282,7 @@ var
   ch: char;
   selected: boolean;
 begin
-  TControl.Paint(ARect);
+  TControl.Paint(ARect, ACanvas);
   if not IsVisible then
     exit;
 

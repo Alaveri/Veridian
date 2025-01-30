@@ -6,6 +6,7 @@ interface
 uses
   AplObj,
   AplTypes,
+  GrCanvas,
   KeyDrv,
   Lists,
   Drawing,
@@ -51,7 +52,7 @@ type
     function IsMenuItem: boolean; virtual;
     function CloseMenu: boolean;
     procedure Init; virtual;
-    procedure Paint(ARect: TRect); virtual;
+    procedure Paint(ARect: TRect; var ACanvas: TCanvas); virtual;
     procedure Layout; virtual;
     procedure Deselect;
     procedure Select;
@@ -92,7 +93,7 @@ type
   public
     MenuLocation: TMenuLocation;
     procedure Init; virtual;
-    procedure Paint(ARect: TRect); virtual;
+    procedure Paint(ARect: TRect; var ACanvas: TCanvas); virtual;
     procedure Layout; virtual;
     procedure KeyPress(var AEvent: TKeyEvent); virtual;
     procedure GetMenuDims(var ADims: TSize);
@@ -106,7 +107,7 @@ type
     constructor Create;
     procedure Init; virtual;
     procedure Layout; virtual;
-    procedure Paint(ARect: TRect); virtual;
+    procedure Paint(ARect: TRect; var ACanvas: TCanvas); virtual;
     procedure KeyPress(var AEvent: TKeyEvent); virtual;
     function NewMenu(const AId, ACaption: string): PMenu;
   end;
@@ -152,8 +153,8 @@ uses
   AplMath,
   VeriCons,
   Graphics,
-  AplUtils,
   Veridian,
+  AplUtils,
   VeriType;
 
 procedure TMenu.Init;
@@ -169,9 +170,9 @@ begin
   Exclude(ControlOptions, coClipping);
 end;
 
-procedure TMenu.Paint(ARect: TRect);
+procedure TMenu.Paint(ARect: TRect; var ACanvas: TCanvas);
 begin
-  inherited Paint(ARect);
+  inherited Paint(ARect, ACanvas);
 end;
 
 procedure TMenu.GetMenuDims(var ADims: TSize);
@@ -386,7 +387,7 @@ begin
   Selected := ParentContainer^.SelectedItem = @self;
 end;
 
-procedure TMenuItem.Paint(ARect: TRect);
+procedure TMenuItem.Paint(ARect: TRect; var ACanvas: TCanvas);
 var
   oldForeColor: byte;
   oldBackColor: byte;
@@ -407,7 +408,7 @@ begin
     Graph^.HLine(rect.X, rect.Y + rect.Height div 2, rect.Width);
     exit;
   end;
-  inherited Paint(ARect);
+  inherited Paint(ARect, ACanvas);
   ForeColor := oldForeColor;
   BackColor := oldBackColor;
   ShortcutColor := oldShortcutColor;
@@ -606,9 +607,9 @@ begin
   end;
 end;
 
-procedure TMenuBar.Paint(ARect: TRect);
+procedure TMenuBar.Paint(ARect: TRect; var ACanvas: TCanvas);
 begin
-  inherited Paint(ARect);
+  inherited Paint(ARect, ACanvas);
   Graph^.SetForeColor(BorderColor);
   Graph^.HLine(0, Height - 1, Width);
 end;

@@ -14,6 +14,7 @@ uses
   AplUtils,
   MouseDrv,
   Events,
+  GrCanvas,
   VeriType,
   Controls;
 
@@ -99,7 +100,7 @@ type
     procedure GetButtonArea(var ARect: TRect);
     procedure Init; virtual;
     procedure Layout; virtual;
-    procedure Paint(ARect: TRect); virtual;
+    procedure Paint(ARect: TRect; var ACanvas: TCanvas); virtual;
     procedure Draw; virtual;
     procedure MouseDown(var AEvent: TMouseEvent); virtual;
     procedure DragStart(var AEvent: TDragEvent); virtual;
@@ -115,7 +116,7 @@ type
     constructor Create(const AId: string; AParentWindow: PWindow);
     function CanDrag(var AEvent: TMouseEvent): boolean; virtual;
     procedure Init; virtual;
-    procedure Paint(ARect: TRect); virtual;
+    procedure Paint(ARect: TRect; var ACanvas: TCanvas); virtual;
     procedure MouseDown(var AEvent: TMouseEvent); virtual;
     procedure DragStart(var AEvent: TDragEvent); virtual;
     procedure DragMove(var AEvent: TDragEvent); virtual;
@@ -171,7 +172,7 @@ type
     procedure GetSliderRect(var ARect: TRect); virtual;
     procedure SetScrollPosition(const APosition: longint);
     procedure Init; virtual;
-    procedure Paint(ARect: TRect); virtual;
+    procedure Paint(ARect: TRect; var ACanvas: TCanvas); virtual;
     procedure Draw; virtual;
     procedure Layout; virtual;
     procedure SetMinMaxPos(const AMin, AMax, APosition: longint);
@@ -198,7 +199,7 @@ type
     function ScrollY: longint; virtual;
     procedure Init; virtual;
     procedure Layout; virtual;
-    procedure Paint(ARect: TRect); virtual;
+    procedure Paint(ARect: TRect; var ACanvas: TCanvas); virtual;
     procedure Draw; virtual;
     procedure DrawControls; virtual;
     procedure SetScrollBarBounds(AOrientation: TScrollOrientation); virtual;
@@ -273,7 +274,7 @@ type
     procedure Minimize; virtual;
     procedure Restore; virtual;
     procedure Init; virtual;
-    procedure Paint(ARect: TRect); virtual;
+    procedure Paint(ARect: TRect; var ACanvas: TCanvas); virtual;
     procedure MouseDown(var AEvent: TMouseEvent); virtual;
     procedure MouseUp(var AEvent: TMouseEvent); virtual;
     procedure MouseEnter(var AEvent: TMouseEvent); virtual;
@@ -326,7 +327,7 @@ type
     function GetCaption: string; virtual;
     function IsTaskbutton: boolean; virtual;
     procedure Init; virtual;
-    procedure Paint(ARect: TRect); virtual;
+    procedure Paint(ARect: TRect; var ACanvas: TCanvas); virtual;
     procedure MouseClick(var AEvent: TMouseEvent); virtual;
   end;
 
@@ -342,7 +343,7 @@ type
     procedure AddWindow(AWindow: PWindow);
     procedure RemoveWindow(AWindow: PWindow);
     procedure SetWindow(AIndex: integer; AWindow: PWindow);
-    procedure Paint(ARect: TRect); virtual;
+    procedure Paint(ARect: TRect; var ACanvas: TCanvas); virtual;
     procedure RemoveButton(AWindow: PWindow);
     function NewButton(AWindow: PWindow): PTaskButton;
     function IndexOfWindow(AWindow: PWindow): integer;
@@ -556,9 +557,9 @@ begin
   Orientation := soVertical;
 end;
 
-procedure TScrollBar.Paint(ARect: TRect);
+procedure TScrollBar.Paint(ARect: TRect; var ACanvas: TCanvas);
 begin
-  inherited Paint(ARect);
+  inherited Paint(ARect, ACanvas);
 end;
 
 procedure TScrollBar.PositionChanged(var AEvent: TScrollEvent);
@@ -837,7 +838,7 @@ begin
   inherited Draw;
 end;
 
-procedure TTitleBar.Paint(ARect: TRect);
+procedure TTitleBar.Paint(ARect: TRect; var ACanvas: TCanvas);
 var
   fore, back: longint;
 begin
@@ -851,7 +852,7 @@ begin
     ForeColor := ActiveForeColor;
     BackColor := ActiveBackColor;
   end;
-  inherited Paint(ARect);
+  inherited Paint(ARect, ACanvas);
   ForeColor := fore;
   BackColor := back;
 end;
@@ -1083,9 +1084,9 @@ begin
   HorzScrollBar^.PageIncrement := ContentWidth - HorzScrollBar^.Increment;
 end;
 
-procedure TView.Paint(ARect: TRect);
+procedure TView.Paint(ARect: TRect; var ACanvas: TCanvas);
 begin
-  TPanel.Paint(ARect);
+  TPanel.Paint(ARect, ACanvas);
 end;
 
 constructor TWindowGrip.Create(const AId: string; AParentWindow: PWindow);
@@ -1112,9 +1113,9 @@ begin
   CanDrag := true;
 end;
 
-procedure TWindowGrip.Paint(ARect: TRect);
+procedure TWindowGrip.Paint(ARect: TRect; var ACanvas: TCanvas);
 begin
-  inherited Paint(ARect);
+  inherited Paint(ARect, ACanvas);
 end;
 
 procedure TWindowGrip.MouseDown(var AEvent: TMouseEvent);
@@ -1692,7 +1693,7 @@ begin
 end;
 
 
-procedure TWindow.Paint(ARect: TRect);
+procedure TWindow.Paint(ARect: TRect; var ACanvas: TCanvas);
 var
   oldBorderColor: byte;
   oldBorderStyle: TBorderStyle;
@@ -1706,7 +1707,7 @@ begin
     BorderColor := VeridianApp^.Colors.WindowBorderActive;
     BorderStyle := bsSingle;
   end;
-  inherited Paint(ARect);
+  inherited Paint(ARect, ACanvas);
   BorderColor := oldBorderColor;
   BorderStyle := oldBorderStyle;
 end;
@@ -2366,9 +2367,9 @@ begin
   GetCaption := Window^.TitleBar^.GetCaption;
 end;
 
-procedure TTaskButton.Paint(ARect: TRect);
+procedure TTaskButton.Paint(ARect: TRect; var ACanvas: TCanvas);
 begin
-  inherited Paint(ARect);
+  inherited Paint(ARect, ACanvas);
 end;
 
 function CanActivate(AItem: pointer; var AValue): boolean;
@@ -2419,9 +2420,9 @@ begin
   inherited CreateParent('TaskBar', Desktop);
 end;
 
-procedure TTaskBar.Paint(ARect: TRect);
+procedure TTaskBar.Paint(ARect: TRect; var ACanvas: TCanvas);
 begin
-  inherited Paint(ARect);
+  inherited Paint(ARect, ACanvas);
 end;
 
 procedure TTaskbar.Init;

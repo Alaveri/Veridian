@@ -10,6 +10,7 @@ uses
   VeriType,
   Drawing,
   Graphics,
+  GrCanvas,
   Palettes,
   Editors,
   Controls;
@@ -33,7 +34,7 @@ type
     function IsCheckBox: boolean; virtual;
     procedure Init; virtual;
     procedure Layout; virtual;
-    procedure Paint(ARect: TRect); virtual;
+    procedure Paint(ARect: TRect; var ACanvas: TCanvas); virtual;
     procedure PaintGlyph; virtual;
     procedure DrawGlyph; virtual;
     procedure SetChecked(AValue: boolean);
@@ -77,7 +78,7 @@ type
     procedure SetIncrement(AValue: longint);
     procedure SetEditable(AValue: boolean);
     procedure SetBoundsRect(var ARect: TRect); virtual;
-    procedure Paint(ARect: TRect); virtual;
+    procedure Paint(ARect: TRect; var ACanvas: TCanvas); virtual;
     procedure Init; virtual;
     procedure Layout; virtual;
   end;
@@ -176,7 +177,7 @@ begin
   end;
 end;
 
-procedure TCheckBox.Paint(ARect: TRect);
+procedure TCheckBox.Paint(ARect: TRect; var ACanvas: TCanvas);
 var
   rect: TRect;
 begin
@@ -444,9 +445,9 @@ begin
   Editable := FEditable;
 end;
 
-procedure TNumericUpDown.Paint(ARect: TRect);
+procedure TNumericUpDown.Paint(ARect: TRect; var ACanvas: TCanvas);
 begin
-  inherited Paint(ARect);
+  inherited Paint(ARect, ACanvas);
 end;
 
 procedure TNumericUpDown.SetValue(AValue: longint);

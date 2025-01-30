@@ -38,6 +38,7 @@ uses
   Events,
   VeriType,
   VeriCons,
+  GrCanvas,
   Colors;
 
 type
@@ -293,7 +294,7 @@ type
     procedure Run; virtual;
     procedure BeginDrawing; virtual;
     procedure EndDrawing; virtual;
-    procedure Paint(ARect: TRect); virtual;
+    procedure Paint(ARect: TRect; var ACanvas: TCanvas); virtual;
     procedure PaintRegion(var ARect: TRect; AExclude: PControl); virtual;
   end;
 
@@ -327,7 +328,7 @@ type
     procedure Init; virtual;
     procedure SetBorderColor(AColor: byte);
     procedure SetBorderStyle(AStyle: TBorderStyle);
-    procedure Paint(ARect: TRect); virtual;
+    procedure Paint(ARect: TRect; var ACanvas: TCanvas); virtual;
   end;
 
   TContentControl = object(TPanel)
@@ -359,7 +360,7 @@ type
     function ContentHeight: integer; virtual;
     function ContentWidth: integer; virtual;
     procedure Init; virtual;
-    procedure Paint(ARect: TRect); virtual;
+    procedure Paint(ARect: TRect; var ACanvas: TCanvas); virtual;
     procedure SetCaption(ACaption: string);
     procedure SetWrap(AWrap: boolean);
     procedure GetTextAlign(var ABounds: TRect; var AResult: TPoint);
@@ -384,7 +385,7 @@ type
     constructor CreateParent(AId: string; AAction: PAction; AParent: PControl);
     destructor Free; virtual;
     procedure Init; virtual;
-    procedure Paint(ARect: TRect); virtual;
+    procedure Paint(ARect: TRect; var ACanvas: TCanvas); virtual;
     procedure Enable;
     procedure Disable;
     function ContentWidth: integer; virtual;
@@ -438,7 +439,7 @@ type
     procedure UnFocus; virtual;
     procedure SetFocus(AFocus, ARedraw: boolean); virtual;
     procedure MouseDown(var AEvent: TMouseEvent); virtual;
-    procedure Paint(ARect: TRect); virtual;
+    procedure Paint(ARect: TRect; var ACanvas: TCanvas); virtual;
   end;
 
   TPopUp = object(TPanel)
@@ -455,7 +456,7 @@ type
   private
   public
     procedure Init; virtual;
-    procedure Paint(ARect: TRect); virtual;
+    procedure Paint(ARect: TRect; var ACanvas: TCanvas); virtual;
     procedure Clear; virtual;
     procedure Layout; virtual;
     destructor Free; virtual;
@@ -471,7 +472,7 @@ type
     Clickable: boolean;
     function IsButton: boolean; virtual;
     procedure Init; virtual;
-    procedure Paint(ARect: TRect); virtual;
+    procedure Paint(ARect: TRect; var ACanvas: TCanvas); virtual;
     procedure Draw; virtual;
     procedure MouseDown(var AEvent: TMouseEvent); virtual;
     procedure MouseClick(var AEvent: TMouseEvent); virtual;
@@ -496,7 +497,7 @@ type
     procedure GetCursorRect(var ARect: TRect); virtual;
     procedure Init; virtual;
     procedure SetText(const AText: string); virtual;
-    procedure Paint(ARect: TRect); virtual;
+    procedure Paint(ARect: TRect; var ACanvas: TCanvas); virtual;
   end;
 
 var
@@ -1103,6 +1104,7 @@ end;
 procedure TControl.DrawControl(ADrawControls: boolean);
 var
   rect: TRect;
+  canvas: TCanvas;
 begin
   if not IsVisible then
     exit;
@@ -1111,7 +1113,9 @@ begin
     exit;
   BeginDrawing;
   GetDrawRect(rect);
-  Paint(rect);
+  canvas.Create(Graph, rect.Width, rect.Height);
+  Paint(rect, canvas);
+  canvas.Free;
   if ADrawControls then
     DrawControls;
   EndDrawing;
@@ -1431,6 +1435,7 @@ var
   index: integer;
   control: PControl;
   rect: TRect;
+  canvas: TCanvas;
 begin
   if (@self = AExclude) or not IsVisible then
     exit;
@@ -1444,7 +1449,9 @@ begin
   BeginDrawing;
   ARect.Intersect(Graph^.State^.ViewPort);
   Graph^.SetViewPort(ARect);
-  Paint(rect);
+  canvas.Create(Graph, rect.Width, rect.Height);
+  Paint(rect, canvas);
+  canvas.Free;
   EndDrawing;
 
   for index := 0 to Controls^.Count - 1 do begin
@@ -1786,7 +1793,7 @@ begin
     Graph^.SetForeColor(DisabledColor);
 end;
 
-procedure TActionControl.Paint(ARect: TRect);
+procedure TActionControl.Paint(ARect: TRect; var ACanvas: TCanvas);
 var
   index: integer;
   txt: string;
@@ -1806,7 +1813,7 @@ begin
     currentBackColor := DisabledBackColor;
   end;
   index := 1;
-  TPanel.Paint(ARect);
+  TPanel.Paint(ARect, ACanvas);
   Graph^.SetForeColor(currentForeColor);
   Graph^.SetBackColor(currentBackColor);
   txt := GetCaption;
@@ -1867,7 +1874,7 @@ begin
   inherited Draw;
 end;
 
-procedure TButton.Paint(ARect: TRect);
+procedure TButton.Paint(ARect: TRect; var ACanvas: TCanvas);
 var
   oldShadowColor, oldLightColor: byte;
   oldFocusColor, oldFocusedBackColor: byte;
@@ -1885,7 +1892,7 @@ begin
     ShadowColor := oldLightColor;
     LightColor := oldShadowColor;
   end;
-  inherited Paint(ARect);
+  inherited Paint(ARect, ACanvas);
   ShadowColor := oldShadowColor;
   LightColor := oldLightColor;
   FocusedColor := oldFocusColor;
@@ -1968,9 +1975,9 @@ begin
   Font := VeridianApp^.GetFont('editor');
 end;
 
-procedure TLabel.Paint(ARect: TRect);
+procedure TLabel.Paint(ARect: TRect; var ACanvas: TCanvas);
 begin
-  inherited Paint(ARect);
+  inherited Paint(ARect, ACanvas);
 end;
 
 procedure TLabel.Clear;
@@ -2051,11 +2058,11 @@ begin
   Draw;
 end;
 
-procedure TPanel.Paint(ARect: TRect);
+procedure TPanel.Paint(ARect: TRect; var ACanvas: TCanvas);
 var
   rect: TRect;
 begin
-  inherited Paint(ARect);
+  inherited Paint(ARect, ACAnvas);
   rect.CreateRect(ARect);
   Graph^.SetForeColor(ForeColor);
   Graph^.SetBackColor(BackColor);
@@ -2385,7 +2392,7 @@ begin
   Graph^.PopState;
 end;
 
-procedure TCaptionControl.Paint(ARect: TRect);
+procedure TCaptionControl.Paint(ARect: TRect; var ACanvas: TCanvas);
 var
   tx, ty, tw: integer;
   ch: char;
@@ -2395,7 +2402,7 @@ var
 begin
   if ARect.IsEmpty then
     exit;
-  inherited Paint(ARect);
+  inherited Paint(ARect, ACanvas);
   if not Assigned(Caption) then
     exit;
   if TString.Length(Caption) = 0 then
@@ -2454,7 +2461,7 @@ begin
     if not Assigned(FBackBuffer) then
       exit;
     FBackBuffer^.Seek(0, soFromBeginning);
-    Graph^.DrawImageStreamRect(rect, FBackBuffer);
+    Graph^.DrawImage(rect, FBackBuffer, [ifStreamed]);
     FreeAndNil(FBackBuffer);
   end;
   Visible := false;
@@ -2498,7 +2505,7 @@ begin
     SetFocus(true, true);
 end;
 
-procedure TFocusControl.Paint(ARect: TRect);
+procedure TFocusControl.Paint(ARect: TRect; var ACanvas: TCanvas);
 var
   oldForeColor, oldBackColor: byte;
 begin
@@ -2507,12 +2514,12 @@ begin
     oldBackColor := BackColor;
     ForeColor := FocusedColor;
     BackColor := FocusedBackColor;
-    inherited Paint(ARect);
+    inherited Paint(ARect, ACanvas);
     ForeColor := oldForeColor;
     BackColor := oldBackColor;
   end
   else
-    inherited Paint(ARect);
+    inherited Paint(ARect, ACanvas);
 end;
 
 procedure TFocusControl.UnFocus;
@@ -2683,13 +2690,13 @@ begin
   GetCursorBackColor := 15;
 end;
 
-procedure TTextControl.Paint(ARect: TRect);
+procedure TTextControl.Paint(ARect: TRect; var ACanvas: TCanvas);
 var
   rect: TRect;
   txt: string;
   pos: TPoint;
 begin
-  TPanel.Paint(ARect);
+  TPanel.Paint(ARect, ACanvas);
   if not IsVisible then
     exit;
   GetDrawRect(rect);

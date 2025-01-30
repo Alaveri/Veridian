@@ -12,6 +12,7 @@ uses
   VeriType,
   Controls,
   Standard,
+  GrCanvas,
   Views;
 
 type
@@ -137,7 +138,7 @@ type
     procedure Focus; virtual;
     procedure UnFocus; virtual;
     procedure Init; virtual;
-    procedure Paint(ARect: TRect); virtual;
+    procedure Paint(ARect: TRect; var ACanvas: TCanvas); virtual;
     procedure Layout; virtual;
     procedure SetSelectedIndex(AIndex: integer);
     procedure KeyPress(var AEvent: TKeyEvent); virtual;
@@ -158,7 +159,7 @@ type
   private
   public
     procedure Init; virtual;
-    procedure Paint(ARect: TRect); virtual;
+    procedure Paint(ARect: TRect; var ACanvas: TCanvas); virtual;
     procedure MouseDown(var AEvent: TMouseEvent); virtual;
   end;
 
@@ -181,7 +182,7 @@ type
     OnSelectedIndexChanged: PIndexChangedProc;
     procedure ShowList;
     procedure HideList;
-    procedure Paint(ARect: TRect); virtual;
+    procedure Paint(ARect: TRect; var ACanvas: TCanvas); virtual;
     function Items: PListItems;
     function SelectedIndex: integer;
     function SelectedItem: PListItem;
@@ -733,7 +734,7 @@ begin
   HorzScrollbar^.SetScrollPosition(0);
 end;
 
-procedure TListView.Paint(ARect: TRect);
+procedure TListView.Paint(ARect: TRect; var ACanvas: TCanvas);
 var
   index: integer;
   oldFocusedColor: longint;
@@ -747,7 +748,7 @@ begin
   oldFocusedBackColor := FocusedBackColor;
   FocusedColor := ForeColor;
   FocusedBackColor := BackColor;
-  inherited Paint(ARect);
+  inherited Paint(ARect, ACanvas);
   FocusedColor := oldFocusedColor;
   FocusedBackColor := oldFocusedBackColor;
 
@@ -864,9 +865,9 @@ begin
   Position := rpParentRelative;
 end;
 
-procedure TDropDownButton.Paint(ARect: TRect);
+procedure TDropDownButton.Paint(ARect: TRect; var ACanvas: TCanvas);
 begin
-  inherited Paint(ARect);
+  inherited Paint(ARect, ACanvas);
 end;
 
 procedure TDropDownButton.MouseDown(var AEvent: TMouseEvent);
@@ -976,7 +977,7 @@ begin
     inherited KeyPress(AEvent);
 end;
 
-procedure TDropDownList.Paint(ARect: TRect);
+procedure TDropDownList.Paint(ARect: TRect; var ACanvas: TCanvas);
 var
   pos: TPoint;
   txt: string;
@@ -987,7 +988,7 @@ begin
   Graph^.SetForeColor(ForeColor);
   Graph^.SetBackColor(BackColor);
   txt := GetText;
-  TControl.Paint(ARect);
+  TControl.Paint(ARect, ACanvas);
   if CanFocus and Focused then
     Graph^.SetBackColor(FocusedBackColor);
   if not TransparentBack then
