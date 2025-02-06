@@ -48,6 +48,7 @@ type
     constructor CreateTopBottom(ATop, ABottom: integer);
     constructor CreateHorz(AValue: integer);
     constructor CreateVert(AValue: integer);
+    constructor CreateSpacing(var AValue: TSpacing);
     function Width: integer;
     function Height: integer;
     procedure SetAll(ALeft, ATop, ARight, ABottom: integer);
@@ -61,6 +62,7 @@ type
     procedure SetVert(AValue: integer);
     procedure SetValue(AValue: integer);
     procedure Init; virtual;
+    procedure Assign(var ASource: TObject); virtual;
   end;
 
 implementation
@@ -124,6 +126,25 @@ begin
   inherited Create;
   SetValue(AValue);
 end;
+
+constructor TSpacing.CreateSpacing(var AValue: TSpacing);
+begin
+  inherited Create;
+  Assign(AValue);
+end;
+
+procedure TSpacing.Assign(var ASource: TObject);
+var
+  source: PSpacing;
+begin
+  inherited Assign(ASource);
+  source := PSpacing(@ASource);
+  Left := source^.Left;
+  Top := source^.Top;
+  Right := source^.Right;
+  Bottom := source^.Bottom;
+end;
+
 
 procedure TSpacing.SetAll(ALeft, ATop, ARight, ABottom: integer);
 begin

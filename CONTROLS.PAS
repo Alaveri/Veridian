@@ -1087,8 +1087,12 @@ begin
 end;
 
 procedure TControl.Layout;
+var
+  index: integer;
 begin
   AlignControl;
+  for index := 0 to Controls^.Count - 1 do
+    Controls^.GetItem(index)^.Layout;
 end;
 
 function TControl.ScaleX(APercent: real): integer;

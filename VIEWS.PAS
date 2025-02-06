@@ -52,7 +52,7 @@ type
     woCloseButton,
     woMaximizeButton,
     woMinimizeButton,
-    woResizeable,
+    woResizable,
     woMoveable,
     woShowInTaskBar,
     woShowGrip
@@ -214,8 +214,8 @@ type
   TWindow = object(TView)
   private
     FGripBorders: TGripRects;
-    FInitialLayout: boolean;
     FDragBorder: TGripBorderType;
+    FInitialLayout: boolean;
     procedure Move;
     procedure Resize;
     procedure HandleDragCursors(var AEvent: TMouseEvent);
@@ -372,6 +372,12 @@ uses
   AplStr,
   VeriCons,
   Gr8Drv;
+
+var
+  DefaultTaskButtonPadding: TSpacing;
+  DefaultLowResTaskButtonPadding: TSpacing;
+  DefaultTaskButtonMargins: TSpacing;
+  DefaultLowResTaskButtonMargins: TSpacing;
 
 constructor TScrollButton.Create(const AId: string; AParent: PScrollBar; AType: TScrollButtonType);
 begin
@@ -1136,7 +1142,7 @@ var
 begin
   if AEvent.Handled then
     exit;
-  if not (woResizeable in PWindow(Parent)^.WindowOptions) then
+  if not (woResizable in PWindow(Parent)^.WindowOptions) then
     exit;
   ParentWindow^.GetDrawRect(rect);
   desktop^.BeginDrawing;
@@ -1362,7 +1368,7 @@ begin
   TitleBar^.Position := rpParentRelative;
   Grip := New(PWindowGrip, Create('Grip', @self));
   Grip^.TransparentBack := true;
-  Grip^.Visible := woResizeable in WindowOptions;
+  Grip^.Visible := woResizable in WindowOptions;
   Grip^.VertAlign := vaCenter;
   Grip^.HorzAlign := haCenter;
   Grip^.Position := rpParentRelative;
@@ -1384,9 +1390,9 @@ begin
   TaskButton := nil;
   ScrollType := scAsNeeded;
   InitialLocation := wpScreenCenter;
-  FInitialLayout := true;
   FDragBorder := gbNone;
   VeridianApp^.PopState;
+  FInitialLayout := true;
 end;
 
 function TWindow.CanDrag(var AEvent: TMouseEvent): boolean;
@@ -1459,7 +1465,7 @@ var
   movingEvent: TMovingEvent;
   maximizedEvent: TEvent;
 begin
-  if not (woResizeable in WindowOptions) then
+  if not (woResizable in WindowOptions) then
     exit;
   sizingEvent.Create;
   movingEvent.Create;
@@ -1672,26 +1678,11 @@ begin
 end;
 
 procedure TWindow.Draw;
-var
-  rect: TRect;
 begin
-  if FInitialLayout then begin
-    FInitialLayout := false;
-    case InitialLocation of
-      wpScreenCenter: CenterScreen;
-      wpDefault: begin
-        X := VeridianApp^.DefaultWindowX;
-        Y := VeridianApp^.DefaultWindowY;
-      end;
-      wpDesktopCenter: CenterDesktop;
-      wpParentCenter: CenterParent;
-    end;
-  end;
   Graph^.PushState;
   inherited Draw;
   Graph^.PopState;
 end;
-
 
 procedure TWindow.Paint(ARect: TRect; var ACanvas: TCanvas);
 var
@@ -1734,6 +1725,18 @@ var
   rect: TRect;
 begin
   inherited Layout;
+  if FInitialLayout then begin
+    FInitialLayout := false;
+    case InitialLocation of
+      wpScreenCenter: CenterScreen;
+      wpDefault: begin
+        X := VeridianApp^.DefaultWindowX;
+        Y := VeridianApp^.DefaultWindowY;
+      end;
+      wpDesktopCenter: CenterDesktop;
+      wpParentCenter: CenterParent;
+    end;
+  end;
   titleHeight := GetTitleHeight;
   TitleBar^.SetBounds(OuterWidth, OuterWidth, Width - 2 * OuterWidth, titleHeight);
   barSize := VertScrollBar^.Size;
@@ -1973,7 +1976,7 @@ end;
 procedure TWindow.SetScrollBarBounds(AOrientation: TScrollOrientation);
 begin
   inherited SetScrollBarBounds(AOrientation);
-  Grip^.Visible := [woShowGrip, woResizeable] * WindowOptions = [woShowGrip, woResizeable];
+  Grip^.Visible := [woShowGrip, woResizable] * WindowOptions = [woShowGrip, woResizable];
   if AOrientation = soVertical then begin
     if Grip^.Visible and not HorzScrollBar^.Visible then
       Dec(VertScrollBar^.Height, HorzScrollBar^.Size);
@@ -2012,7 +2015,7 @@ begin
   if (not Active) and (AEvent.NewMouseState.ButtonState = [bsLeft]) then begin
     Activate;
   end;
-  if not (woResizeable in WindowOptions) then
+  if not (woResizable in WindowOptions) then
     exit;
   point.CreateCoords(AEvent.NewMouseState.X, AEvent.NewMouseState.Y);
   FDragBorder := GetGripBorder(point);
@@ -2024,7 +2027,7 @@ var
   cursor: PMouseCursor;
   gripBorder: TGripBorderType;
 begin
-  if not (woResizeable in WindowOptions) then
+  if not (woResizable in WindowOptions) then
     exit;
   if (FDragBorder = gbNone) and not Assigned(VeridianApp^.DragControl) then begin
     point.CreateCoords(AEvent.X, AEvent.Y);
@@ -2137,7 +2140,7 @@ begin
   inherited DragStart(AEvent);
   if AEvent.Handled then
     exit;
-  if not (woResizeable in WindowOptions) then
+  if not (woResizable in WindowOptions) then
     exit;
   AEvent.Handled := true;
   if FDragBorder = gbNone then
@@ -2348,11 +2351,12 @@ begin
   CanFocus := false;
   HorzAlign := haCenter;
   VertAlign := vaCenter;
-  Padding.CreateAll(4, 4, 4, 4);
-  Margins.CreateAll(2, 0, 0, 0);
+  Padding := DefaultTaskButtonPadding;
+  Padding.CreateSpacing(DefaultTaskButtonPadding);
+  Margins.CreateSpacing(DefaultTaskButtonMargins);
   if Graph^.Mode^.Width < 512 then begin
-  Padding.CreateAll(1, 1, 1, 1);
-  Margins.CreateAll(1, 0, 0, 0);
+    Padding.CreateSpacing(DefaultLowResTaskButtonPadding);
+    Margins.CreateSpacing(DefaultLowResTaskButtonMargins);
   end;
   Font := VeridianApp^.GetFont('editor');
 end;
@@ -2524,7 +2528,12 @@ begin
   Width := rect.Width + 2 * OuterWidth;
   X := -OuterWidth;
   xPos := 0;
-  maxHeight := 0;
+  controlHeight := Font^.Height + 4;
+  if Graph^.Mode^.Width < 512 then
+    Inc(controlHeight, DefaultLowResTaskButtonPadding.Height)
+  else
+    Inc(controlHeight, DefaultTaskButtonPadding.Height);
+  maxHeight := controlHeight + 2 * OuterWidth + Margins.Height;
   for index := 0 to Controls^.Count - 1 do begin
     control := PContentControl(Controls^.GetItem(index));
     controlWidth := control^.Font^.TextWidth(PTaskButton(control)^.GetCaption)
@@ -2599,4 +2608,9 @@ begin
   inherited SetItem(AIndex, AItem);
 end;
 
+begin
+  DefaultTaskButtonPadding.CreateValue(4);
+  DefaultLowResTaskButtonPadding.CreateValue(1);
+  DefaultTaskButtonMargins.CreateAll(2, 0, 0, 0);
+  DefaultLowResTaskButtonMargins.CreateAll(1, 0, 0, 0);
 end.

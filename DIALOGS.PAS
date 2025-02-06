@@ -896,7 +896,7 @@ begin
   TString.AssignString(LastDir, GetCurrentDirectory);
   FileOptions := [];
   Buttons := [mbOk, mbCancel];
-  Include(WindowOptions, woResizeable);
+  Include(WindowOptions, woResizable);
   ScrollType := scNone;
   ButtonAlign := haRight;
   CurrentDir := nil;
