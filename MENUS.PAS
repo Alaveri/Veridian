@@ -221,10 +221,10 @@ begin
         menuRect.Y := parentItemRect.Bottom + 1;
       end;
       mlSide: begin
-        menuRect.X := parentItemRect.X + parentItemRect.Width;
+        menuRect.X := parentItemRect.X + parentItemRect.Width + 1;
         menuRect.Y := parentItemRect.Y - BorderWidth;
         if menuRect.Right > Graph^.Mode^.Bounds.Right then
-          menuRect.X := parentItemRect.X - menuDims.Width;
+          menuRect.X := parentItemRect.X - menuDims.Width - 1;
       end;
     end;
   end;
@@ -411,6 +411,9 @@ begin
   inherited Paint(ARect, ACanvas);
   ForeColor := oldForeColor;
   BackColor := oldBackColor;
+  if Assigned(Menu) and not IsMainMenuItem then begin
+    Graph^.DrawText(rect.Right - Font^.TextWidth(#17), rect.Y, #17);
+  end;
   ShortcutColor := oldShortcutColor;
 end;
 
@@ -876,6 +879,7 @@ end;
 
 procedure TMenuManager.OpenMenu(AMenu: PMenuItemContainer);
 var
+  item: PMenuItem;
   parentMenuItem: PMenuItem;
   parentContainer: PMenuItemContainer;
 begin
@@ -898,6 +902,11 @@ begin
         CloseMenu(parentContainer);
     end;
     FOpenMenus^.Push(AMenu);
+    item := AMenu^.GetNextActiveMenuItem(true);
+    if Assigned(item) then begin
+      AMenu^.SelectedItem := item;
+      item^.DrawSelf;
+    end;
     AMenu^.Show;
   end;
 end;

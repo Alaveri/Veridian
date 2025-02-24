@@ -8,6 +8,7 @@ uses
   AplDos,
   AplTypes,
   AplConst,
+  AplIo,
   Drawing,
   Dialogs,
   Lists,
@@ -30,9 +31,9 @@ uses
   Menus;
 
 const
-  DefaultDoubleClickDelay = 1.0;
-  DefaultCursorBlinkRate = 0.4;
-  DefaultMouseSensitivity = 4;
+  DefaultDoubleClickDelay: double = 1.0;
+  DefaultCursorBlinkRate: double = 0.4;
+  DefaultMouseSensitivity: double = 4;
 
 type
   PVeridianApp = ^TVeridianApp;
@@ -112,7 +113,6 @@ type
     procedure InitMouseEvent(AControl: PControl; var AEvent: TMouseEvent);
     procedure DrawCursor;
     procedure HandleCursor;
-    procedure ApplySettings;
     procedure SetMouseSensitivity(ASens: real);
     procedure ParseParameters;
     {$IFDEF debug}
@@ -132,7 +132,7 @@ type
     SystemFont: PFont;
     SymbolFont: PFont;
     EditorFont: PFont;
-    Settings: TVeridianAppSettings;
+    Settings: PVeridianAppSettings;
     CursorBlinkTime: TDateTime;
     Parameters: TStringList;
     DoubleClickControl: PControl;
@@ -153,6 +153,14 @@ type
     function GetFont(const AId: string): PFont;
     function DefaultWindowX: integer;
     function DefaultWindowY: integer;
+    function CreateSettings: PVeridianAppSettings; virtual;
+    function FocusNext(AControl: PControl; AReverse: boolean): boolean;
+    function FocusFirst: boolean;
+    function FocusLast: boolean;
+    function GetMouseControl(AControl: PControl; var AMouseState: TMouseState): PControl;
+    function TaskBarHeight: integer;
+    function MenuBarHeight: integer;
+    function ConfigFilename: string; virtual;
     procedure Error(var ASender; ACode: word); virtual;
     procedure ProcessEvents; virtual;
     procedure Run; virtual;
@@ -176,12 +184,7 @@ type
     procedure DisableDrawing;
     procedure GetMouseState(var AMouseState: TMouseState);
     procedure DrawDragRect(var ARect: TRect);
-    function FocusNext(AControl: PControl; AReverse: boolean): boolean;
-    function FocusFirst: boolean;
-    function FocusLast: boolean;
-    function GetMouseControl(AControl: PControl; var AMouseState: TMouseState): PControl;
-    function TaskBarHeight: integer;
-    function MenuBarHeight: integer;
+    procedure ApplySettings; virtual;
   end;
 
 var
@@ -261,8 +264,8 @@ begin
   StateStack.DisposeObjects := true;
   StateStack.Free;
   Parameters.Free;
-  Settings.Free;
   FSpecialControls.Free;
+  FreeAndNil(Settings);
   FreeAndNil(Fonts);
   inherited Free;
 end;
@@ -357,7 +360,6 @@ begin
   FSpecialControls.DisposeObjects := false;
   CursorBlinkTime.Create;
   StateStack.Create;
-  Settings.Create;
   DragRect.Create;
   LastDragRect.Create;
   Colors := LightColors;
@@ -369,9 +371,16 @@ begin
   ParseParameters;
 end;
 
+function TVeridianApp.ConfigFilename: string;
+begin
+  ConfigFilename := IncludeBackslash(AppDir) + 'veridian.cfg';
+end;
+
 procedure TVeridianApp.Init;
 begin
   inherited Init;
+  Settings := CreateSettings;
+  Settings^.TryLoadFromFile(ConfigFilename);
   Memory.OnAllocError := @OnAllocError;
   FCursorBlinkVisible := false;
   CreateObjects;
@@ -611,7 +620,7 @@ begin
     FBlinkCurrentTime.SetNow;
     FBlinkElapsed.Ticks := FBlinkCurrentTime.Ticks - CursorBlinkTime.Ticks;
     seconds := FBlinkElapsed.TotalSeconds;
-    if seconds > Settings.CursorBlinkRate then begin
+    if seconds > Settings^.CursorBlinkRate then begin
       FCursorBlinkVisible := not FCursorBlinkVisible;
       CursorBlinkTime.SetNow;
       DrawCursor;
@@ -915,6 +924,7 @@ begin
       if Assigned(ActiveDropDown) then
         ActiveDropDown^.HideList;
       Desktop^.EndDrawing;
+      AEvent.Handled := true;
     end;
   end;
   if AEvent.Handled then
@@ -1164,7 +1174,7 @@ begin
     exit;
   end;
   elapsed.CreateTicks(ATime.Ticks - FDoubleClickStart.Ticks);
-  if elapsed.Ticks < Settings.DoubleClickDelay.Ticks then begin
+  if elapsed.Ticks < Settings^.DoubleClickDelay.Ticks then begin
     if (AEvent.NewMouseState.X = FDoubleClickPos.X)
       and (AEvent.NewMouseState.Y = FDoubleClickPos.Y) then
       AControl^.MouseDoubleClick(AEvent);
@@ -1219,6 +1229,11 @@ begin
   DragControl := nil;
   ActiveDialog := nil;
   ScrollSlider := nil;
+end;
+
+function TVeridianApp.CreateSettings: PVeridianAppSettings;
+begin
+  CreateSettings := New(PVeridianAppSettings, Create);
 end;
 
 procedure TVeridianApp.RestoreSpecialControlState;
@@ -1405,7 +1420,7 @@ end;
 
 procedure TVeridianApp.ApplySettings;
 begin
-  SetMouseSensitivity(Settings.MouseSensitivity);
+  SetMouseSensitivity(Settings^.MouseSensitivity);
 end;
 
 procedure TVeridianApp.Run;
@@ -1495,7 +1510,7 @@ begin
   CursorBlinkRate :=  AStream^.ReadDouble;
   UpdateScrollContents := AStream^.ReadBool;
   DoubleClickDelay.CreateTicks(AStream^.ReadDouble);
-  MouseSensitivity := AStream^.ReadReal;
+  MouseSensitivity := AStream^.ReadDouble;
 end;
 
 begin

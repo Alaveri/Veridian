@@ -529,7 +529,7 @@ begin
   Tag := 5;
   OnPositionChanged := nil;
   FPosition := 0;
-  UpdateScrollContents := VeridianApp^.Settings.UpdateScrollContents;
+  UpdateScrollContents := VeridianApp^.Settings^.UpdateScrollContents;
   ForeColor := VeridianApp^.Colors.ScrollBar;
   BackColor := VeridianApp^.Colors.ScrollBarBack;
   FillPattern := @CheckerFillPattern;
@@ -575,7 +575,7 @@ var
   pos: real;
 begin
   parentView := PView(Parent);
-  if not VeridianApp^.Settings.UpdateScrollContents then begin
+  if not VeridianApp^.Settings^.UpdateScrollContents then begin
     pos := PosFromCoord;
     SetRealPosition(pos);
   end;
@@ -2317,7 +2317,7 @@ begin
     slider^.Y := Clamp(slider^.Y + ADelta, minCoord, maxCoord);
     pos := PosFromCoord;
   end;
-  if VeridianApp^.Settings.UpdateScrollContents then
+  if VeridianApp^.Settings^.UpdateScrollContents then
     SetRealPosition(pos)
   else begin
     DrawSlider;
