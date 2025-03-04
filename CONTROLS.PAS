@@ -125,6 +125,7 @@ type
     Position: TRelativePosition;
     Visible: boolean;
     Enabled: boolean;
+    Valid: boolean;
     OnKeyPress: PKeyEventProc;
     OnMouseDown: PMouseEventProc;
     OnMouseMove: PMouseEventProc;
@@ -296,6 +297,7 @@ type
     procedure EndDrawing; virtual;
     procedure Paint(ARect: TRect; var ACanvas: TCanvas); virtual;
     procedure PaintRegion(var ARect: TRect; AExclude: PControl); virtual;
+    procedure Invalidate;
   end;
 
   TVisualControl = object(TControl)
@@ -840,6 +842,7 @@ begin
   Include(ControlOptions, coClipping);
   Visible := true;
   Enabled := true;
+  Valid := true;
   Align := alNone;
   Position := rpParentContent;
   Margins.Create;
@@ -889,6 +892,14 @@ procedure TControl.SetHeight(AHeight: word);
 begin
   Height := AHeight;
   Draw;
+end;
+
+procedure TControl.Invalidate;
+begin
+  Valid := true;
+  if not IsVisible then
+    exit;
+  Valid := false;
 end;
 
 procedure TControl.Hide;

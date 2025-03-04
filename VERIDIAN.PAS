@@ -47,9 +47,9 @@ type
     UpdateScrollContents: boolean;
     DoubleClickDelay: TTimeSpan;
     MouseSensitivity: real;
+    function SaveToStream(AStream: PStream): longint; virtual;
     procedure Init; virtual;
     procedure Assign(var ASource: TObject); virtual;
-    procedure SaveToStream(AStream: PStream); virtual;
     procedure LoadFromStream(AStream: PStream); virtual;
   end;
 
@@ -115,6 +115,7 @@ type
     procedure HandleCursor;
     procedure SetMouseSensitivity(ASens: real);
     procedure ParseParameters;
+    procedure RedrawInvalidControl(AControl: PControl);
     {$IFDEF debug}
     procedure UpdateDebugInfo;
     {$ENDIF}
@@ -324,7 +325,7 @@ var
 begin
   Fonts := New(PFontList, Create);
   if Graph^.Mode^.Width < 512 then begin
-    font := LoadFont('factoria.fnt');
+    font := LoadFont('sierra.fnt');
     font^.SetId('system');
     SystemFont := font;
     font := LoadFont('factoria.fnt');
@@ -1375,6 +1376,25 @@ begin
     Parameters.AddString(ParamStr(index));
 end;
 
+procedure TVeridianApp.RedrawInvalidControl(AControl: PControl);
+var
+  index: integer;
+  control: PControl;
+begin
+  if not Assigned(AControl) then
+    exit;
+
+  for index := 0 to AControl^.Controls^.Count - 1 do begin
+    control := AControl^.Controls^.GetItem(index);
+    RedrawInvalidControl(control);
+  end;
+
+  if not AControl^.Valid then
+    AControl^.Draw;
+
+  AControl^.Valid := true;
+end;
+
 function TVeridianApp.CheckNilPtr(APtr: pointer): boolean;
 begin
   CheckNilPtr := false;
@@ -1497,12 +1517,13 @@ begin
   MouseSensitivity := source^.MouseSensitivity;
 end;
 
-procedure TVeridianAppSettings.SaveToStream(AStream: PStream);
+function TVeridianAppSettings.SaveToStream(AStream: PStream): longint;
 begin
   AStream^.WriteDouble(CursorBlinkRate);
   AStream^.WriteBool(UpdateScrollContents);
   AStream^.WriteDouble(DoubleClickDelay.Ticks);
   AStream^.WriteDouble(MouseSensitivity);
+  SaveToStream := 25;
 end;
 
 procedure TVeridianAppSettings.LoadFromStream(AStream: PStream);

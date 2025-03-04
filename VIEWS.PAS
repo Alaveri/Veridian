@@ -1005,7 +1005,7 @@ var
 begin
   result := inherited ContentWidth;
   if VertScrollBar^.IsVisible then
-    Dec(result, VertScrollBar^.Width - 1);
+    Dec(result, VertScrollBar^.Width);
   ContentWidth := result;
 end;
 
@@ -1073,8 +1073,8 @@ begin
       VertScrollBar^.FPosition := ClampR(VertScrollBar^.FPosition, 0,
         VertScrollBar^.Max);
 
-      VertScrollBar^.Visible := extent.Height > ContentHeight - Padding.Height;
-      HorzScrollBar^.Visible := extent.Width > ContentWidth - Padding.Width;
+      HorzScrollBar^.Visible := extent.Width > ClientWidth - Padding.Width;
+      VertScrollBar^.Visible := extent.Height > ClientHeight - Padding.Height;
 
       if not VertScrollbar^.Visible then
         VertScrollBar^.FPosition := 0;
@@ -1084,9 +1084,7 @@ begin
   end;
   SetScrollBarBounds(soVertical);
   SetScrollBarBounds(soHorizontal);
-  VertScrollBar^.Increment := Font^.Height + 6;
   VertScrollBar^.PageIncrement := ContentHeight - VertScrollBar^.Increment;
-  HorzScrollBar^.Increment := VertScrollBar^.Increment;
   HorzScrollBar^.PageIncrement := ContentWidth - HorzScrollBar^.Increment;
 end;
 
