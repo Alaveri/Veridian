@@ -405,14 +405,14 @@ begin
   GetDrawRect(rect);
   if IsSeparator then begin
     Graph^.SetForeColor(BorderColor);
-    Graph^.HLine(rect.X, rect.Y + rect.Height div 2, rect.Width);
+    Graph^.HLine(ARect.X, ARect.Y + ARect.Height div 2, ARect.Width);
     exit;
   end;
   inherited Paint(ARect, ACanvas);
   ForeColor := oldForeColor;
   BackColor := oldBackColor;
   if Assigned(Menu) and not IsMainMenuItem then begin
-    Graph^.DrawText(rect.Right - Font^.TextWidth(#17), rect.Y, #17);
+    Graph^.DrawText(rect.Right - Font^.TextWidth(#16), rect.Y, #16);
   end;
   ShortcutColor := oldShortcutColor;
 end;

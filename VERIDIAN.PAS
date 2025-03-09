@@ -682,6 +682,7 @@ var
   index: integer;
   control: PControl;
   dragEvent: TDragEvent;
+  mouseControl: PControl;
 begin
   if AEvent.Handled then
     exit;
@@ -710,12 +711,15 @@ begin
       dragEvent.Y := AEvent.NewMouseState.Y;
       DragControl^.DragMove(dragEvent);
     end;
-    if Assigned(LeftMouseDownControl)
-      and (LeftMouseDownControl^.CanDrag(AEvent))
+    mouseControl := LeftMouseDownControl;
+    if not Assigned(mouseControl) then
+      mouseControl := RightMouseDownControl;
+    if Assigned(mouseControl)
+      and (mouseControl^.CanDrag(AEvent))
       and not Assigned(DragControl) then begin
-      if not LeftMouseDownControl^.IsVisibleAndEnabled then
+      if not mouseControl^.IsVisibleAndEnabled then
         exit;
-      DragControl := LeftMouseDownControl;
+      DragControl := mouseControl;
       DragInitialPos.SetCoords(AEvent.NewMouseState.X, AEvent.NewMouseState.Y);
       dragEvent.Create;
       dragEvent.InitialX := DragInitialPos.X;
@@ -723,7 +727,7 @@ begin
       dragEvent.X := DragInitialPos.X;
       dragEvent.Y := DragInitialPos.Y;
       DragInitialSize.CreateDims(DragControl^.Width, DragControl^.Height);
-      LeftMouseDownControl^.DragStart(dragEvent);
+      mouseControl^.DragStart(dragEvent);
     end;
     HandleMouseEnter(control, FMouseEvent);
   end;
@@ -1138,22 +1142,24 @@ procedure TVeridianApp.HandleMouseCursor;
 var
   newRect, oldRect: TRect;
 begin
-  if not Assigned(DragControl) then
+  if not Assigned(DragControl)  then
     DragRectVisible := false;
-  if Assigned(DragControl) and not DragRectVisible then begin
-    DragRectVisible := true;
-    MoveMouseCursor(FMouseState, FOldMouseState, false);
-    DrawDragRect(DragRect);
-    LastDragRect.Assign(DragRect);
-  end
-  else if Assigned(DragControl) and DragRectVisible then begin
-    newRect.CreateRect(DragRect);
-    oldRect.CreateRect(LastDragRect);
-    DrawDragRect(oldRect);
-    MoveMouseCursor(FMouseState, FOldMouseState, false);
-    DrawDragRect(newRect);
-    MouseCursor^.Draw;
-    LastDragRect.Assign(DragRect);
+  if Assigned(DragControl) and DragControl^.ShowDragOutline then begin
+    if not DragRectVisible then begin
+      DragRectVisible := true;
+      MoveMouseCursor(FMouseState, FOldMouseState, false);
+      DrawDragRect(DragRect);
+      LastDragRect.Assign(DragRect);
+    end
+    else begin
+      newRect.CreateRect(DragRect);
+      oldRect.CreateRect(LastDragRect);
+      DrawDragRect(oldRect);
+      MoveMouseCursor(FMouseState, FOldMouseState, false);
+      DrawDragRect(newRect);
+      MouseCursor^.Draw;
+      LastDragRect.Assign(DragRect);
+    end;
   end
   else
     MoveMouseCursor(FMouseState, FOldMouseState, false);
@@ -1176,8 +1182,10 @@ begin
   end;
   elapsed.CreateTicks(ATime.Ticks - FDoubleClickStart.Ticks);
   if elapsed.Ticks < Settings^.DoubleClickDelay.Ticks then begin
-    if (AEvent.NewMouseState.X = FDoubleClickPos.X)
-      and (AEvent.NewMouseState.Y = FDoubleClickPos.Y) then
+
+{    if (AEvent.NewMouseState.X = FDoubleClickPos.X)
+      and (AEvent.NewMouseState.Y = FDoubleClickPos.Y) then}
+    if DoubleClickControl = AControl then
       AControl^.MouseDoubleClick(AEvent);
     FDoubleClickStart.Ticks := 0;
     DoubleClickControl := nil;

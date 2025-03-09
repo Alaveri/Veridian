@@ -97,6 +97,7 @@ type
     ButtonWidth, ButtonHeight: integer;
     constructor Create(const AId, ACaption: string; AParentWindow: PWindow);
     function CanDrag(var AEvent: TMouseEvent): boolean; virtual;
+    function ShowDragOutline: boolean; virtual;
     procedure GetButtonArea(var ARect: TRect);
     procedure Init; virtual;
     procedure Layout; virtual;
@@ -115,6 +116,7 @@ type
   public
     constructor Create(const AId: string; AParentWindow: PWindow);
     function CanDrag(var AEvent: TMouseEvent): boolean; virtual;
+    function ShowDragOutline: boolean; virtual;
     procedure Init; virtual;
     procedure Paint(ARect: TRect; var ACanvas: TCanvas); virtual;
     procedure MouseDown(var AEvent: TMouseEvent); virtual;
@@ -246,6 +248,7 @@ type
     destructor Free; virtual;
     function IsWindowType(const AType: string): boolean;
     function WindowType: string; virtual;
+    function ShowDragOutline: boolean; virtual;
     function TitleVisible: boolean;
     function Active: boolean;
     function CanDrag(var AEvent: TMouseEvent): boolean; virtual;
@@ -775,6 +778,11 @@ begin
   CanDrag := true;
 end;
 
+function TTitleBar.ShowDragOutline: boolean;
+begin
+  ShowDragOutline := true;
+end;
+
 procedure TTitleBar.Layout;
 var
   xPos: integer;
@@ -1117,6 +1125,11 @@ begin
   CanDrag := true;
 end;
 
+function TWindowGrip.ShowDragOutline: boolean;
+begin
+  ShowDragOutline := true;
+end;
+
 procedure TWindowGrip.Paint(ARect: TRect; var ACanvas: TCanvas);
 begin
   inherited Paint(ARect, ACanvas);
@@ -1209,13 +1222,18 @@ var
 begin
   GetDrawRect(rect);
   Graph^.PushState;
+  HideEx(rect, VeridianApp^.DragRect);
   Graph^.SetDrawPage(Graph^.OffScreenPage);
   SetBoundsRect(VeridianApp^.DragRect);
   Show;
   Graph^.CopyFromOffScreen(VeridianApp^.DragRect, VeridianApp^.DragRect);
   Graph^.PopState;
-  HideEx(rect, VeridianApp^.DragRect);
   Visible := true;
+end;
+
+function TWindow.ShowDragOutline: boolean;
+begin
+  ShowDragOutline := true;
 end;
 
 procedure TWindow.Move;
@@ -1283,7 +1301,6 @@ begin
     rect.X := AEvent.X - (rect.Width div 2);
     rect.Width := ParentWindow^.RestoredBounds.Width;
     rect.Height := ParentWindow^.RestoredBounds.Height;
-    ParentWindow^.WindowState := wsNormal;
     TString.Assign(MaximizeButton^.Caption, #7);
   end;
   desktop^.BeginDrawing;
@@ -1329,6 +1346,9 @@ begin
   ParentWindow^.CreateMovingEvent(movingEvent);
   ParentWindow^.CreateMovedEvent(movedEvent);
   if movingEvent.CanMove then begin
+    if ParentWindow^.WindowState = wsMaximized then
+      ParentWindow^.Hide;
+    ParentWindow^.WindowState := wsNormal;
     ParentWindow^.Resize;
     ParentWindow^.Visible := true;
     ParentWindow^.Moved(movedEvent);
@@ -1694,7 +1714,6 @@ begin
   oldBorderStyle := BorderStyle;
   if WindowState = wsMaximized then begin
     BorderColor := VeridianApp^.Colors.WindowBorderActive;
-    BorderStyle := bsSingle;
   end;
   inherited Paint(ARect, ACanvas);
   BorderColor := oldBorderColor;
@@ -1947,7 +1966,7 @@ var
 begin
   result := inherited ContentY;
   if TitleBar^.IsVisible then
-    Inc(result, TitleBar^.Height);
+    Inc(result, GetTitleHeight);
   ContentY := result;
 end;
 

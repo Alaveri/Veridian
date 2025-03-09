@@ -109,7 +109,7 @@ type
     Parent: PControl;
     Controls: PControlList;
     Align: TAlign;
-    Tag: integer;
+    Tag: longint;
     Margins: TSpacing;
     Padding: TSpacing;
     { Defines what the control's bounds are in relation to.  Valid value are:
@@ -158,6 +158,7 @@ type
     function BringToFront: boolean;
     function SendToBack: boolean;
     function CanDrag(var AEvent: TMouseEvent): boolean; virtual;
+    function ShowDragOutline: boolean; virtual;
     function CanUndo: boolean;
     function IsMouseOver: boolean;
     function IsVisible: boolean;
@@ -685,6 +686,11 @@ begin
   CanDrag := false;
 end;
 
+function TControl.ShowDragOutline: boolean;
+begin
+  ShowDragOutline := false;
+end;
+
 function TControl.CanUndo: boolean;
 begin
   CanUndo := false;
@@ -1066,14 +1072,30 @@ begin
     end;
   end;
   case Align of
-    alLeft: SetBounds(rect.X + offsetX + 1, rect.Y + offsetY + 1,
-      Width, rect.Height);
-    alRight: SetBounds(rect.Right - Width + offsetX + 1, rect.Y + offsetY,
-      Width, rect.Height);
-    alTop: SetBounds(rect.X + offsetX + 1, rect.Y + offsetY + 1,
-      rect.Width, Height);
-    alBottom: SetBounds(rect.X + offsetX + 1, rect.Bottom - Height + offsetY + 1,
-      rect.Width, Height);
+    alLeft: SetBounds(
+      rect.X + offsetX,
+      rect.Y + offsetY,
+      Width,
+      rect.Height - offsetY - Margins.Height
+    );
+    alRight: SetBounds(
+      rect.Width - Width - offsetX - Margins.Width,
+      rect.Y + offsetY,
+      Width,
+      rect.Height - offsetY - Margins.Height
+    );
+    alTop: SetBounds(
+      rect.X + offsetX,
+      rect.Y + offsetY,
+      rect.Width - offsetX - Margins.Width,
+      Height
+    );
+    alBottom: SetBounds(
+      rect.X + offsetX,
+      rect.Height - Height - offsetY - Margins.Height,
+      rect.Width - offsetX - Margins.Width,
+      Height
+    );
   end;
   if Align <> alClient then
     exit;
@@ -2012,7 +2034,7 @@ end;
 
 constructor TControlList.Create(AOwner: PControl);
 begin
-  inherited Create;
+  inherited CreateCapacity(16);
   Owner := AOwner;
 end;
 
@@ -2085,8 +2107,14 @@ begin
   Graph^.SetLinePattern(LinePattern);
   if not TransparentBack then
     Graph^.FillRect(rect);
-  rect.Translate(1, 1);
-  rect.Grow(-2, -2);
+  case BorderStyle of
+    bsSingle: begin
+      Graph^.SetForeColor(BorderColor);
+      Graph^.Rectangle(rect);
+      rect.Translate(1, 1);
+      rect.Grow(-2, -2);
+    end;
+  end;
   case BevelStyle of
     bvRaised: begin
       Graph^.SetForeColor(ShadowColor);
@@ -2103,14 +2131,6 @@ begin
       Graph^.SetForeColor(ShadowColor);
       Graph^.HLine(rect.X, rect.Y, rect.Width);
       Graph^.VLine(rect.X, rect.Y, rect.Height);
-    end;
-  end;
-  rect.Translate(-1, -1);
-  rect.Grow(2, 2);
-  case BorderStyle of
-    bsSingle: begin
-      Graph^.SetForeColor(BorderColor);
-      Graph^.Rectangle(rect);
     end;
   end;
 end;
