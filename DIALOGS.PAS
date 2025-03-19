@@ -227,8 +227,8 @@ uses
   Strings,
   Dos,
   AplStr,
-  AplUtils,
-  Veridian;
+  Veridian,
+  AplUtils;
 
 procedure ShowMessage(const ATitle, AMessage: string);
 var

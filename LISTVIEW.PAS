@@ -351,6 +351,7 @@ end;
 procedure TListView.Init;
 begin
   inherited Init;
+  Font := VeridianApp^.GetFont('editor');
   TransparentBack := false;
   ScrollType := scAsNeeded;
   CanFocus := true;
@@ -361,7 +362,6 @@ begin
   BevelStyle := bvNone;
   VertScrollBar^.Position := rpParentRelative;
   HorzScrollBar^.Position := rpParentRelative;
-  Font := VeridianApp^.GetFont('editor');
   SelectedColor := VeridianApp^.Colors.ListSelected;
   SelectedBackColor := VeridianApp^.Colors.ListSelectedBack;
   UnfocusedSelectForeColor := VeridianApp^.Colors.ListUnfocusedSelect;
@@ -610,6 +610,7 @@ begin
   clipRect.Grow(-2 * OuterWidth, -2 * OuterWidth);
   clipRect.Intersect(Graph^.State^.ViewPort);
   Graph^.SetViewPort(clipRect);
+  Graph^.State^.Font := Font;
   Graph^.FillRect(itemRect);
   Graph^.DrawText(itemRect.X + Padding.Left + item^.TextOffsetX,
     itemRect.Y + item^.TextOffsetY + ItemSpacing div 2, item^.Text);

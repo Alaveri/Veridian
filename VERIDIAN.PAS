@@ -284,7 +284,7 @@ begin
   FMemLabel^.TransparentBack := false;
   FMemLabel^.SetForeColor(MenuBar^.ForeColor);
   FMemLabel^.SetBackColor(MenuBar^.BackColor);
-  FMemLabel^.Font := Fonts^.GetItemById('editor');
+  FMemLabel^.Font := GetFont('System');
   FMemLabel^.AutoSize := true;
   FMemLabel^.Layout;
   {$ENDIF}
@@ -325,14 +325,17 @@ var
 begin
   Fonts := New(PFontList, Create);
   if Graph^.Mode^.Width < 512 then begin
-    font := LoadFont('sierra.fnt');
+    font := LoadFont('sierra.fnt');{factoria}
     font^.SetId('system');
     SystemFont := font;
-    font := LoadFont('factoria.fnt');
+    font := LoadFont('sierra.fnt');
     font^.SetId('editor');
     EditorFont := font;
     font := LoadFont('symsmall.fnt');
     font^.SetId('symbol');
+    SymbolFont := font;
+    font := LoadFont('sierra.fnt');
+    font^.SetId('list');
     SymbolFont := font;
   end
   else begin
@@ -344,6 +347,9 @@ begin
     EditorFont := font;
     font := LoadFont('symbol.fnt');
     font^.SetId('symbol');
+    SymbolFont := font;
+    font := LoadFont('rainier.fnt');
+    font^.SetId('list');
     SymbolFont := font;
   end;
 end;
@@ -924,12 +930,14 @@ begin
       exit;
     end;
     kyEsc: begin
-      Desktop^.BeginDrawing;
-      container := MenuManager.PopAndCloseMenu;
-      if Assigned(ActiveDropDown) then
-        ActiveDropDown^.HideList;
-      Desktop^.EndDrawing;
-      AEvent.Handled := true;
+      if MenuManager.OpenMenus^.Count > 0 then begin
+        Desktop^.BeginDrawing;
+        container := MenuManager.PopAndCloseMenu;
+        if Assigned(ActiveDropDown) then
+          ActiveDropDown^.HideList;
+        Desktop^.EndDrawing;
+        AEvent.Handled := true;
+      end;
     end;
   end;
   if AEvent.Handled then

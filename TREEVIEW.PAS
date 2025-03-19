@@ -259,7 +259,7 @@ function TTreeListItem.TextOffsetX: integer;
 var
   charWidth: integer;
 begin
-  charWidth := TreeNode^.FOwner^.Font^.TextWidth('W');
+  charWidth := TreeNode^.FOwner^.Font^.TextWidth('W') + 1;
   TextOffsetX := TreeNode^.Level * charWidth + charWidth;
 end;
 
@@ -429,11 +429,11 @@ begin
     GetTextAlign(itemRect, arrowPos);
     item^.FArrowLabel^.VertAlign := vaCenter;
     item^.FArrowLabel^.SetXY(
-      Padding.Left + item^.TextOffsetX + itemRect.X - Font^.TextWidth('W'),
+      Padding.Left + item^.TextOffsetX + itemRect.X - Font^.TextWidth('W') - 1,
       arrowPos.Y + 1
     );
     item^.FArrowLabel^.Layout;
-    item^.FArrowLabel^.Width := Font^.TextWidth('W');
+    item^.FArrowLabel^.Width := Font^.TextWidth('W') + 1;
     item^.FArrowLabel^.Height := Font^.Height;
     txt := item^.TreeNode^.Text;
     item^.SetText(txt);
@@ -509,7 +509,7 @@ end;
 var
   PreviousExitProc: PProc;
 
-procedure Finalize;
+procedure Finalize; far;
 begin
   ExitProc := PreviousExitProc;
 end;

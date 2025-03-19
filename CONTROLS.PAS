@@ -27,6 +27,7 @@ uses
   AplApps,
   AplTypes,
   AplConst,
+  AplMath,
   Drawing,
   MouseDrv,
   Graphics,
@@ -475,8 +476,10 @@ type
     Clickable: boolean;
     function IsButton: boolean; virtual;
     procedure Init; virtual;
+    procedure Layout; virtual;
     procedure Paint(ARect: TRect; var ACanvas: TCanvas); virtual;
     procedure Draw; virtual;
+    procedure KeyPress(var AEvent: TKeyEvent); virtual;
     procedure MouseDown(var AEvent: TMouseEvent); virtual;
     procedure MouseClick(var AEvent: TMouseEvent); virtual;
     procedure MouseEnter(var AEvent: TMouseEvent); virtual;
@@ -1894,11 +1897,24 @@ begin
   HighlightColor := VeridianApp^.Colors.ButtonHighlight;
   BorderColor := VeridianApp^.Colors.ButtonBorder;
   Down := false;
+  AutoSize := false;
   BorderStyle := bsSingle;
   BevelStyle := bvRaised;
   Toggle := false;
   Clickable := true;
   FocusRectWidth := 1;
+end;
+
+procedure TButton.Layout;
+var
+  min: integer;
+begin
+  inherited Layout;
+  if AutoSize then begin
+    min := 65;
+    Width := Max(min, TrueTextWidth(GetCaption) + Padding.Width);
+    Height := Font^.Height + Padding.Height + 2 * OuterWidth;
+  end;
 end;
 
 function TButton.IsButton: boolean;
@@ -1945,6 +1961,20 @@ begin
   rect.Translate(-1, -1);
   Graph^.State^.ViewPort := rect;
   Graph^.Rectangle(rect);
+end;
+
+procedure TButton.KeyPress(var AEvent: TKeyEvent);
+var
+  event: TMouseEvent;
+begin
+  if not (IsVisibleAndEnabled and Focused) then
+    exit;
+  if AEvent.Key = kyEnter then begin
+    event.Create;
+    event.NewMouseState.Create;
+    event.NewMouseState.ButtonState := [bsLeft];
+    MouseClick(event);
+  end;
 end;
 
 procedure TButton.MouseDown(var AEvent: TMouseEvent);

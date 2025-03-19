@@ -793,7 +793,7 @@ var
 begin
   inherited Layout;
   Width := Parent^.Width - Parent^.OuterWidth * 2;
-  xPos := Width - Parent^.OuterWidth - 3;
+  xPos := Width - Parent^.OuterWidth;
   totalWidth := 0;
   size.CreateDims(ButtonWidth, ButtonHeight);
   rect.CreateDims(0, 0, Width, Height);
@@ -1338,6 +1338,8 @@ var
   movedEvent: TMoveEvent;
   movingEvent: TMovingEvent;
 begin
+  if not (woMoveable in PWindow(Parent)^.WindowOptions) then
+    exit;
   if AEvent.Handled then
     exit;
   ParentWindow^.GetDrawRect(rect);
@@ -2375,7 +2377,7 @@ begin
     Padding.CreateSpacing(DefaultLowResTaskButtonPadding);
     Margins.CreateSpacing(DefaultLowResTaskButtonMargins);
   end;
-  Font := VeridianApp^.GetFont('editor');
+  Font := VeridianApp^.GetFont('System');
 end;
 
 function TTaskButton.IsTaskButton: boolean;
@@ -2545,7 +2547,7 @@ begin
   Width := rect.Width + 2 * OuterWidth;
   X := -OuterWidth;
   xPos := 0;
-  controlHeight := Font^.Height + 4;
+  controlHeight := Font^.Height + 2;
   if Graph^.Mode^.Width < 512 then
     Inc(controlHeight, DefaultLowResTaskButtonPadding.Height)
   else
